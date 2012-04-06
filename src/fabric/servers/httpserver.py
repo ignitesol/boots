@@ -57,9 +57,9 @@ class HTTPServer(Server):
     def start_main_server(self, default_host=None, default_port=None):
 #        bottle.debug(True)
         if concurrency == 'gevent':
-            bottle.run(port=self.cmmd_line_args['port'], server='gevent')
+            bottle.run(host=self.cmmd_line_args['host'], port=self.cmmd_line_args['port'], server='gevent')
         else:
-            bottle.run(port=self.cmmd_line_args['port'])
+            bottle.run(host=self.cmmd_line_args['host'], port=self.cmmd_line_args['port'])
 
     def activate_endpoints(self):
         '''

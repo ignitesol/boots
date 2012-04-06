@@ -128,7 +128,7 @@ class Server(object):
             return self._proj_dir
 
         subdir = subdir or 'conf'        
-        root_module = inspect.stack()[-1][1]
+        root_module = os.path.abspath(inspect.stack()[-1][1])
         path_subset = [ s for s in sys.path if root_module.startswith(s) and os.path.exists(os.path.join(s, '..', subdir)) ]
         try:
             return os.path.abspath(os.path.join(path_subset[0], '..'))
@@ -196,7 +196,6 @@ class Server(object):
                                    overrides=config_overrides, callbacks=config_callbacks,
                                    env_config=dict(_proj_dir=self.get_proj_dir()))
         
-        
     def stats(self):
         return {}
     
@@ -242,5 +241,4 @@ class Server(object):
             warn('Cannot instantiate logging: %s' % (e,))
         except ValueError as e:
             warn('Incomplete logging configuration: %s' % (e,))
-
 
