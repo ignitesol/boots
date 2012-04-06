@@ -1,0 +1,13 @@
+# ignore all compiled output
+*.pyc
+*.pyo
+*.old/
+*.gz
+*.tar
+installs/
+/logs
+/build
+/dist
+/app
+/extractor
+/sparx_adapters
