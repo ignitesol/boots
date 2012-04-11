@@ -27,16 +27,42 @@ import os
 #######     BEWARE       ################
 # Decorator writers - Beware.
 # ensure you put the following code
-#        try:
-#            wrapper._signature = callback._signature
-#        except AttributeError:
-#            pass
-#
+#    self.plugin_post_apply(callback, wrapper)
 # just before returning wrappers. This is essential for RequestParam to work since we need the signature
 # of the function which decorators mask. 
 # alternately, we can use the import decorator module
 ##############
-class RequestParams(object):
+class BasePlugin(object):
+    ''' BasePlugin provides helper methods that propogate information across plugins as they are applied. All
+    plugins should inherit from BasePlugin and invoke self.plugin_post_apply before returning the wrapper function
+    (typically before return wrapper)
+    '''
+    def plugin_post_apply(self, callback, wrapper):
+        '''
+        This ensure that we copy any special attributes from callback for use by other plugins. This
+        should be called as the last line of the apply before return wrapper. Its purpose is to hoist
+        the signature and the reference to the 'self' of the method that actually implements the final callback.
+        The signature is hoisted and kept as an attribute of the wrapper as *wrapper._signature*. The *self* of the 
+        wrapper method is stored in an attribute *wrapper._callback_obj*
+        
+        :param callback: the callback passed to the decorator (i.e. the actual method/function that will be decorated)
+        :param wrapper: the wrapper function that wraps callback (in plugins this is typically called *wrapper*)
+        '''
+        wrapper._signature = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
+        wrapper._callback_obj = callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        
+
+class RequestParams(BasePlugin):
+    '''
+    RequestParams processes parameters that are provided with an HTTP request. It works through introspection
+    of the method/function that is handling the request (and hence, it requires access to the method's signature). Refer
+    to the :py:class BasePlugin.
+    
+    With HTTPServers, RequestParams is automatically instantiated and users can directly use this.
+    
+    RequestParams extracts parameters from the GET, POST or ANY methods (as specified in :py:func:`methodroute`). RequestParams
+    requires a context parameter called params (also specified with :py:func:`methodroute`
+    '''
                
     def __init__(self):
         pass
@@ -56,7 +82,7 @@ class RequestParams(object):
         method = context['method']
 
         @wraps(callback)
-        def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
+        def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             seek_args = filter(lambda x: x not in kargs, f_args)
             req_params = bottle.request.POST if method == 'POST' or method =='ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
             for arg in seek_args:
@@ -85,20 +111,16 @@ class RequestParams(object):
                     missing_params += [m]
             if len(missing_params) != 0:
                 bottle.abort(400, 'Missing parameters: {}'.format(", ".join(missing_params)))
-            return callback(**kargs)
+            return callback(*args, **kargs)
         
-        try:
-            wrapper._signature = callback._signature
-        except AttributeError:
-            pass
-
+        self.plugin_post_apply(callback, wrapper)
         return wrapper
 
-class Hook(object):
+class Hook(BasePlugin):
     request_counter = new_counter() # allows requests and responses to be correlated
     
-    def request_context(self, callback_obj, url, **kargs):
-        return self.request_counter()
+    def create_request_context(self, callback, url, **kargs):
+        return (self.request_counter(), getattr(callback, '_callback_obj', None) or getattr(callback, 'imself', None))
     
     def __init__(self, handler=None):
         dummy_handler = lambda *args, **kargs: None
@@ -110,44 +132,43 @@ class Hook(object):
 
     def apply(self, callback, context):
         @wraps(callback)
-        def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
-            print callback, callback.__name__, callback.im_self
-            context = self.request_context(callback_obj=callback.im_self, url=bottle.request.url, **kargs)
+        def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
+            request_context = self.create_request_context(callback=callback, url=bottle.request.url, **kargs)
             exception = None 
-            self.handler(before_or_after='before', request_context=context, callback_obj=callback.im_self, url=bottle.request.url, **kargs)
+            self.handler(before_or_after='before', request_context=request_context, callback=callback, url=bottle.request.url, **kargs)
             try:
-                result = callback(**kargs)
+                result = callback(*args, **kargs)
             except Exception as e:
                 exception = e
                 result=None
             finally:
-                self.handler(before_or_after='after', request_context=context, callback_obj=callback.im_self, url=bottle.request.url, 
+                self.handler(before_or_after='after', request_context=request_context, callback=callback, url=bottle.request.url, 
                              result=result, exception=exception, **kargs)
                 if exception:
                     raise
             return result
         
+        self.plugin_post_apply(callback, wrapper)
         return wrapper
     
 class Tracer(Hook):
     
-    @staticmethod
-    def default_handler(before_or_after, request_context, callback_obj, url, result=None, exception=None, **kargs):
-        if before_or_after == 'before':
-            logging.getLogger().debug('Request: %s. url = %s, %s', request_context, url, kargs)
-        elif exception:
-            logging.getLogger().debug('Response: %s. Exception = %s. [ url = %s, %s ]', request_context, exception, url, kargs)
-        else:
-            logging.getLogger().debug('Response: %s. Result = %s. [ url = %s, %s ]', request_context, result, url, kargs)
+    def default_handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
+        req_count, _ = request_context
+        if filter(None, [ regex.match(url) for regex in self.tracer_paths ]) != []:
+            if before_or_after == 'before':
+                logging.getLogger().debug('Request: %s. url = %s, %s', req_count, url, kargs)
+            elif exception:
+                logging.getLogger().debug('Response: %s. Exception = %s. [ url = %s, %s ]', req_count, exception, url, kargs)
+            else:
+                logging.getLogger().debug('Response: %s. Result = %s. [ url = %s, %s ]', req_count, result, url, kargs)
         
-    def __init__(self, tracer_paths, handler=None):
-        self.tracer_paths = tracer_paths
+    def __init__(self, tracer_paths='.*', handler=None):
+        self.tracer_paths = map(re.compile, tracer_paths or [])
         handler = handler or self.default_handler
         super(Tracer, self).__init__(handler=handler)
-        
     
-    
-class WrapException(object):
+class WrapException(BasePlugin):
                
     def __init__(self, default_handler=None):
         self.default_handler = default_handler
@@ -199,10 +220,8 @@ class WrapException(object):
                     return err_ret
                 else:
                     bottle.abort(code=500, text=errstr)
-        try:
-            wrapper._signature = callback._signature
-        except AttributeError:
-            pass
+
+        self.plugin_post_apply(callback, wrapper)
         return wrapper
        
 
@@ -260,6 +279,15 @@ class HTTPServerEndPoint(EndPoint):
                 callback = None
             if hasattr(callback, '_methodroute'): # only methodroute decorated methods will have this
                 route_kargs = callback._route_kargs  # additional kargs passed on the decorator
+                
+                # implement skip by type and update skip for the route
+                skip_by_type = route_kargs.setdefault('skip_by_type', [])
+                skip_by_type = bottle.makelist(skip_by_type)
+                skip = [ p for p in self.plugins if p.__class__ in skip_by_type ]
+                route_kargs.setdefault('skip', [])
+                route_kargs['skip'] += skip
+                del route_kargs['skip_by_type']
+                
                 # explicitly find route combinations and remove :self - else bottle includes self in the routes
                 path = callback._methodroute if callback._methodroute is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
                 self.app.route(path=path, callback=callback, **route_kargs)
@@ -314,12 +342,9 @@ class HTTPServerEndPoint(EndPoint):
             self.app = bottle.default_app()
         
         # apply all plugins
-        if self.server.config.get('Tracer', {}).get('enabled', False):
-            tracer_paths = self.server.config.get('Tracer', {}).get('paths', ['*'])
-            tracer_plugins = [ Tracer(tracer_paths) ]
-        else:
-            tracer_plugins = []
-        [ self.app.install(plugin) for plugin in self.plugins + tracer_plugins ]
+        self.std_plugins = self.server.get_standard_plugins(self.plugins)
+        self.plugins = self.std_plugins + self.plugins
+        [ self.app.install(plugin) for plugin in self.plugins ]
             
         self.routeapp() # establish any routes that have been setup by the @methodroute decorator
         self.activated = True

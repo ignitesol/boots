@@ -12,7 +12,7 @@ elif concurrency == 'threading':
 import time
 from fabric.servers.httpserver import HTTPServer
 from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute, Hook,\
-    WrapException, RequestParams
+    WrapException, RequestParams, Tracer
 import json
 
 import logging
@@ -22,16 +22,18 @@ logging.getLogger().addHandler(logging.NullHandler())
 
 class Stats(Hook):
     
-    def request_context(self):
-        return super(Stats, self).request_context(), time.time()
+    def create_request_context(self, **kargs):
+        return super(Stats, self).create_request_context(**kargs), time.time()
     
     @staticmethod
-    def stat_handler(before_or_after, request_context, callback_obj, url, result=None, exception=None, **kargs):
+    def stat_handler(before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
         if before_or_after == 'after':
-            if getattr(callback_obj, 'stats_collector', None):
+            callback_obj = getattr(callback, '_callback_obj', None) or getattr(callback, 'im_self', None)
+            server = getattr(callback_obj, 'server', None)
+            if server and getattr(server, 'stats_collector', None):
                 _, start_time = request_context
                 end_time = time.time()
-                callback_obj.stats_collector(callback_obj.__name__, url, end_time - start_time, start_time, end_time, **kargs)
+                server.stats_collector(callback.__name__, url, end_time - start_time, start_time, end_time, **kargs)
         
     def __init__(self):
         super(Stats, self).__init__(handler=self.stat_handler)
@@ -39,27 +41,26 @@ class Stats(Hook):
 class ManagedEP(HTTPServerEndPoint):
     
     def __init__(self, name=None, mountpoint='/admin', plugins=None, server=None, activate=False, stat_class=None):
-        if plugins is None: plugins = []
-        elif type(plugins) != list: plugins = [ plugins ]
-        stat_class = stat_class or Stats
-        plugins = [ stat_class() ] + plugins
-        print plugins
+#        if plugins is None: plugins = []
+#        elif type(plugins) != list: plugins = [ plugins ]
+#        stat_class = stat_class or Stats
+#        plugins = [ stat_class() ] + plugins
+#        print plugins
         super(ManagedEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
 
 
-    @methodroute(params=dict(configuration=json.loads))
+    @methodroute(params=dict(configuration=json.loads), skip_by_type=[Stats, Tracer])
     def config(self, configuration=None):
         if configuration is not None:
             self.config.update_config(configuration)
         
-    @methodroute()
+    @methodroute(skip_by_type=[Stats, Tracer])
     def stats(self):
         return self.server.stats()
     
-    @methodroute()
+    @methodroute(skip_by_type=[Stats, Tracer])
     def health(self):
         return self.server.health()
-    
     
 class StatsEntry(dict):
     
@@ -70,19 +71,19 @@ class StatsEntry(dict):
         self['max'] = None
         self['min'] = None
         
-    def update(self, val):
+    def add(self, val):
         if isinstance(val, StatsEntry):
             self['total_time'] += val['total_time']
             self['total_count'] += val['total_count']
             self['mean'] = self['total_time'] / self['total_count']
             self['max'] = max(self['max'], val['max'])
-            self['min'] = min(self['min'], val['min'])
+            self['min'] = val['min'] if self['min'] is None else min(self['min'], val['min'])
         else:
-            self.total_count += 1
+            self['total_count'] += 1
             self['total_time'] += val
-            self['mean'] = self['total_time'] / self.total_count
+            self['mean'] = self['total_time'] / self['total_count']
             self['max'] = max(self['max'], val)
-            self['min'] = min(self['min'], val)
+            self['min'] = val if self['min'] is None else min(self['min'], val)
 
         
 class StatsCollection(object):
@@ -98,7 +99,7 @@ class StatsCollection(object):
     @classmethod
     def add(cls, name, delta):
         with cls.lock:
-            cls.statstable.setdefault(name, StatsEntry()).update(delta)
+            cls.statstable.setdefault(name, StatsEntry()).add(delta)
     
 class ManagedServer(HTTPServer):
     
@@ -106,14 +107,18 @@ class ManagedServer(HTTPServer):
         return self._stats.get()
         
     def stats_collector(self, handler_name, url, time_taken, start_time, end_time, **kargs):
-        self._stats.update(url, time_taken)
+        self._stats.add(handler_name, time_taken)
     
     def __init__(self,  endpoints=None, *args, **kargs):
         endpoints = endpoints or []
         endpoints = [ endpoints ] if type(endpoints) not in [list, tuple] else endpoints
-        endpoints = endpoints + [ ManagedEP(plugins=[ WrapException(), RequestParams() ])]
-        print endpoints
+        endpoints = endpoints + [ ManagedEP()]
         self._stats = StatsCollection()
         super(ManagedServer, self).__init__(*args, endpoints=endpoints, **kargs)
 
-
+    def get_standard_plugins(self, plugins):
+        try:
+            par_plugins = super(ManagedServer, self).get_standard_plugins(plugins)
+        except AttributeError:
+            par_plugins = []
+        return par_plugins + [ Stats() ] 

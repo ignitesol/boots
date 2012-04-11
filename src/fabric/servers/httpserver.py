@@ -4,6 +4,7 @@ Created on Mar 21, 2012
 @author: AShah
 '''
 from fabric import concurrency
+from fabric.endpoints.http_ep import Tracer, WrapException, RequestParams
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
 
@@ -21,28 +22,13 @@ import logging
 # without getting warnings about no handlers specified
 logging.getLogger().addHandler(logging.NullHandler())
 
-class HTTPServer(Server):
-    
-    config_callbacks = { }  # we can set these directly out of the class body or in __init__
+class HTTPBaseServer(Server):
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
                  **kargs):
-        '''
-        kargs can be 'session' (bool), 'cache' (bool), 'auth' (bool) and control whether any related 
-        configuration processing is to be done
-        '''
-        self.mount_prefix = mount_prefix or ''
-        
-        # setup the callbacks for configuration
-        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
-        if session: self.config_callbacks['Session'] = self.session_config_update
-        if cache: self.config_callbacks['Caching'] = self.cache_config_update
-        if auth: self.config_callbacks['Auth'] = self.auth_config_update
-        
         self.app = bottle.default_app() # this will get overridden by the callback handlers as appropriate
+        super(HTTPBaseServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
 
-        super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
-    
     @classmethod
     def get_arg_parser(cls, description='', add_help=False, parents=[], 
                         conflict_handler='error', **kargs):
@@ -67,6 +53,28 @@ class HTTPServer(Server):
         '''
         [ endpoint.activate(server=self, mount_prefix=self.mount_prefix) for endpoint in self.endpoints ]
 
+
+class HTTPServer(HTTPBaseServer):
+    
+    config_callbacks = { }  # we can set these directly out of the class body or in __init__
+
+    def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
+                 **kargs):
+        '''
+        kargs can be 'session' (bool), 'cache' (bool), 'auth' (bool) and control whether any related 
+        configuration processing is to be done
+        '''
+        self.mount_prefix = mount_prefix or ''
+        
+        # setup the callbacks for configuration
+        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
+        if session: self.config_callbacks['Session'] = self.session_config_update
+        if cache: self.config_callbacks['Caching'] = self.cache_config_update
+        if auth: self.config_callbacks['Auth'] = self.auth_config_update
+        
+        self.default_exception = kargs.get('handle_exception', False)
+        super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
+    
     def auth_config_update(self, action, full_key, new_val, config_obj):
         '''
         Called by Config to update the Auth Server Configuration.
@@ -98,3 +106,15 @@ class HTTPServer(Server):
         '''
         self.cache = bkcache.CacheManager(**bkutil.parse_cache_config_options(config_obj['Caching']))
         logging.getLogger().debug('Cache config updated')
+        
+    def get_standard_plugins(self, plugins):
+
+        if self.config.get('Tracer', {}).get('enabled', False):
+            tracer_paths = self.config.get('Tracer', {}).get('paths', ['.*'])
+            tracer_plugin = [ Tracer(tracer_paths) ]
+        else:
+            tracer_plugin = []
+
+        exception_handler = [ WrapException() ] if WrapException not in plugins and self.default_exception else []
+        
+        return exception_handler + [ RequestParams() ] + tracer_plugin  # outermost to innermost
