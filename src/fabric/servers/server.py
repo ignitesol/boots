@@ -4,19 +4,19 @@ Created on Mar 21, 2012
 @author: AShah
 '''
 from fabric import concurrency
-from warnings import warn
-import inspect
-import sys
+
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
 elif concurrency == 'threading':
     pass
 
+from warnings import warn
+import inspect
+import sys
 import os
 import functools
 from fabric.servers.helpers.serverconfig import ServerConfig
 from logging.config import dictConfig
-import logging
 
 from fabric.common.utils import new_counter
 

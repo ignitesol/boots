@@ -1,7 +1,23 @@
 '''
-Created on Mar 18, 2012
+HTTP Servers are served through HTTPServerEndPoints. These end-points offer flexibility of adding routes (urls where HTTP can be served from), providing
+parameter processing and validation capabilities, handling exceptions generically and other hooks that can be applied before and after each request. 
 
-@author: AShah
+These endpoints also provide access the the http :py:meth:`request`, :py:meth:`environ` and :py:meth:`response` objects, in addition to the ability to :py:meth:`abort`
+requests. Currently these endpoints are based on the bottle web microframework (http://bottlepy.org)
+
+A typical scenario to create an HTTP Server is to define a subclass of the HTTPServerEndPoint and to define routes using the :py:func:`methodroute` decorator.
+
+::
+
+    class SimpleEP(HTTPServerEndPoint):
+        
+        @methodroute():
+        def hello(self, name=None):
+            """ matches /hello and /hello/anand """
+            name = name or 'there'
+            return 'hello ' + name
+            
+Refer to :doc:`tutorial` for further examples.
 '''
 from fabric import concurrency
 
@@ -28,9 +44,9 @@ import os
 # Decorator writers - Beware.
 # ensure you put the following code
 #    self.plugin_post_apply(callback, wrapper)
-# just before returning wrappers. This is essential for RequestParam to work since we need the signature
+# just before returning wrappers. This is essential for RequestParam to work since we need the signature and 
+# callback_obj
 # of the function which decorators mask. 
-# alternately, we can use the import decorator module
 ##############
 class BasePlugin(object):
     ''' BasePlugin provides helper methods that propogate information across plugins as they are applied. All
@@ -61,7 +77,36 @@ class RequestParams(BasePlugin):
     With HTTPServers, RequestParams is automatically instantiated and users can directly use this.
     
     RequestParams extracts parameters from the GET, POST or ANY methods (as specified in :py:func:`methodroute`). RequestParams
-    requires a context parameter called params (also specified with :py:func:`methodroute`
+    requires a context parameter called params (also specified with :py:func:`methodroute`). The params parameters with methodroute is
+    optional. 
+    
+    :param dict params: params works in conjunction with the RequestParam plugin and is passed to the @methodroute decorator
+        It specifies parameters names expects with the GET or POST and the type that those parameters are expected to be. The plugin
+        infers whether parameters are mandatory or optional from the signature of the method that is serving the route. Option parameters
+        are keyword parameters of the method, mandatory parameters are non-keyword parameters.
+        
+        The format of params is a dict with each key being the name of an expected parameter and the value being the conversion function
+        that should be applied to the str format of the parameter to convert it to the required type. Each mandatory parameter (based on the 
+        method signature) is required to be present. All parameters (mandatory and optional) are converted (if present) to the appropriate type.
+        
+        Multi-valued parameters are represented as a list. 
+        
+        
+    **Example of RequestParams to obtain parameters**::
+    
+        @methodroute(path='/index', params=dict(a=int, b=str, slist=[str])
+        def index(self, a, b='', slist=None):
+            """
+            index will be invoked with a mandatory parameter a of type int, an optional b of type str (defaults to empty string) 
+            and an optional slist of type list of strings
+            this can be invoked as 
+                GET /index?a=10&slist=abc&b=hello&slist=def 
+            and index will be called as 
+                index(a=10, b='hello', slist=[ 'abc', 'def' ]) 
+            """
+            pass
+        
+    NOTE: currently, the restful version (path=None) and mandatory parameters do not work together.  
     '''
                
     def __init__(self):
@@ -117,14 +162,42 @@ class RequestParams(BasePlugin):
         return wrapper
 
 class Hook(BasePlugin):
+    '''
+    A Hook is a convenience plugin to execute a specific function before a request is processed and after the processing is done. An examples of a Hook are
+    :py:class:`Tracer` which logs the incoming url and parameters and the related response. The difference with the standard bottle hook is that this hook 
+    is provided context such as the url, arguments, the callback method/function and a request context to correlate inbound requests with their corresponding
+    responses.
+    '''
     request_counter = new_counter() # allows requests and responses to be correlated
     
     def create_request_context(self, callback, url, **kargs):
         return (self.request_counter(), getattr(callback, '_callback_obj', None) or getattr(callback, 'imself', None))
     
+    
+    def handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
+        '''
+        The default (base) handler for any hook. The default handler does nothing. This behavior can be overridden by
+        overriding this method in a subclass or explicitly passing a handler as an argument to the Hook (or subclass) 
+        
+        :param before_or_after: a string with the words 'before' or 'after' to indicate whether the hook is invoked prior to making the request or on the response
+        :param request_context: A means to provide context to allow correlation of before and after calls for the same request. The default
+            resource context is described in :py:meth:`create_request_context` and subclasses can override it to change the context behavior
+        :param callback: the method/function that is (or just has) handled the callback for the request
+        :param url: the full url of the request
+        :param result: The result being returned. This will be None if before_or_after is 'before' or if the callback throws an exception
+        :param exception: The exception that was thrown. Hook re-raises the same exception after calling the hook handler. This argument is None
+            if no exception was thrown
+        :param kargs: all the keyword arguments passed to the callback
+        '''
+        pass
+    
     def __init__(self, handler=None):
-        dummy_handler = lambda *args, **kargs: None
-        self.handler = handler or dummy_handler
+        '''
+        @param handler: a function that should have a signature similar to :py:meth:`handler`. If none, the hook invokes
+            self.handler. The handling method may be overridden by overriding it in a subclass or explicitly passing it as an argument        
+        '''
+        if handler:
+            self.handler = handler
                
     def setup(self, app):
         ''' we can install multiple hooks of the same type if we want to check status before and after each plugin '''
@@ -152,8 +225,18 @@ class Hook(BasePlugin):
         return wrapper
     
 class Tracer(Hook):
+    '''
+    A special hook that traces (i.e. logs) requests and responses. The tracer traces the 
+    requests/responses on for calls whose full url matches one of the tracer_paths specified 
+    (defaults to match-all). 
     
-    def default_handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
+    Multiple instances of Tracer may be instantiated and will be called in callback plugin order 
+
+    With HTTPServers, Tracer is automatically instantiated if enabled in configuraiton files and can directly be used. 
+    It is governed by specific configuration settings (see :py:class:`HTTPServer`)
+    '''
+    
+    def handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
         req_count, _ = request_context
         if filter(None, [ regex.match(url) for regex in self.tracer_paths ]) != []:
             if before_or_after == 'before':
@@ -163,14 +246,37 @@ class Tracer(Hook):
             else:
                 logging.getLogger().debug('Response: %s. Result = %s. [ url = %s, %s ]', req_count, result, url, kargs)
         
-    def __init__(self, tracer_paths='.*', handler=None):
+    def __init__(self, tracer_paths=['.*'], handler=None):
+        '''
+        :param tracer_paths: a list of regular expressions that will be matched with the url. None or empty list indicates match nothing. defaults to match everything. 
+        :param handler: if required, a handler that will be invoked to trace the requests/responses
+        '''
+        if tracer_paths and type(tracer_paths) not in [ list, tuple ]:
+            tracer_paths =  [ tracer_paths ]
         self.tracer_paths = map(re.compile, tracer_paths or [])
-        handler = handler or self.default_handler
         super(Tracer, self).__init__(handler=handler)
     
 class WrapException(BasePlugin):
+    '''
+    WrapException is a special purpose plugin to intercept all exceptions on http routes. Beyond basic interception,
+    this plugin provides the capabilities to trap and handle the exceptions and also to perform cleanup functions that may have been specified.
+    It decorates the request handler, traps any exception thrown by the handler 
+    and packages the exception as a message if an exception messager is provided. In the absence of an exception messager,
+    it logs and raises the same exception back to the caller.
+    
+    This plugin relies on parameters passed to each methodroute. It relies on 2 parameters
+    
+    :param handler: **to be used with @methodroute** a callable (class or function) that will accept the request arguments (multidict), the error string and all other
+        arguments passed to the handler and return a iterable that can be passed back to bottle (and hence to the client)  
+    :param cleanup_funcs: **to be used with @methodroute** an optional list of functions to be called to process cleanup on failure (e.g. removing the session). Each function is 
+        passed the query argument (multidict) dictionary and all the other arguments passed to the handler.
+    '''
                
     def __init__(self, default_handler=None):
+        '''
+        :param default_handler: **to be used with instantiating WrapException** a endpoint wide handler that will be used when no handler has been specified with the @methodroute.
+            if this is None, no handler is invoked on exception
+        '''
         self.default_handler = default_handler
     
     def setup(self, app):
@@ -180,16 +286,7 @@ class WrapException(BasePlugin):
                 raise bottle.PluginError("Found another WrapException plugin")
 
     def apply(self, callback, context):
-        '''
-        to be used with bottle routes. It decorates the request handler, traps any exception thrown by the handler 
-        and packages the exception as a message if an exception messager is provided. In the absence of an exception messager,
-        it logs and raises the same exception back to the caller.
-        @param exception_messenger: a callable (class or function) that will accept the request arguments (multidict), the error string and all other
-        arguments passed to the handler and return a iterable that can be passed back to bottle  
-        @param logger - optional argument for logging purposes. defaults to the root logger
-        @param cleanup_funcs - an optional list of functions to be called to process cleanup on failure (e.g. removing the session). Each function is 
-        passed the query argument (multidict) dictionary and all the other arguments passed to the handler.
-        '''        
+        
         handler = context['config'].get('handler', self.default_handler)
         cleanup_funcs = context['config'].get('cleanup_funcs', [])
         method = context['method']
@@ -228,27 +325,60 @@ class WrapException(BasePlugin):
 
 # decorators for allowing routes to be setup and handled by instance methods
 # credit to http://stackoverflow.com/users/296069/skirmantas
-def methodroute(path=None, params=None, **kargs):
+def methodroute(path=None, **kargs):
     '''
     methodroute is a decorator that allows applying a bottle route to a method of a class. It cleanly manages bound instances
     and invokes the method of the correct object.
     
-    If path is None, the method being decorated is introspected to obtain the set of possible routes (in a RESTFUL manner).
-    params works in conjunction with the RequestParam plugin (which needs to be installed). params specification is optional. The plugin
-    infers whether parameters are mandatory or optional from the signature of the function. 
-    NOTE: currently, the restful version (path=None) and mandatory parameters do not work together.  
-    If params is specified as a dict(argname=conversion-function), request parameters are checked for the right typed values. 
-    If a parameter is specified in params as argname=[conversion-function] then multiple values (list of one or more elements) is passed
-    If the function has a default-value, then the param is considered optional. 
-    @param path: '/index' or similar. If path is None, follows bottle's route processing for None paths
-    @type path: str or None
-    @param params: optional dict of the form { 'name': conversion-function, 'name2': [func2], 'name3': [] }. If parameter is specified on
-    the function signature and no conversion function is specified, it defaults to whatever the type of the value returned by the web-server is 
-    @type params: dict
+    It supports all capabilities of the bottle_ @route decorator. Some of these capabilities are:
+    
+    * introspection based route matching based on the method name. If path is None, the method being decorated is 
+        introspected to obtain the set of possible routes (in a RESTFUL manner)
+    * dynamic ReSTful syntax support with validation of dynamic route components
+    * individual skipping or installation of plugins at a route level (though this is typically done at a server level in our framework)
+    * specifying method such as GET, POST, ANY, PUT, HEAD
+    
+    Additionally, through the use of custom plugins, it provides rich 
+    capabilities (some of which include)
+    
+    * GET/POST/ANY parameter validation and providing those as arguments to the method (:py:class:`RequestParams`)
+    * custom exception handing and cleanup functions executed on exceptions (for example, deletion of session etc) 
+        using (:py:class:`WrapException`)
+    * Tracing of routes through logging on calls and responses (:py:class:`Tracer`)
+    * Statistics of time taken for each route.  (:py:class:`Stats`)
+
+    methodroute (similar to bottle_ @route) takes additional parameters that control the application (or skipping of) plugins
+    or control the behavior of plugins. These are either processed by the route or are passed to the plugins as context. 
+    Some of the common ones include:
+    
+    :param list skip_by_type: the *skip* parameter takes plugin instances to skip. *skip_by_type* skips plugins of a specific type
+    :param dict params: see description at (:py:class:`RequestParams`)
+    :param handler: see description at (:py:class:`WrapException`)
+    :param list cleanup_funcs: see description at (:py:class:`WrapException`)
+    
+    **A few examples of methodroute**::
+    
+        @methodroute()
+        def hello(self, name):
+            """ matches /hello/anand. name is a mandatory route component """
+            return 'hello ' + name
+            
+        @methodroute()
+        def hello(self, name=None):
+            """ matches /hello or /hello/anand. name is a optional route component """
+            name = name or 'there'
+            return 'hello ' + name
+            
+        @methodroute(path="/hello")
+        def foo(self):
+            """ matches /hello. The fu
+            return '/hello'
+            
+        @methodroute(self, path='/hello', method='GET', params=dict(name=str, lastname=str))
+        def foo(self, name, lastname=None):
+            """ matches /hello?name=anand and /hello?name=anand&lastname=shah. lastname is an optional parameter """
     '''
   
-    kargs.setdefault('params', {}).update(params or {})
-    
     def decorator(f):
         f._methodroute = path
         f._route_kargs = kargs
@@ -258,6 +388,14 @@ def methodroute(path=None, params=None, **kargs):
     return decorator
     
 class HTTPServerEndPoint(EndPoint):
+    '''
+    The base class of serving HTTP requests. An HTTP Server may have one or more such endpoints (at least one required for any activity to happen). 
+    A typical usage scenario is to subclass from HTTPServerEndPoint and define a few methods decorated with :py:func:`methodroute` decorator. This converts
+    the methods to callback handlers when the route (specified implicitly or explicitly as per methodroute) is received by the server. 
+    
+    The server may have set up additional plugins (e.g. :py:class:`RequestParams`) to be activate on this endpoint. These provide additional convenience or
+    capability to the endpoint (such as parameter processing, tracing, profiling statistics, etc).    
+    '''
     
     # class attributes
     _name_prefix = 'HTTPServer_'
@@ -295,19 +433,16 @@ class HTTPServerEndPoint(EndPoint):
                 
     def __init__(self, name=None, mountpoint='/', plugins=None, server=None, activate=False):
         '''
-        @param name: a name for the endpoint
-        @type name: str
-        @param mountpoint: th prefix for all routes within this endpoint
-        @type mountpoint: str
-        @param plugins: plugins are applied to every HTTP request (except if the methodroute 
-        skips them (read bottle's documentation). plugins are applied in reverse order (i.e.
-        the 1st one is the outermost, the last one in the list is the innermost 
-        @type plugins: list
-        @param server: a reference to the server that contains this endpoint
-        @type server: Server
-        @param activate: whether to activate this endpoint on creation or later through an explicit 
-        activate call
-        @type activate: bool
+        :param str name: a name for the endpoint
+        :param str mountpoint: the prefix for all routes within this endpoint
+        :param list plugins: plugins are applied to every HTTP request (except if the :py:func:`methodroute`  
+            skips them. plugins are applied in reverse order (i.e.
+            the 1st one is the outermost, the last one in the list is the innermost. Note, the :py:class:`HTTPServer` or
+            :py:class:`ManagedServer` (or other servers) may apply plugins automatically  
+        :param server: a reference to the server that contains this endpoint. This is typically passed in :py:meth:`activate` but would 
+            be required here if activate is True
+        :param bool activate: whether to activate this endpoint on creation or later through an explicit 
+            :py:meth:`activate` call
         '''
 
         self.name = name = name or self._name_prefix + str(HTTPServerEndPoint.counter())
@@ -327,6 +462,14 @@ class HTTPServerEndPoint(EndPoint):
             self.activate()
             
     def activate(self, server=None, mount_prefix=None):
+        '''
+        activate an endpoint. This is typically invoked in start_server and it sets up the endpoint to start reciveing requests
+        when the main server is started.
+        
+        :param server: A reference to the server to which this endpoint belongs to
+        :param str mount_prefix: The server's mount_prefix. In effect, the url that this endpoint will honor is
+            mount_prefix + mountpoint + individual route paths
+        '''
         
         if self.activated:
             return
@@ -351,20 +494,38 @@ class HTTPServerEndPoint(EndPoint):
 
     
     def abort(self, code, text):
+        '''
+        Aborts the request that is being handled.
+        
+        :param int code: An HTTP error code
+        :param str text: An error message that is sent back to the client
+        '''
         bottle.abort(code, text)
         
     @property
     def request(self):
+        '''
+        returns a request object. (refer bottle_)
+        '''
         return bottle.request
 
     @property
     def request_params(self):
-        return bottle.request.GET if bottle.request.method == 'GET' else bottle.request.POST
+        '''
+        returns a MultiDict object having the GET or POST arguments. (refer bottle_)
+        '''
+        return bottle.request.POST if bottle.request.method == 'POST' or bottle.request.method == 'ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
     
     @property
     def response(self):
+        '''
+        returns a reference to the response object. (refer bottle_)
+        '''
         return bottle.response
     
     @property
     def environ(self):
+        '''
+        returns a reference to the WSGI environment object. (refer bottle_)
+        '''
         return bottle.request.environ

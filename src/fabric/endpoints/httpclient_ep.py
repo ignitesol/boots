@@ -1,7 +1,8 @@
 '''
-Created on Mar 26, 2012
-
-@author: AShah
+HTTP Client endpoints are (currently) unmanaged endpoints that provide easy convenience methods to make synchronous or asynchronous
+HTTP calls. The classes and methods offer abstractions to callers of making simple method calls which internally handle all
+marshalling of parameters and un-marshalling of results. Many methods exist to support direct get or post method calls or 
+JSON marshalling of input parameters and un-marshalling of output responses 
 '''
 from fabric import concurrency
 if concurrency == 'gevent':
@@ -24,6 +25,8 @@ from fabric.endpoints.endpoint import EndPoint
 class Header(dict):
     ''' Header is a helper class to allow easy additions of headers. Primarily, this formats multi-value headers 
         according to the HTTP specifications (i.e. ';' separated) which is a format suitable for passing to urllib calls
+        
+        Header supports all standard dict operations
     '''
         
     def __init__(self, *args, **kargs):
@@ -57,23 +60,30 @@ class Header(dict):
 
 class Response(object):
     '''
-    All Responses are packed using this Object.
+    HTTP Responses are wrapped and returned using this object. This object provides two attributes
+    *data* and *headers*
     '''
     def __init__(self, data, headers):
         '''
-        @param data: The data given by response.read()
-        @type data: dict
+        :param data: The data given by response.read()
         
-        @param headers: The response info given by response.info()
-        @type headers: str 
+        :param headers: The response info given by response.info()
         '''
+        
+        #: self.data: contains the response (already read()) 
         self.data = data
+        
+        #: self.headers: contain the headers of the response
         self.headers = headers
     
     def __repr__(self, *args, **kwargs):
         return "Data:{}, Headers:{}".format(self.data, self.headers)
             
 def dejsonify_response(func):
+    '''
+    a decorator that expects a :py:class:`Response` object from the wrapped function
+    and performs a json.loads on the response.data 
+    '''
     @wraps(func)
     def wrapper(*args, **kargs):
         response = func(*args, **kargs)
@@ -81,7 +91,12 @@ def dejsonify_response(func):
         return response
     return wrapper
 
-def jsonify_request(func):            #Need to rethink
+def jsonify_request(func):
+    '''
+    a decorator that takes all the keyword arguments and converts each argument to its JSON representation.
+    these JSONed arguments are then individually passed to the wrapped function which typically sends each argument
+    as an individual GET or POST parameter as part of the HTTP request 
+    '''
     @wraps(func)
     def wrapper(*args, **kargs):
         try:
@@ -93,8 +108,21 @@ def jsonify_request(func):            #Need to rethink
     return wrapper
 
 class HTTPClient(EndPoint):
+    '''
+    A (currently) unmanaged endpoint that provides simple abstractions to marshall, unmarshall and perform the http
+    protocol in making requests.
+    '''
     
     def __init__(self, url=None, data=None, headers=None, origin_req_host=None, method='POST'):
+        '''
+        :param str url: the url that this request object should bind to. This is optional and the url provided with
+            :py:meth:`request` supercedes this value. The url will be urlquoted before sending
+        :param dict data: the data to be sent to the server. in the form of key=value pairs. These elements will be urlencoded before sending  
+        :param headers: optional headers to include with the request. headers is a dict or a :py:class:`Header` object
+        :param origin_req_host: refer urllib2.Request
+        :param str method: one of 'GET' or 'POST'
+        '''
+        
         self.url = url
         self.data = data
         self.headers = Header(headers or {})
@@ -110,7 +138,7 @@ class HTTPClient(EndPoint):
         if method.upper() != 'POST': method = 'GET'
         
         try:
-            data = self.safe_urlencode(data, doseq=True)
+            data = self._safe_urlencode(data, doseq=True)
         
             if method == 'GET':
                 url += '?' + data
@@ -134,34 +162,59 @@ class HTTPClient(EndPoint):
 
     def request(self, url, headers=None, **kargs):
         '''
-        a method to make a simple get request. all keywork arguments are converted to the data for the request.
-        example HTTPClient().get_request('http://www.google.com', q='q=ignite+solutions'
-        @param headers: an optional dict or Header object
-        @param **kargs: all keywork arguments are converted to the data for the request
+        a method to make a simple get request. all keyword arguments are converted to the data for the request.
+
+        :param headers: an optional dict or Header object
+        :param kargs: all keyword arguments are converted to the data for the request
+            method is POST by default but can be 'GET' by passing method='GET' as a keyword arg
+        
+        **Example**::
+        
+            HTTPClient().get_request('http://www.google.com', q="ignite solutions", method='GET')
+
         '''
-        return self._request(url, data=kargs, headers=headers)
+        method = kargs.get('method', 'POST')
+        try:
+            del kargs['method']
+        except KeyError:
+            pass
+        return self._request(url, data=kargs, headers=headers, method=method)
     
     @dejsonify_response
     def json_out_request(self, url, headers=None, **kargs):
         '''
-        A special case of making a post request where the http request is expected to return a JSON encoded return value.
+        A special case of making a get or post request where the http request is expected to return a JSON encoded return value.
         Handles all marshaling, protocol and basic error processing of a post http request. The return value is converted from a JSON object to 
         a python object. Note - integer values when converted to JSON values are reconverted to string python values.
-        @param url: the url that is the target for the request
-        @type url: string
-        @param headers: a set of headers to be included as part of the request. None implies no headers. 
-        @type headers: dict or Header object. 
-        @param kargs: a set of keyword arguments that will be converted to the post arguments for the request
+        
+        :param url: the url that is the target for the request. 
+        :param headers: a set of headers to be included as part of the request. None implies no headers. 
+        :param kargs: a set of keyword arguments that will be converted to the post arguments for the request. 
+            if method='GET' is a karg, the request is a GET request. the method argument is not packaged with the data
+        :returns: :py:class:`Response` with response.data as a Python object obtained from loading a JSON string
         '''
         return self.request(url, headers=headers, **kargs)
     
     @jsonify_request
     def json_in_request(self, url, headers=None, **kargs):
+        '''
+        A special case of making a get or post request where each parameter to the request is individually converted to a JSON string.
+        Handles all marshaling, protocol and basic error processing of a post http request. 
+
+        :param url: the url that is the target for the request. 
+        :param headers: a set of headers to be included as part of the request. None implies no headers. 
+        :param kargs: a set of keyword arguments that will be converted to the post arguments for the request. if method='GET' is a karg, the request is a GET request
+            the method argument is not packaged with the data
+        :returns: :py:class:`Response`
+        '''
         return self.request(url, headers=headers, **kargs)
         
     @jsonify_request
     @dejsonify_response
     def json_inout_request(self, url, headers=None, **kargs):
+        '''
+        a combination of :py:meth:`json_in_request` and :py:meth:`json_out_request`
+        '''
         return self.request(url, headers=headers, **kargs)
 
     try:
@@ -175,7 +228,7 @@ class HTTPClient(EndPoint):
         def _is_unicode(x):
             return isinstance(x, unicode)
     
-    def safe_urlencode(self, query, doseq=0):
+    def _safe_urlencode(self, query, doseq=0):
         """
         A reimplementation of urllib2.urlencode with query being called instead of query_plus
         Encode a sequence of two-element tuples or dictionary into a URL query string.
@@ -241,8 +294,24 @@ class HTTPClient(EndPoint):
         return '&'.join(l)
     
 class HTTPAsyncClient(HTTPClient, threading.Thread):
+    '''
+    A class that supports asynchronous HTTP requests. Currently, this does not use thread pooling so the user should be careful with 
+    runaway creation of long-lived requests. Supports all the methods of :py:class:`HTTPClient`
+    '''
     
     def __init__(self, url=None, headers=None, origin_req_host=None, method='POST', onsuccess=None, onerror=None, sync=False, timeout=None):
+        '''
+        
+        :param str url: the url that this request object should bind to. This is optional and the url provided with
+            :py:meth:`request` supercedes this value. The url will be urlquoted before sending
+        :param headers: optional headers to include with the request. headers is a dict or a :py:class:`Header` object
+        :param origin_req_host: refer urllib2.Request
+        :param str method: one of 'GET' or 'POST'
+        :param onsuccess: a function to be invoked on successful response from the request. This function is invoked with an instance of the :py:class:`Response` object
+        :param onerror: a function to be invoked on failure of the request. Invoked with the exception that got raised.
+        :param bool sync: whether this request should be synchronous (True) or async (default) 
+        :param timeout: (currently not implemented). Whether to timeout if no response is received in a specified time.
+        '''
         do_nothing = lambda x: None
         self.onsuccess = onsuccess or do_nothing
         self.onerror = onerror or do_nothing
@@ -250,7 +319,7 @@ class HTTPAsyncClient(HTTPClient, threading.Thread):
         self.timeout = timeout
         super(HTTPAsyncClient, self).__init__(url=None, headers=None, origin_req_host=None, method=method)
         threading.Thread.__init__(self)
-        #self.daemon = True
+        self.daemon = True
 
     def _request(self, url=None, data=None, headers=None, method=None):
         if self.sync:

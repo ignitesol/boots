@@ -25,8 +25,7 @@ class Stats(Hook):
     def create_request_context(self, **kargs):
         return super(Stats, self).create_request_context(**kargs), time.time()
     
-    @staticmethod
-    def stat_handler(before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
+    def handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
         if before_or_after == 'after':
             callback_obj = getattr(callback, '_callback_obj', None) or getattr(callback, 'im_self', None)
             server = getattr(callback_obj, 'server', None)
@@ -34,9 +33,6 @@ class Stats(Hook):
                 _, start_time = request_context
                 end_time = time.time()
                 server.stats_collector(callback.__name__, url, end_time - start_time, start_time, end_time, **kargs)
-        
-    def __init__(self):
-        super(Stats, self).__init__(handler=self.stat_handler)
 
 class ManagedEP(HTTPServerEndPoint):
     
