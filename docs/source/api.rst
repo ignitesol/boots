@@ -12,6 +12,28 @@ This is an auto-generated API Reference documentation. If you are new to :doc:`f
 
 Servers
 =======
+.. automodule:: fabric.servers.server
+
+.. autoclass:: Server
+	:members: 
+	
+HTTPServer
+----------
+.. automodule:: fabric.servers.httpserver
+
+.. autoclass:: HTTPServer
+	:members: 
+
+
+ManangedServer
+---------------
+.. automodule:: fabric.servers.managedserver
+
+.. autoclass:: ManagedServer
+	:members: 
+	
+.. autoclass:: ManagedEP
+	:members:
 
 Endpoints
 =========
@@ -25,7 +47,7 @@ HTTP Server End Points
 .. automodule:: fabric.endpoints.http_ep
 
 .. autoclass:: HTTPServerEndPoint
-	:members: activate, request, request_params, environ, response, abort
+	:members: activate, request, request_params, environ, response, abort, session
 
 Route Decorator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

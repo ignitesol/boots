@@ -401,7 +401,7 @@ class HTTPServerEndPoint(EndPoint):
     _name_prefix = 'HTTPServer_'
     lock = RLock()
     http_server_end_points = {} # class attribute. Accessed in thread safe manner
-    counter = new_counter(0)    # class attribute common to all subclasses of HTTPServerEndPoint
+    _counter = new_counter(0)    # class attribute common to all subclasses of HTTPServerEndPoint
     
     self_remover = re.compile('/:self$|:self/')
     def routeapp(self):
@@ -445,7 +445,7 @@ class HTTPServerEndPoint(EndPoint):
             :py:meth:`activate` call
         '''
 
-        self.name = name = name or self._name_prefix + str(HTTPServerEndPoint.counter())
+        self.name = name = name or self._name_prefix + str(HTTPServerEndPoint._counter())
         self.mountpoint = mountpoint
         self.plugins = getattr(self, 'plugins', []) + (plugins or []) # in case plugins have already been set up
         if type(self.plugins) != list: self.plugins = [ self.plugins ]
@@ -515,6 +515,19 @@ class HTTPServerEndPoint(EndPoint):
         returns a MultiDict object having the GET or POST arguments. (refer bottle_)
         '''
         return bottle.request.POST if bottle.request.method == 'POST' or bottle.request.method == 'ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
+    
+    @property
+    def session(self):
+        '''
+        returns a session related to this request if one is configured. Else, returns None
+        '''
+         
+        try:
+            return self.environ.get(self.server.config['Session']['session.key'])
+        except KeyError:
+            return self.environ.get('beaker.session', None)
+        except AttributeError:
+            return None
     
     @property
     def response(self):
