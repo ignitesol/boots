@@ -96,7 +96,7 @@ class HTTPClient(EndPoint):
     
     def __init__(self, url=None, data=None, headers=None, origin_req_host=None, method='POST'):
         self.url = url
-        self.data = data
+        self.data = data or {}
         self.headers = Header(headers or {})
         self.method = method.upper()
         self.origin_req_host = origin_req_host
