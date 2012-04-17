@@ -1,5 +1,3 @@
-.. highlight:: python
-
 .. _bottle: http://bottlepy.org
 
 ==========================

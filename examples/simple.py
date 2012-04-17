@@ -17,8 +17,15 @@ Created on Mar 18, 2012
 
 @author: AShah
 '''
+import sys
+import os
+try:
+    import fabric
+except ImportError:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # Since fabric is not as yet installed into the site-packages
+
 from fabric import concurrency
-from fabric.servers.managedserver import ManagedServer, Stats
+from fabric.servers.managedserver import ManagedServer
 import time
 
 if concurrency == 'gevent':
@@ -67,7 +74,7 @@ class EP(HTTPServerEndPoint):
 # create an endpoint
 ep1 = EP()
 # associate the endpoint with a server
+standalone = __name__ == '__main__'
 main_server = ManagedServer(endpoints=[ep1], logger=True)
-
-if __name__ == "__main__":
-    main_server.start_server(file=__file__, defport=9999, description="A test server for the fabric framework")
+main_server.start_server(defport=9999, standalone=standalone, description="A test server for the fabric framework")
+application = main_server

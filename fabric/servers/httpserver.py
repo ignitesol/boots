@@ -32,7 +32,7 @@ class HTTPBaseServer(Server):
     The :py:data:`fabric.concurrency` controls whether the default server is *gevent* based or WSGIReference  
     '''
 
-    def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
+    def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='', 
                  **kargs):
         '''
         Most arguments have the same interpretation as :py:class:`fabric.servers.Server`. The additional parameters 
@@ -42,7 +42,8 @@ class HTTPBaseServer(Server):
             a unique *mount_prefix* such that all requests with that url prefix will be routed for handling by
             that server (and subsequently by that server's endpoints). The default mount_prefix is the empty string.
             
-            Essentially, a request URL is matched against (mount_prefix + mountpoint + methodroute) 
+            Essentially, a request URL is matched against (mount_prefix + mountpoint + methodroute)
+
         '''
         self.app = bottle.default_app() # this will get overridden by the callback handlers as appropriate
         super(HTTPBaseServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
@@ -69,21 +70,21 @@ class HTTPBaseServer(Server):
         
     def start_main_server(self, **kargs):
         '''
-        starts the main server - in our case bottle. The specific bottle server is controlled by 
-        the fabric.concurrency setting
+        starts the main server - in our case bottle. We will start the server only if self.standalone is 
+        True. The specific bottle server is controlled by the fabric.concurrency setting
         
         :param default_host: default host for the http server
         :param default_port: default port for the http server
         :param server to be passed to bottle. defaults to the inbuild WSGIReference server or gevent based
             on the concurrency setting
         '''
-        
-        host = kargs.get('default_host', None) or self.cmmd_line_args['host'] or '127.0.0.1'
-        port = kargs.get('default_port', None) or self.cmmd_line_args['port'] or '9000'
-        server = kargs.get('server', 'wsgiref')
-        if concurrency == 'gevent': server = 'gevent'
-#        bottle.debug(True)
-        bottle.run(host=host, port=port, server=server)
+        if self.standalone:
+            host = kargs.get('default_host', None) or self.cmmd_line_args['host'] or '127.0.0.1'
+            port = kargs.get('default_port', None) or self.cmmd_line_args['port'] or '9000'
+            server = kargs.get('server', 'wsgiref')
+            if concurrency == 'gevent': server = 'gevent'
+    #        bottle.debug(True)
+            bottle.run(host=host, port=port, server=server)
 
     def activate_endpoints(self):
         '''
@@ -118,6 +119,7 @@ class HTTPServer(HTTPBaseServer):
         :params handle_exception: controls whether a default exception handler should be setup
         '''
 
+        self.app = None
         self.mount_prefix = mount_prefix or ''
         
         # setup the callbacks for configuration
@@ -128,6 +130,12 @@ class HTTPServer(HTTPBaseServer):
         
         self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
+        
+    # make the object act like a WSGI server
+    def __call__(self, environ, start_response):
+        assert(self.app is not None)
+        return self.app(environ, start_response)
+        
     
     def auth_config_update(self, action, full_key, new_val, config_obj):
         '''

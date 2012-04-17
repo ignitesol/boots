@@ -483,6 +483,7 @@ class HTTPServerEndPoint(EndPoint):
             bottle.default_app().mount(mountpoint, self.app)
         else:
             self.app = bottle.default_app()
+            self.server.app = self.app
         
         # apply all plugins
         self.std_plugins = self.server.get_standard_plugins(self.plugins)

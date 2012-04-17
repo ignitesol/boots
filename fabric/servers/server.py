@@ -89,7 +89,7 @@ class Server(object):
         if mount_prefix is not None: server.mount_prefix = mount_prefix 
         self.sub_servers += [ server ]
 
-    def start_server(self, parent_server=None, proj_dir=None, conf_subdir='conf', config_files=['common', '<auto>' ], description=None, **kargs):
+    def start_server(self, parent_server=None, standalone=False, proj_dir=None, conf_subdir='conf', config_files=['common', '<auto>' ], description=None, **kargs):
         '''
         start_server does the initialization for the server. NOTE, while start_server would have
         access to the cmmd_line arguments, the configuration is not read when it is invoked.
@@ -109,8 +109,12 @@ class Server(object):
             A special token *<auto>* is replaced with the name of the main file that was invoked to launch this app (determined through introspection)
             Defaults to [ 'common', '<auto'> ]
         :param description: for purposes of help messages on cmmd line
+        :param bool standalone: A boolean that indicates whether this server is invoked from an environment (e.g. modwsgi)
+            or is standalone. If standalone is True one of the subclasses should start a server. If standalone is False, implies no
+            command line argument processing 
         '''
 
+        self.standalone = standalone
         self.parent_server = parent_server or self.parent_server
         self.is_master = self.parent_server == None
         self.root_server = self if self.is_master else self.parent_server.root_server
@@ -214,7 +218,7 @@ class Server(object):
             new_callbacks[k] = v
         return new_callbacks
                 
-    def configure(self, skip_overrides=False, proj_dir=None, conf_subdir='conf', config_files=None, **kargs):
+    def configure(self, skip_overrides=False, proj_dir=None, conf_subdir='conf', config_files=None, standalone=False, **kargs):
         '''
         runs the configuration processes. If config is None, will read the default config files which are common and the stem of the file
         
