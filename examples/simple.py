@@ -17,7 +17,16 @@ Created on Mar 18, 2012
 
 @author: AShah
 '''
+import sys
+import os
+try:
+    import fabric
+except ImportError:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # Since fabric is not as yet installed into the site-packages
+
 from fabric import concurrency
+from fabric.servers.managedserver import ManagedServer
+import time
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -25,9 +34,7 @@ elif concurrency == 'threading':
     pass
 
 from fabric.servers.httpserver import HTTPServer
-from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute,\
-    RequestParams, WrapException
-    
+from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute    
 def another_handler(errstr):
     return 'Another error handler %s' % (errstr)
     
@@ -38,6 +45,7 @@ class EP(HTTPServerEndPoint):
     # keyword parameters with default values make optional RESTful parameters
     @methodroute()
     def hello(self, name=None):
+        time.sleep(1)
         return 'hello %s' % (name,) if name else 'hello'
 
     # params is a dict to describe parameters in the request (get or post) and their types
@@ -64,9 +72,9 @@ class EP(HTTPServerEndPoint):
         return 'called any/%s: a = %d, type(a) = %s, s = %s, type(s) = %s, slist = %s, type(slist) = %s' % (restful_param, a, type(a).__name__, s, type(s).__name__, slist, type(slist).__name__)
     
 # create an endpoint
-ep1 = EP(plugins=[ RequestParams()] )
+ep1 = EP()
 # associate the endpoint with a server
-main_server = HTTPServer(endpoints=[ep1], logger=True)
-
-if __name__ == "__main__":
-    main_server.start_server(file=__file__, defport=9999, description="A test server for the fabric framework")
+standalone = __name__ == '__main__'
+main_server = ManagedServer(endpoints=[ep1], logger=True)
+main_server.start_server(defport=9999, standalone=standalone, description="A test server for the fabric framework")
+application = main_server

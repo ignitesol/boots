@@ -34,17 +34,17 @@ def new_counter(seed=0):
     
     lock = RLock()
         
-    def counter(seed):
+    def _internal_counter(seed):
         while 1:
             with lock:  # guarantee atomicity
                 yield seed
                 seed += 1
 
     if major >= 3:
-        return counter(seed).__next__
+        return _internal_counter(seed).__next__
     else:
         # python 2
-        return counter(seed).next
+        return _internal_counter(seed).next
     
 
 
