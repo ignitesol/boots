@@ -178,8 +178,9 @@ class Server(object):
             return self._proj_dir
 
         subdir = subdir or 'conf'        
-        root_module = os.path.abspath(inspect.stack()[-1][1])
-        path_subset = [ s for s in sys.path if root_module.startswith(s) and os.path.exists(os.path.join(s, '..', subdir)) ]
+        root_module = inspect.stack()[-1][1]
+        root_module = os.path.abspath(root_module)
+        path_subset = [ os.path.abspath(s) for s in sys.path if root_module.startswith(os.path.abspath(s)) and os.path.exists(os.path.join(os.path.abspath(s), '..', subdir)) ]
         try:
             return os.path.abspath(os.path.join(path_subset[0], '..'))
         except IndexError:
