@@ -184,7 +184,7 @@ class HTTPServer(HTTPBaseServer):
         '''
 
         if self.config.get('Tracer', {}).get('enabled', False):
-            tracer_paths = self.config.get('Tracer', {}).get('paths', ['.*'])
+            tracer_paths = self.config.get('Tracer', {}).get('paths', None) or  ['.*']
             tracer_plugin = [ Tracer(tracer_paths) ]
         else:
             tracer_plugin = []

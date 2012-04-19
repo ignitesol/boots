@@ -240,6 +240,8 @@ class HTTPClient(EndPoint):
         parameters in the output will match the order of parameters in the
         input.
         """
+        if query is None:
+            return None
         
         if hasattr(query, "items"):
             # mapping objects

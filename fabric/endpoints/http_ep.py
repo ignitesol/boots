@@ -49,7 +49,7 @@ import os
 # of the function which decorators mask. 
 ##############
 class BasePlugin(object):
-    ''' BasePlugin provides helper methods that propogate information across plugins as they are applied. All
+    ''' BasePlugin provides helper methods that propagate information across plugins as they are applied. All
     plugins should inherit from BasePlugin and invoke self.plugin_post_apply before returning the wrapper function
     (typically before return wrapper)
     '''
@@ -66,6 +66,16 @@ class BasePlugin(object):
         '''
         wrapper._signature = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
         wrapper._callback_obj = callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        
+    def get_callback_obj(self, callback):
+        '''
+        this method, when passes a callback from within the plugin wrapper, returns the object reference of the callback
+        object that was defined with @methodroute
+        
+        :param callback: A reference to the current callback within a plugin wrapper
+        :returns: object whose method was wrapped with @methodroute
+        '''
+        return callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
         
 
 class RequestParams(BasePlugin):
@@ -489,7 +499,7 @@ class HTTPServerEndPoint(EndPoint):
         self.std_plugins = self.server.get_standard_plugins(self.plugins)
         self.plugins = self.std_plugins + self.plugins
         [ self.app.install(plugin) for plugin in self.plugins ]
-            
+
         self.routeapp() # establish any routes that have been setup by the @methodroute decorator
         self.activated = True
 
