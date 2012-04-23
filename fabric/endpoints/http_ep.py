@@ -20,6 +20,7 @@ A typical scenario to create an HTTP Server is to define a subclass of the HTTPS
 Refer to :doc:`tutorial` for further examples.
 '''
 from fabric import concurrency
+from fabric.endpoints.httpclient_ep import Header
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -553,3 +554,16 @@ class HTTPServerEndPoint(EndPoint):
         returns a reference to the WSGI environment object. (refer bottle_)
         '''
         return bottle.request.environ
+    
+    def get_cookies(self, keys, header=None):
+        '''
+        Adds a authentication cookie to the Header object and return it.
+        
+        :param keys: a list of keys that na 
+        :return: Header object
+        '''
+        headers = header or Header()
+        if keys:
+            for key in keys:
+                headers['Cookie'] = '%s=%s'%(key, bottle.request.COOKIES.get(key,''))
+        return headers

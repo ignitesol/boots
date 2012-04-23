@@ -28,7 +28,9 @@ class Header(dict):
         
         Header supports all standard dict operations
     '''
-        
+       
+    #FIXME: do we need __eq__ and __hash__?
+     
     def __init__(self, *args, **kargs):
         self.update(*args, **kargs)
 
