@@ -438,7 +438,7 @@ class HTTPServerEndPoint(EndPoint):
                 
                 # explicitly find route combinations and remove :self - else bottle includes self in the routes
                 path = callback._methodroute if callback._methodroute is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
-                self.app.route(path=path, callback=callback, **route_kargs)
+                self._endpoint_app.route(path=path, callback=callback, **route_kargs)
                     
                 
     def __init__(self, name=None, mountpoint='/', plugins=None, server=None, activate=False):
@@ -489,16 +489,15 @@ class HTTPServerEndPoint(EndPoint):
         
         mountpoint = self.mount_prefix + self.mountpoint
         if mountpoint != '/':
-            self.app = bottle.Bottle()
-            bottle.default_app().mount(mountpoint, self.app)
+            self._endpoint_app = bottle.Bottle()
+            bottle.default_app().mount(mountpoint, self._endpoint_app)
         else:
-            self.app = bottle.default_app()
-            self.server.app = self.app
+            self._endpoint_app = bottle.default_app()
         
         # apply all plugins
         self.std_plugins = self.server.get_standard_plugins(self.plugins)
         self.plugins = self.std_plugins + self.plugins
-        [ self.app.install(plugin) for plugin in self.plugins ]
+        [ self._endpoint_app.install(plugin) for plugin in self.plugins ]
 
         self.routeapp() # establish any routes that have been setup by the @methodroute decorator
         self.activated = True

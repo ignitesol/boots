@@ -160,7 +160,7 @@ class HTTPServer(HTTPBaseServer):
         Called by Config to update the session Configuration.
         '''
         self.app = bkmw.SessionMiddleware(self.app, config_obj['Session'])
-        logging.getLogger().debug('Server config updated')
+        logging.getLogger().debug('Session config updated')
     
     def cache_config_update(self, action, full_key, new_val, config_obj):
         '''
