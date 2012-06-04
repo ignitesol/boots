@@ -38,7 +38,7 @@ class EP(HTTPServerEndPoint):
         self.session['name'] = name
         self.session['count'] = self.session.get('count', 0) + 1
 
-        return 'hello %s - you have called me %d times' % name, self.session['count']
+        return 'hello %s - you have called me %d times' % (name, self.session['count'])
 
 # create an endpoint
 ep1 = EP()

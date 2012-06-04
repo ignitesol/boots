@@ -47,6 +47,11 @@ class HTTPBaseServer(Server):
         '''
         self.app = bottle.default_app() # this will get overridden by the callback handlers as appropriate
         super(HTTPBaseServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
+        
+    # make the object act like a WSGI server
+    def __call__(self, environ, start_response):
+        assert(self.app is not None)
+        return self.app(environ, start_response)
 
     @classmethod
     def get_arg_parser(cls, description='', add_help=False, parents=[], 
@@ -84,7 +89,7 @@ class HTTPBaseServer(Server):
             server = kargs.get('server', 'wsgiref')
             if concurrency == 'gevent': server = 'gevent'
     #        bottle.debug(True)
-            bottle.run(host=host, port=port, server=server)
+            bottle.run(app=self, host=host, port=port, server=server)
 
     def activate_endpoints(self):
         '''
@@ -130,12 +135,6 @@ class HTTPServer(HTTPBaseServer):
         
         self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
-        
-    # make the object act like a WSGI server
-    def __call__(self, environ, start_response):
-        assert(self.app is not None)
-        return self.app(environ, start_response)
-        
     
     def auth_config_update(self, action, full_key, new_val, config_obj):
         '''

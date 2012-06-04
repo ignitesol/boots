@@ -140,7 +140,7 @@ class HTTPClient(EndPoint):
         try:
             data = self._safe_urlencode(data, doseq=True)
         
-            if method == 'GET':
+            if method == 'GET' and data:
                 url += '?' + data
                 data = None
     
