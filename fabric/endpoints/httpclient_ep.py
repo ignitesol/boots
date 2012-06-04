@@ -75,7 +75,7 @@ class HTTPUtils(object):
         headers = header or Header()
         if keys:
             for key in keys:
-                headers.add('Cookie','%s=%s'%(key, cookies.get(key,'')))
+                headers['Cookie'] = key+'='+cookies.get(key,'')
         return headers
   
         
