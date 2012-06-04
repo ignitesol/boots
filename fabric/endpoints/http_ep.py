@@ -552,3 +552,11 @@ class HTTPServerEndPoint(EndPoint):
         returns a reference to the WSGI environment object. (refer bottle_)
         '''
         return bottle.request.environ
+    
+    @property
+    def cookies(self):
+        ''' 
+        returns a dict of cookies that were obtained as part of this request. (refer bottle_)
+        '''
+        return bottle.request.COOKIES
+    

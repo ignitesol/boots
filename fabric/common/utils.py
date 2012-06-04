@@ -46,5 +46,3 @@ def new_counter(seed=0):
         # python 2
         return _internal_counter(seed).next
     
-
-

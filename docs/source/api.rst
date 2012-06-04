@@ -76,6 +76,11 @@ HTTP Client End Points
 
 .. autoclass:: HTTPAsyncClient
 
+.. autoclass:: Header
+
+.. autoclass:: HTTPUtils
+	:members:
+
 Related Classes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

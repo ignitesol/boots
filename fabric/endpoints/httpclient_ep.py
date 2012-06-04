@@ -55,7 +55,29 @@ class Header(dict):
     def setdefault(self, key, value=None):
         if key not in self:
             self[key] = value
-        return self[key]    
+        return self[key]  
+    
+class HTTPUtils(object):
+    
+    @classmethod
+    def get_cookies(cls, keys, cookies, header=None):
+        '''
+        Adds cookies to be forwarded with another HTTP request. Extracts
+        cookies that have name as one of the elements of keys. 
+        if header is None, a new Header object is created and returned
+    
+        :param keys: list of keynames which need to be extracted from cookies
+        :param cookies: a dict containing name-value pairs that represent cookies
+        :param headers: an existing Header object (or None). Defaults to None. If None is specified a new empty header object is created
+        
+        :returns: Header object with the cookies in the header set to the matching keys in cookies 
+        '''
+        headers = header or Header()
+        if keys:
+            for key in keys:
+                headers.add('Cookie','%s=%s'%(key, cookies.get(key,'')))
+        return headers
+  
         
 
 class Response(object):
