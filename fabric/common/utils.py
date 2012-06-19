@@ -5,6 +5,7 @@ Created on Mar 21, 2012
 '''
 
 from fabric import concurrency
+import random
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
@@ -46,3 +47,5 @@ def new_counter(seed=0):
         # python 2
         return _internal_counter(seed).next
     
+def generate_uuid(frames=3):
+    return reduce(lambda i, l: '%s-%X'%(i,l), [random.Random().randint(0, pow(10,16)) for i in range(0, frames)])

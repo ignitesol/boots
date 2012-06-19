@@ -20,7 +20,7 @@ import functools
 from fabric.servers.helpers.serverconfig import ServerConfig
 from logging.config import dictConfig
 
-from fabric.common.utils import new_counter
+from fabric.common.utils import new_counter, generate_uuid
 
 class Server(object):
     '''
@@ -80,6 +80,7 @@ class Server(object):
         self._proj_dir = None
         logger = kargs.get('logger', False)
         if logger: self.__class__.config_callbacks['Logging'] = Server._logger_config_update # defined in this class
+        self.uuid = generate_uuid()
         
     def add_sub_server(self, server, mount_prefix=None):
         '''
