@@ -6,6 +6,7 @@ Created on 18-Jun-2012
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQBaseEndPoint
 import zmq
 from zmq.eventloop import ioloop
+from fabric.common.zmq_socket_management import ZMQLoopSocketManagement
 
 class ZMQLoopEndPoint(ZMQBaseEndPoint):
     '''
@@ -29,17 +30,18 @@ class ZMQLoopEndPoint(ZMQBaseEndPoint):
     def stop(self):
         self.loop.stop()
 
-class ZMQThreadedLoopEndpoint(ZMQLoopEndPoint):
+class ZMQManagedLoopEndpoint(ZMQBaseEndPoint):
     
     def __init__(self, socket_type, address, internal_address, bind=False):
-        super(ZMQThreadedLoopEndpoint, self).__init__(socket_type, address, bind=bind)
+        super(ZMQManagedLoopEndpoint, self).__init__(socket_type, address, bind=bind)
         
         self.internal_address = internal_address
         self.in_socket = None
         self.out_socket = None
+        self.manager = ZMQLoopSocketManagement.instance()
         
     def setup(self):
-        super(ZMQThreadedLoopEndpoint, self).setup()
+        super(ZMQManagedLoopEndpoint, self).setup()
         self.in_socket = self.context.socket(zmq.PULL)
         self.in_socket.connect('inproc://req_%s'%self.internal_address)
         self.out_socket = self.context.socket(zmq.PUSH)
@@ -52,7 +54,7 @@ class ZMQThreadedLoopEndpoint(ZMQLoopEndPoint):
         self.setup()
         self.loop.add_handler(self.socket, self.forward_message, zmq.POLLIN)
         self.loop.add_handler(self.in_socket, self.handle_directive, zmq.POLLIN)
-        super(ZMQThreadedLoopEndpoint, self).start()
+        super(ZMQManagedLoopEndpoint, self).start()
     
     def forward_message(self, sock, event):
         msg = ['forward']
