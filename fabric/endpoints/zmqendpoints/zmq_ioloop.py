@@ -6,7 +6,7 @@ Created on 18-Jun-2012
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQBaseEndPoint
 import zmq
 from zmq.eventloop import ioloop
-from fabric.common.zmq_socket_management import ZMQLoopSocketManagement
+from fabric.common.zmq_socket_management import ZMQLoopManagement
 
 class ZMQLoopEndPoint(ZMQBaseEndPoint):
     '''
@@ -38,7 +38,7 @@ class ZMQManagedLoopEndpoint(ZMQBaseEndPoint):
         self.internal_address = internal_address
         self.in_socket = None
         self.out_socket = None
-        self.manager = ZMQLoopSocketManagement.instance()
+        self.manager = ZMQLoopManagement.instance()
         
     def setup(self):
         super(ZMQManagedLoopEndpoint, self).setup()

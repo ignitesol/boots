@@ -9,19 +9,18 @@ import threading
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQBaseEndPoint
 from zmq.eventloop.ioloop import IOLoop
 
-class ZMQLoopSocketManagement(threading.Thread):
+class ZMQLoopManagement(threading.Thread):
     '''
     classdocs
     '''
     _instance = None
-    _sockets = dict()
 
     def __init__(self):
         '''
         Constructor
         '''
         if self.__class__._instance is not None:
-            raise TypeError('ZMQLoopSocketManagement is a Singleton Object, please use the instance() method')
+            raise TypeError('ZMQLoopManagement is a Singleton Object, please use the instance() method')
         self.__class__._instance = self
         
         self._has_started = False
@@ -31,7 +30,7 @@ class ZMQLoopSocketManagement(threading.Thread):
     @classmethod
     def instance(cls):
         if cls._instance is None: 
-            cls._instance = ZMQLoopSocketManagement()
+            cls._instance = ZMQLoopManagement()
         return cls._instance
     
     def register_socket(self, uuid, socket_type, address, bind=False):
