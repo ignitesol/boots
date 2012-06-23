@@ -7,29 +7,23 @@ from threading import RLock, Thread
 import threading
 import zmq
 from zmq.eventloop import ioloop
-import time
 from fabric.endpoints.endpoint import EndPoint
 import functools
 from zmq.utils import jsonapi
-
-tdata = threading.local()
-
-def get_threadlocal():
-    global tdata
-    return tdata
+from fabric.endpoints.http_ep import BasePlugin
 
 # first, start a background ioloop thread and start ioloop
 def iolooper():
-    data = get_threadlocal()
-    data.sockhash = {}
     loop = ioloop.IOLoop.instance() # get the singleton
-    print 'ioloop Started'
+    print 'ioloop Started', id(loop)
     loop.start()
 
+# This eliminates the race condition within ioloops instance() method
+# incase of threads
+ioloop.IOLoop.instance() 
 t = Thread(target=iolooper)
 t.daemon = True
 t.start()
-time.sleep(0.1)
 
 class ZMQBaseEndPoint(EndPoint):
     '''
@@ -37,56 +31,61 @@ class ZMQBaseEndPoint(EndPoint):
     All socket functionalities are wrapped within this and sub classes
     Keeping the complexity of the functionality away from server writers
     '''
-    def __init__(self, socket_type, address, bind=False):
+    def __init__(self, socket_type, address, bind=False, **kargs):
         '''
         Constructor
         '''
-        super(ZMQBaseEndPoint, self).__init__()
+        super(ZMQBaseEndPoint, self).__init__(**kargs)
         self.bind = bind
         self.address = address
         self.socket_type = socket_type
         self.socket = None
     
+    def activate(self):
+        self.setup()
+        self.start()
+    
     def setup(self):
         # should we be locking this
+        print 'Setup ', self.uuid
         self.socket = zmq.Context.instance().socket(self.socket_type)
         return self.socket
     
     def start(self):
+        print 'Start ', self.uuid
         if self.bind: self.socket.bind(self.address)
         else: self.socket.connect(self.address)
         
-    def send(self, args, kargs):
-        msg = args and reduce(lambda x, i: str(x)+' '+str(i), args)
-        if kargs: msg = msg + ' ' + jsonapi.dumps(kargs)
-        self.socket.send(msg)
+    def send(self, data):
+        print 'sending', data
+        self.socket.send(data)
 
-class ZMQManagedEndPoint(ZMQBaseEndPoint):
+class ZMQEndPoint(ZMQBaseEndPoint):
     '''
     This class leverages eventloops ioloop callbacks
     All ZMQBaseEndPoint methods are wrapped within the ioloop callbacks
     This ensures we run from the ioloop thread
     '''
-
-    lock = RLock()
-    
-    def __init__(self, socket_type, address, bind=False):
+    def __init__(self, socket_type, address, bind=False, **kargs):
         '''
         Constructor
         '''
-        super(ZMQManagedEndPoint, self).__init__(socket_type, address, bind=bind)
+        super(ZMQEndPoint, self).__init__(socket_type, address, bind=bind, **kargs)
         self.ioloop = ioloop.IOLoop.instance()
+        print 'ioloop instance', id(self.ioloop)
         
     def setup(self):
-        self.ioloop.add_callback(super(ZMQManagedEndPoint, self).setup)
+        self.ioloop.add_callback(super(ZMQEndPoint, self).setup)
 
     def start(self):
-        self.ioloop.add_callback(super(ZMQManagedEndPoint, self).start)
+        self.ioloop.add_callback(super(ZMQEndPoint, self).start)
     
     def send(self, *args, **kargs):
-        self.ioloop.add_callback(functools.partial(super(ZMQManagedEndPoint, self).send, *args, **kargs))
+        msg = args and '-'.join(args)
+        if kargs: msg = msg + ' ' + jsonapi.dumps(kargs)
+        self.ioloop.add_callback(functools.partial(super(ZMQEndPoint, self).send, *args, **kargs))
 
-class ZMQListenEndPoint(ZMQManagedEndPoint):
+class ZMQListenEndPoint(ZMQEndPoint):
     
     def __init__(self, socket_type, address, bind=False):
         super(ZMQListenEndPoint, self).__init__(socket_type, address, bind=bind)
@@ -94,13 +93,26 @@ class ZMQListenEndPoint(ZMQManagedEndPoint):
         
     def start(self):
         super(ZMQListenEndPoint, self).start()
-        self.ioloop.add_callback(functools.partial(self.ioloop.add_handler, args=(self.socket, self._recv_callback, zmq.POLLIN)))
+        # Closure is required here since we utilise the socket outside the loop thread
+        def _add_handler():
+            self.ioloop.add_handler(self.socket, self._recv_callback, zmq.POLLIN)
+        self.ioloop.add_callback(_add_handler)
+    
+    def message_parse(self, msg):
+        if msg.index('{') > -1 and msg.index('}') > -1:
+            msg = '{' + msg.split('{',1)[1]
+            msg = msg.rsplit('}',1)[0] + '}'
+        msg = jsonapi.loads(msg)
+        return msg
     
     def _recv_callback(self, socket, event):
+        '''
+        This will receive all messages
+        '''
         assert event == zmq.POLLIN
         
-        msg = socket.recv_json()
-        print msg
+        msg = socket.recv()
+        msg = self.message_parse(msg)
         
         try : path = msg['path']
         except KeyError:
@@ -116,7 +128,8 @@ class ZMQListenEndPoint(ZMQManagedEndPoint):
         args = msg.get('args', None)
         # Kargs as a dictionary
         kwargs = msg.get('kwargs', None)
-            
+        
+        if type(args) is not tuple: args = tuple(args)
         threading.Thread(target=callback, args=args, kwargs=kwargs).start()
         
     def register_path_callback(self, path, callback):

@@ -11,8 +11,9 @@ from fabric.common.utils import generate_uuid
 
 class EndPoint(object):
     ''' A base class for all endpoints. '''
-    def __init__(self): 
+    def __init__(self, server=None): 
         self.uuid = generate_uuid()
+        self.server = server
 
 class EndPointException(Exception):
     '''

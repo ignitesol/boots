@@ -4,11 +4,7 @@ Created on 13-Jun-2012
 @author: rishi
 '''
 from fabric.servers import server
-from fabric.endpoints.zmqendpoints.zmq_base import ZMQBaseEndPoint,\
-    ZMQListenEndPoint
-
-class _SignallingConstants:
-    send = "\FF"
+from fabric.endpoints.zmqendpoints.zmq_base import ZMQBaseEndPoint, ZMQEndPoint
     
 class ZMQServer(server.Server):
     '''
@@ -29,19 +25,18 @@ class ZMQServer(server.Server):
     def activate_endpoints(self):
         for ep in self.ep_hash:
             if isinstance(self.ep_hash[ep], ZMQBaseEndPoint):
-                self.ep_hash[ep].setup()
-                self.ep_hash[ep].start()
+                self.ep_hash[ep].activate()
     
-    def send_from_endpoint(self, uuid, msg):
+    def send_from_endpoint(self, uuid, *args, **kargs):
         assert self.ep_hash.has_key(uuid) and isinstance(self.ep_hash[uuid], ZMQBaseEndPoint)
-        self.ep_hash[uuid].send(msg)
+        self.ep_hash[uuid].send(*args, **kargs)
             
     def add_endpoint(self, endpoint):
         assert self.ep_hash.get(endpoint.uuid) is None
         self.ep_hash[endpoint.uuid] = endpoint
     
     def register_path_callback(self, uuid, path, callback):
-        assert uuid in self.ep_hash and isinstance(self.ep_hash[uuid], ZMQListenEndPoint)
+        assert uuid in self.ep_hash and isinstance(self.ep_hash[uuid], ZMQEndPoint)
         self.ep_hash[uuid].register_path_callback(path, callback)
     
 if __name__ == '__main__':
