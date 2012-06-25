@@ -34,10 +34,6 @@ class ZMQServer(server.Server):
     def add_endpoint(self, endpoint):
         assert self.ep_hash.get(endpoint.uuid) is None
         self.ep_hash[endpoint.uuid] = endpoint
-    
-    def register_path_callback(self, uuid, path, callback):
-        assert uuid in self.ep_hash and isinstance(self.ep_hash[uuid], ZMQEndPoint)
-        self.ep_hash[uuid].register_path_callback(path, callback)
-    
+        
 if __name__ == '__main__':
     pass

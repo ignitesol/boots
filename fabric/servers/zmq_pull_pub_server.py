@@ -20,7 +20,7 @@ from fabric.servers.zmqserver import ZMQServer
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQEndPoint, t,\
     ZMQListenEndPoint
 from fabric.endpoints.zmqendpoints.zmq_endpoints import ZMQSubscribeEndpoint,\
-    ZMQJsonReply, ZMQJsonRequest
+    ZMQJsonReply, ZMQJsonRequest, ZMQCallbackPattern
 
 class ZMQPullPubServer(ZMQServer):
     '''
@@ -32,13 +32,12 @@ class ZMQPullPubServer(ZMQServer):
         '''
         super(ZMQPullPubServer, self).__init__(name="PullPubServer", **kargs)
         
-        self.listen_endpoint = ZMQListenEndPoint(zmq.PULL, pull_address, bind=True, plugins=[ZMQJsonReply()], server=self)
+        self.listen_endpoint = ZMQListenEndPoint(zmq.PULL, pull_address, bind=True, 
+                                                 plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_hash={'benchmark': self.callback_fn})], server=self)
         self.pub_endpoint = ZMQEndPoint(zmq.PUB, pub_address, bind=True, plugins=[ZMQJsonRequest()], server=self)
         
         self.add_endpoint(self.listen_endpoint)
         self.add_endpoint(self.pub_endpoint)
-        
-        self.register_path_callback(self.listen_endpoint.uuid, 'benchmark', self.callback_fn)
         
         self.start_main_server()
     
@@ -53,9 +52,8 @@ class ZMQSubscribeServer(ZMQServer):
     def __init__(self, sub_address, sub_filter, *args, **kargs):
         super(ZMQSubscribeServer, self).__init__(server=self, **kargs)
         
-        self.sub_endpoint = ZMQSubscribeEndpoint(sub_address)
+        self.sub_endpoint = ZMQSubscribeEndpoint(sub_address, callback_hash={'*': self.printme})
         self.add_endpoint(self.sub_endpoint)
-        self.register_path_callback(self.sub_endpoint.uuid, '*', self.printme)
         self.start_main_server()
         self.sub_endpoint.add_filter(sub_filter)
     
