@@ -10,7 +10,7 @@ class SingletonType(type):
         super(SingletonType, cls).__init__(name, bases, d)
         cls.instance = None 
 
-    def __call__(cls, *args, **kw):
+    def __call__(cls, *args, **kw): #@NoSelf
         if cls.instance is None:
             cls.instance = super(SingletonType, cls).__call__(*args, **kw)
         return cls.instance

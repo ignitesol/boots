@@ -17,21 +17,23 @@ PROJ_DIR = os.path.abspath(DIR + os.sep + '../..')  # we are 2 level deeper than
 sys.path.append(PROJ_DIR)  if not hasattr(sys, 'frozen') else sys.path.append(DIR)
 
 from fabric.servers.zmqserver import ZMQServer
-from fabric.endpoints.zmqendpoints.zmq_base import ZMQEndPoint, t
-from fabric.endpoints.zmqendpoints.zmq_endpoints import ZMQSubscribeEndpoint
+from fabric.endpoints.zmqendpoints.zmq_base import ZMQEndPoint, t,\
+    ZMQListenEndPoint
+from fabric.endpoints.zmqendpoints.zmq_endpoints import ZMQSubscribeEndpoint,\
+    ZMQJsonReply, ZMQJsonRequest
 
 class ZMQPullPubServer(ZMQServer):
     '''
     classdocs
     '''
-    def __init__(self, pub_address, pull_address):
+    def __init__(self, pub_address, pull_address, *args, **kargs):
         '''
         Constructor
         '''
-        super(ZMQPullPubServer, self).__init__(name="PullPubServer")
+        super(ZMQPullPubServer, self).__init__(name="PullPubServer", **kargs)
         
-        self.listen_endpoint = ZMQEndPoint(zmq.PULL, pull_address, bind=True, server=self)
-        self.pub_endpoint = ZMQEndPoint(zmq.PUB, pub_address, bind=True, server=self)
+        self.listen_endpoint = ZMQListenEndPoint(zmq.PULL, pull_address, bind=True, plugins=[ZMQJsonReply()], server=self)
+        self.pub_endpoint = ZMQEndPoint(zmq.PUB, pub_address, bind=True, plugins=[ZMQJsonRequest()], server=self)
         
         self.add_endpoint(self.listen_endpoint)
         self.add_endpoint(self.pub_endpoint)
@@ -41,15 +43,15 @@ class ZMQPullPubServer(ZMQServer):
         self.start_main_server()
     
     def callback_fn(self, msg):
-        self.send_from_endpoint(self.pub_endpoint.uuid, '1', path='*', msg=msg)
+        self.send_from_endpoint(self.pub_endpoint.uuid, '1', args=(msg,), path='*')
     
     def start_main_server(self):
         print 'starting server'
         super(ZMQPullPubServer, self).start_main_server()
         
 class ZMQSubscribeServer(ZMQServer):
-    def __init__(self, sub_address, sub_filter):
-        super(ZMQSubscribeServer, self).__init__(server=self)
+    def __init__(self, sub_address, sub_filter, *args, **kargs):
+        super(ZMQSubscribeServer, self).__init__(server=self, **kargs)
         
         self.sub_endpoint = ZMQSubscribeEndpoint(sub_address)
         self.add_endpoint(self.sub_endpoint)

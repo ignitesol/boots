@@ -3,14 +3,12 @@ Created on 19-Jun-2012
 
 @author: anand
 '''
-from threading import RLock, Thread
+from threading import Thread
 import threading
 import zmq
 from zmq.eventloop import ioloop
 from fabric.endpoints.endpoint import EndPoint
 import functools
-from zmq.utils import jsonapi
-from fabric.endpoints.http_ep import BasePlugin
 
 # first, start a background ioloop thread and start ioloop
 def iolooper():
@@ -66,12 +64,14 @@ class ZMQEndPoint(ZMQBaseEndPoint):
     All ZMQBaseEndPoint methods are wrapped within the ioloop callbacks
     This ensures we run from the ioloop thread
     '''
-    def __init__(self, socket_type, address, bind=False, **kargs):
+    def __init__(self, socket_type, address, bind=False, plugins=[], **kargs):
         '''
         Constructor
         '''
         super(ZMQEndPoint, self).__init__(socket_type, address, bind=bind, **kargs)
         self.ioloop = ioloop.IOLoop.instance()
+        self.plugins = plugins
+        self.send_plugins = filter(lambda x: x.plugin_type & ZMQBasePlugin.SEND, self.plugins)
         print 'ioloop instance', id(self.ioloop)
         
     def setup(self):
@@ -81,14 +81,14 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         self.ioloop.add_callback(super(ZMQEndPoint, self).start)
     
     def send(self, *args, **kargs):
-        msg = args and '-'.join(args)
-        if kargs: msg = msg + ' ' + jsonapi.dumps(kargs)
-        self.ioloop.add_callback(functools.partial(super(ZMQEndPoint, self).send, *args, **kargs))
+        for p in self.send_plugins: args, kargs = p(*args, **kargs)
+        self.ioloop.add_callback(functools.partial(super(ZMQEndPoint, self).send, args))
 
 class ZMQListenEndPoint(ZMQEndPoint):
     
-    def __init__(self, socket_type, address, bind=False):
-        super(ZMQListenEndPoint, self).__init__(socket_type, address, bind=bind)
+    def __init__(self, socket_type, address, bind=False, plugins=[], **kargs):
+        super(ZMQListenEndPoint, self).__init__(socket_type, address, bind=bind, plugins=plugins)
+        self.receive_plugins = filter(lambda x: x.plugin_type & ZMQBasePlugin.RECEIVE, self.plugins)
         self._path_callbacks = dict()
         
     def start(self):
@@ -98,13 +98,6 @@ class ZMQListenEndPoint(ZMQEndPoint):
             self.ioloop.add_handler(self.socket, self._recv_callback, zmq.POLLIN)
         self.ioloop.add_callback(_add_handler)
     
-    def message_parse(self, msg):
-        if msg.index('{') > -1 and msg.index('}') > -1:
-            msg = '{' + msg.split('{',1)[1]
-            msg = msg.rsplit('}',1)[0] + '}'
-        msg = jsonapi.loads(msg)
-        return msg
-    
     def _recv_callback(self, socket, event):
         '''
         This will receive all messages
@@ -112,8 +105,10 @@ class ZMQListenEndPoint(ZMQEndPoint):
         assert event == zmq.POLLIN
         
         msg = socket.recv()
-        msg = self.message_parse(msg)
-        
+        for p in self.receive_plugins:
+            try: msg = p(msg)
+            except Exception as e: print 'Error', e
+
         try : path = msg['path']
         except KeyError:
             print 'No Path Found'
@@ -135,6 +130,17 @@ class ZMQListenEndPoint(ZMQEndPoint):
     def register_path_callback(self, path, callback):
         self._path_callbacks[path] = callback
 
+class ZMQBasePlugin(object):
+    
+    SEND, RECEIVE = 1, 2
+    _plugin_type_ = None
+    
+    def __init__(self):
+        if self.__class__._plugin_type_ is None: raise TypeError('The Plugin Class must have a _plugin_type_ set to either 1)SEND or 2)RECEIVE')
+        
+    @property
+    def plugin_type(self):
+        return self.__class__._plugin_type_
         
 if __name__ == '__main__':
     pass
