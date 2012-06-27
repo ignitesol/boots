@@ -103,6 +103,7 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         Calls back the :py:class:`ZMQBaseEndpoint` :py:func:`setup` using the ioloop callback handler
         """
         self.ioloop.add_callback(super(ZMQEndPoint, self).setup)
+        for p in self.plugins: p.setup(self)
 
     def start(self):
         """

@@ -8,6 +8,7 @@ import threading
 
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQBasePlugin,\
     ZMQListenEndPoint
+import inspect
         
 class ZMQJsonReply(ZMQBasePlugin):
     """
@@ -57,17 +58,21 @@ class ZMQCallbackPattern(ZMQBasePlugin):
     Callbacks must be registered for that path using register_callback_path
     """
     _plugin_type_ = ZMQBasePlugin.RECEIVE
+    _all_callbacks_hash = dict()
     
-    def __init__(self, callback_hash):
+    def __init__(self, callback_hash={}):
         """
         Constructor
         
         :param callback_hash: A :py:class:`Dictionary` holding *path* : *callback* key : value pairs
         """
         self._callback_hash = callback_hash
-    
+        
     def setup(self, endpoint):
-        pass
+        try:
+            for k,v in self.__class__._all_callbacks_hash[(endpoint.socket_type, endpoint.address)].iteritems():
+                self._callback_hash[k] = v
+        except KeyError: pass
     
     def apply(self, msg):
         try : path = msg['path']
@@ -90,6 +95,13 @@ class ZMQCallbackPattern(ZMQBasePlugin):
         
         return msg
     
+    @classmethod
+    def ZMQPatternRoute(cls, socket_type, socket_address, pattern):
+        def decorator(fn):
+            cls._all_callbacks_hash.setdefault((socket_type, socket_address), dict())
+            cls._all_callbacks_hash[(socket_type, socket_address)][pattern] = fn
+        return decorator
+            
     def register_callback_path(self, path, callback):
         """
         :param path: String path that to associate the callback with
@@ -105,7 +117,7 @@ class ZMQSubscribeEndPoint(ZMQListenEndPoint):
     Subscribe sockets require filters to function
     """
     
-    def __init__(self, address, bind=False, callback_hash=[], **kargs):
+    def __init__(self, address, bind=False, callback_hash={}, **kargs):
         super(ZMQSubscribeEndPoint, self).__init__(zmq.SUB, address, bind=bind, 
                                                    plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_hash=callback_hash)], **kargs)
     
