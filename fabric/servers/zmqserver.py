@@ -8,7 +8,11 @@ from fabric.endpoints.zmqendpoints.zmq_base import ZMQBaseEndPoint, ZMQEndPoint
     
 class ZMQServer(server.Server):
     '''
-    classdocs
+    :py:class:`ZMQServer` is an extension of :py:class:`server.Server`. It serves the purpose of providing a base class
+    for all ZMQ based Servers.
+    
+    For predictable performance, limit all endpoints to :py:class:`ZMQBaseEndpoint`, mixing endpoint
+    types will result in unknown behaviour.
     '''
     def __init__(self, name=None, endpoints=[], **kargs):
         '''
@@ -23,11 +27,19 @@ class ZMQServer(server.Server):
         self.activate_endpoints()
     
     def activate_endpoints(self):
+        """
+        Activates all ZMQBaseEndPoints registered with this server
+        """
         for ep in self.ep_hash:
             if isinstance(self.ep_hash[ep], ZMQBaseEndPoint):
                 self.ep_hash[ep].activate()
     
     def send_from_endpoint(self, uuid, *args, **kargs):
+        """
+        :param uuid: The UUID of the endpoint to send the message from, every endpoint has a probabilistically unique UUID
+        :param args: To be used by the SEND Plugins of type :py:class:`ZMQBasePlugin`, this is sent by default
+        :param kargs: To be used by the SEND Plugins of type :py:class:`ZMQBasePlugin`
+        """
         assert self.ep_hash.has_key(uuid) and isinstance(self.ep_hash[uuid], ZMQBaseEndPoint)
         self.ep_hash[uuid].send(*args, **kargs)
             

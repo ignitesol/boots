@@ -1,7 +1,5 @@
 '''
-Created on 14-Jun-2012
 
-@author: rishi
 '''
 
 import os,sys
@@ -19,12 +17,22 @@ sys.path.append(PROJ_DIR)  if not hasattr(sys, 'frozen') else sys.path.append(DI
 from fabric.servers.zmqserver import ZMQServer
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQEndPoint, t,\
     ZMQListenEndPoint
-from fabric.endpoints.zmqendpoints.zmq_endpoints import ZMQSubscribeEndpoint,\
+from fabric.endpoints.zmqendpoints.zmq_endpoints import ZMQSubscribeEndPoint,\
     ZMQJsonReply, ZMQJsonRequest, ZMQCallbackPattern
 
 class ZMQPullPubServer(ZMQServer):
     '''
-    classdocs
+    A :py:class:`ZMQServer` Extension, containing two :py:class:`ZMQEndPoint`'s
+    
+    1. :py:class:`ZMQListenEndPoint` of type :py:attr:`zmq.PULL`, `bind` is :py:attr:`True`
+        **Plugins**
+    
+        - ZMQJsonReply
+        - ZMQCallbackPattern
+    2. :py:class:`ZMQEndPoint` of type :py:attr:`zmq.PUB`, `bind` is :py:attr:`True`
+        **Plugins**
+        
+        - ZMQJsonRequest
     '''
     def __init__(self, pub_address, pull_address, *args, **kargs):
         '''
@@ -42,6 +50,11 @@ class ZMQPullPubServer(ZMQServer):
         self.start_main_server()
     
     def callback_fn(self, msg):
+        """
+        Callback function of receiving a message with "path" : "benchmark"
+        
+        Re-routes message to the Publish Endpoint
+        """
         self.send_from_endpoint(self.pub_endpoint.uuid, '1', args=(msg,), path='*')
     
     def start_main_server(self):
@@ -49,10 +62,24 @@ class ZMQPullPubServer(ZMQServer):
         super(ZMQPullPubServer, self).start_main_server()
         
 class ZMQSubscribeServer(ZMQServer):
+    """
+    A :class:`ZMQServer` Extension, containing one :class:`ZMQEndPoint`
+    
+    1. :class:`ZMQSubscribeEndPoint`
+        **Plugins**
+        
+        - ZMQCallbackPattern
+    """
     def __init__(self, sub_address, sub_filter, *args, **kargs):
+        """
+        Constructor
+        
+        :param sub_address: Subscribe address
+        :param sub_filter: The default filter to be used on the Subscribe Socket
+        """
         super(ZMQSubscribeServer, self).__init__(server=self, **kargs)
         
-        self.sub_endpoint = ZMQSubscribeEndpoint(sub_address, callback_hash={'*': self.printme})
+        self.sub_endpoint = ZMQSubscribeEndPoint(sub_address, callback_hash={'*': self.printme})
         self.add_endpoint(self.sub_endpoint)
         self.start_main_server()
         self.sub_endpoint.add_filter(sub_filter)

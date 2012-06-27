@@ -33,6 +33,22 @@ ManangedServer
 .. autoclass:: ManagedEP
 	:members:
 
+
+ZMQServer
+---------------
+.. automodule:: fabric.servers.zmqserver
+
+.. autoclass:: ZMQServer
+    :members:
+
+.. automodule:: fabric.servers.zmq_pull_pub_server
+
+.. autoclass:: ZMQPullPubServer
+    :members:
+    
+.. autoclass:: ZMQSubscribeServer
+    :members:
+
 Endpoints
 =========
 .. automodule:: fabric.endpoints.endpoint
@@ -46,7 +62,7 @@ HTTP Server End Points
 
 .. autoclass:: HTTPServerEndPoint
 	:members: activate, request, request_params, environ, response, abort, session
-
+ 
 Route Decorator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -66,6 +82,35 @@ Handy Plugins
 	:members: handler
 	
 .. autoclass:: Tracer
+
+ZMQ Server End Points
+-----------------------
+.. automodule:: fabric.endpoints.zmqendpoints.zmq_base
+
+.. autoclass:: ZMQBaseEndPoint
+	:members:
+	
+.. autoclass:: ZMQEndPoint
+	:members:
+
+.. autoclass:: ZMQListenEndPoint
+	:members:
+
+Handy Plugins
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: ZMQBasePlugin
+    :members: 
+    
+.. automodule:: fabric.endpoints.zmqendpoints.zmq_endpoints
+
+.. autoclass:: ZMQJsonReply
+    :members:
+ 
+.. autoclass:: ZMQJsonRequest
+    :members:
+
+.. autoclass:: ZMQCallbackPattern
+	:members:
 
 HTTP Client End Points
 -----------------------

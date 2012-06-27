@@ -71,6 +71,7 @@ class ZMQBaseEndPoint(EndPoint):
     def send(self, data):
         """
         Sends data on the socket associated with this endpoint
+        
         :param data: A string format message to send
         """
         print 'sending', data
@@ -85,9 +86,10 @@ class ZMQEndPoint(ZMQBaseEndPoint):
     def __init__(self, socket_type, address, bind=False, plugins=[], **kargs):
         '''
         Constructor
+        
         :param socket_type: Should be of a zmq socket type, no sanity checks are made
         :param address: The inproc, ipc, tcp or pgm address to use with the zmq socket
-        :param bind=False: Instructs the zmq Socket to bind if set to True
+        :param bind: Instructs the zmq Socket to bind if set to True
         :param plugins: A list of plugins to be associated with this endpoint of the type ZMQBasePlugin
         '''
         super(ZMQEndPoint, self).__init__(socket_type, address, bind=bind, **kargs)
@@ -98,13 +100,13 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         
     def setup(self):
         """
-        Calls back the parent setup using the ioloop callback handler
+        Calls back the :py:class:`ZMQBaseEndpoint` :py:func:`setup` using the ioloop callback handler
         """
         self.ioloop.add_callback(super(ZMQEndPoint, self).setup)
 
     def start(self):
         """
-        Calls back the parent start using the ioloop callback handler
+        Calls back the :py:class:`ZMQBaseEndpoint` :py:func:`start` using the ioloop callback handler
         """
         self.ioloop.add_callback(super(ZMQEndPoint, self).start)
     
@@ -112,18 +114,22 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         """
         Runs the SEND plugins associated with this endpoint
         Calls back the parent send using the ioloop callback handler
-        :param *args: Only this is sent to the parent send
-        :param **kargs: Should be consumed by the SEND plugins and formatted into the args paramater
+        
+        :param args: Only this is sent to the parent send
+        :param kargs: Should be consumed by the SEND plugins and formatted into the args paramater
         """
-        for p in self.send_plugins: args, kargs = p(*args, **kargs)
+        for p in self.send_plugins: args, kargs = p.apply(*args, **kargs)
         self.ioloop.add_callback(functools.partial(super(ZMQEndPoint, self).send, args))
 
 class ZMQListenEndPoint(ZMQEndPoint):
     """
+    This is an Extension of the :py:class:`ZMQEndPoint` class.
+    It implements a receive loop that runs the :py:attr:`ZMQBasePlugin.RECEIVE` Plugins serially
     """
     def __init__(self, socket_type, address, bind=False, plugins=[], **kargs):
         """
         Constructor
+        
         :param socket_type: Should be of a zmq socket type, no sanity checks are made
         :param address: The inproc, ipc, tcp or pgm address to use with the zmq socket
         :param bind=False: Instructs the zmq Socket to bind if set to True
@@ -131,7 +137,6 @@ class ZMQListenEndPoint(ZMQEndPoint):
         """
         super(ZMQListenEndPoint, self).__init__(socket_type, address, bind=bind, plugins=plugins)
         self.receive_plugins = filter(lambda x: x.plugin_type & ZMQBasePlugin.RECEIVE, self.plugins)
-        self._path_callbacks = dict()
         
     def start(self):
         """
@@ -151,21 +156,55 @@ class ZMQListenEndPoint(ZMQEndPoint):
         
         msg = socket.recv()
         for p in self.receive_plugins:
-            try: msg = p(msg)
+            try: msg = p.apply(msg)
             except Exception as e: print 'Error', e
         
 class ZMQBasePlugin(object):
     """
     This is Base ZMQ Plugin class, inherit this for every Plugin class
+    
+    Plugins are of type :py:attr:`ZMQBasePlugin.SEND` and :py:attr:`ZMQBasePlugin.RECEIVE`,
+    as should be represented by the internal :py:attr:`_plugin_type_` attribute
+    
+    :py:attr:`ZMQBasePlugin.SEND` type plugins are invoked serially before a message is sent on the ZMQ Socket
+    
+    :py:attr:`ZMQBasePlugin.RECEIVE` type plugins are invoked serially after a message is received on the ZMQ Socket
     """
     SEND, RECEIVE = 1, 2
     _plugin_type_ = None
     
     def __init__(self):
         """
-        :raises TypeError if _plugin_type_ is not defined in the Plugin Class
+        :raises: TypeError if _plugin_type_ is not defined in the Plugin Class
         """
         if self.__class__._plugin_type_ is None: raise TypeError('The Plugin Class must have a _plugin_type_ set to either 1)SEND or 2)RECEIVE')
+    
+    def setup(self, endpoint):
+        """
+        To be overwritten by the Plugin Class.
+        This method will be called when the endpoint is instantiated
+        
+        :param endpoint: The endpoint instance containing this Plugin Class
+        """
+        pass
+    
+    def apply(self, *args, **kargs):
+        """
+        This method is called every time the Plugin is to be invoked.
+        
+        **In case of a** :py:attr:`ZMQBasePlugin.SEND` **type plugin**
+        
+        :param args: Iterable that is passed on from the :py:func:`ZMQEndpoint.send()` method or preceding Plugins, this is the final set sent from :py:func:`ZMQBaseEndpoint.send()`
+        :param kargs: :py:class:`Dictionary` passed on from the :py:func:`ZMQEndpoint.send()` method, these are ignored by :py:func:`ZMQBaseEndpoint.send()`, any useful data must be integrated into the `args` parameter
+        :returns: tuple (args, kargs)
+        
+        **In case of a** :py:attr:`ZMQBasePlugin.RECEIVE` **type plugin**
+        
+        :param msg: String data received form the ZMQ Socket, or any other type passed through from preceding Plugins
+        
+        :raises: AttributeError if not overridden by the Plugin Classes
+        """
+        raise AttributeError('The apply() method must be overridden by the Plugin Class')
         
     @property
     def plugin_type(self):
