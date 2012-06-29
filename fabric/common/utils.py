@@ -48,4 +48,4 @@ def new_counter(seed=0):
         return _internal_counter(seed).next
     
 def generate_uuid(frames=3):
-    return '-'.join(['%s'%random.Random().randint(0, pow(10,16)) for _ in range(0, frames)])
+    return '-'.join(['%X'%random.Random().randint(0, pow(10,16)) for _ in range(0, frames)])

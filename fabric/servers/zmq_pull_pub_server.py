@@ -41,7 +41,7 @@ class ZMQPullPubServer(ZMQServer):
         super(ZMQPullPubServer, self).__init__(name="PullPubServer", **kargs)
         
         self.listen_endpoint = ZMQListenEndPoint(zmq.PULL, pull_address, bind=True, 
-                                                 plugins=[ZMQJsonReply(), ZMQCallbackPattern()], server=self)
+                                                 plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_depth=ZMQCallbackPattern.SERVER)], server=self)
         self.pub_endpoint = ZMQEndPoint(zmq.PUB, pub_address, bind=True, plugins=[ZMQJsonRequest()], server=self)
         
         self.add_endpoint(self.listen_endpoint)
@@ -52,6 +52,16 @@ class ZMQPullPubServer(ZMQServer):
     def start_main_server(self):
         print 'starting server'
         super(ZMQPullPubServer, self).start_main_server()
+    
+    @ZMQCallbackPattern.ZMQPatternRoute(zmq.PULL, 'ipc:///tmp/zpydealer', 'benchmark')
+    def callback_fn(self, msg):
+        """
+        Callback function of receiving a message with "path" : "benchmark"
+        
+        Re-routes message to the Publish Endpoint
+        """
+        self.send_from_endpoint(self.pub_endpoint.uuid, '1', args=(msg,), path='*')
+        
         
 class ZMQSubscribeServer(ZMQServer):
     """
@@ -69,27 +79,18 @@ class ZMQSubscribeServer(ZMQServer):
         :param sub_address: Subscribe address
         :param sub_filter: The default filter to be used on the Subscribe Socket
         """
-        super(ZMQSubscribeServer, self).__init__(server=self, **kargs)
+        super(ZMQSubscribeServer, self).__init__(**kargs)
         
-        self.sub_endpoint = ZMQSubscribeEndPoint(sub_address)
+        self.sub_endpoint = ZMQSubscribeEndPoint(sub_address, server=self)
         self.add_endpoint(self.sub_endpoint)
         self.start_main_server()
         self.sub_endpoint.add_filter(sub_filter)
+    
+    @ZMQCallbackPattern.ZMQPatternRoute(zmq.SUB, 'tcp://127.0.0.1:9876', '*')
+    def printme(self, msg):
+        print 'Subscription received', msg
         
 if __name__ == '__main__':
-    
-    @ZMQCallbackPattern.ZMQPatternRoute(zmq.PULL, 'ipc:///tmp/zpydealer', 'benchmark')
-    def callback_fn(msg):
-        """
-        Callback function of receiving a message with "path" : "benchmark"
-        
-        Re-routes message to the Publish Endpoint
-        """
-        zpubserver.send_from_endpoint(zpubserver.pub_endpoint.uuid, '1', args=(msg,), path='*')
-        
-    @ZMQCallbackPattern.ZMQPatternRoute(zmq.SUB, 'tcp://127.0.0.1:9876', '*')
-    def printme(msg):
-        print 'Subscription received', msg
         
     zsubserver = ZMQSubscribeServer('tcp://127.0.0.1:9876', '')
     zpubserver = ZMQPullPubServer('tcp://*:9876', 'ipc:///tmp/zpydealer')

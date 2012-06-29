@@ -4,7 +4,6 @@ Created on 19-Jun-2012
 @author: anand
 '''
 from threading import Thread
-import threading
 import zmq
 from zmq.eventloop import ioloop
 from fabric.endpoints.endpoint import EndPoint
@@ -32,6 +31,7 @@ class ZMQBaseEndPoint(EndPoint):
     def __init__(self, socket_type, address, bind=False, **kargs):
         '''
         Constructor
+        
         :param socket_type: Should be of a zmq socket type, no sanity checks are made
         :param address: The inproc, ipc, tcp or pgm address to use with the zmq socket
         :param bind=False: Instructs the zmq Socket to bind if set to True
@@ -74,7 +74,7 @@ class ZMQBaseEndPoint(EndPoint):
         
         :param data: A string format message to send
         """
-        print 'sending', data
+        # print 'sending', data
         self.socket.send(data)
 
 class ZMQEndPoint(ZMQBaseEndPoint):
@@ -96,20 +96,36 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         self.ioloop = ioloop.IOLoop.instance()
         self.plugins = plugins
         self.send_plugins = filter(lambda x: x.plugin_type & ZMQBasePlugin.SEND, self.plugins)
-        print 'ioloop instance', id(self.ioloop)
+        self.send_fn = super(ZMQEndPoint, self).send
         
-    def setup(self):
+    def setup(self, extended_setup=[]):
         """
         Calls back the :py:class:`ZMQBaseEndpoint` :py:func:`setup` using the ioloop callback handler
+        
+        It also sets up the :class:`ZMQBasePlugin` extensions associated with this EndPoint and for all SEND Plugins
+        does the :func:`apply`
         """
         self.ioloop.add_callback(super(ZMQEndPoint, self).setup)
-        for p in self.plugins: p.setup(self)
+        
+        for s in extended_setup:
+            if callable(s): self.ioloop.add_callback(s)
+            elif type(s) is tuple and len(s) == 2: self.ioloop.add_callback(functools.partial(s[0], *s[1]))
+            elif type(s) is tuple and len(s) == 3: self.ioloop.add_callback(functools.partial(s[0], *s[1], **s[2]))
+             
+        for p in self.plugins:
+            p.setup(self) 
+            if p in self.send_plugins: self.send_fn = p.apply(self.send_fn)
 
-    def start(self):
+    def start(self, extended_start=[]):
         """
         Calls back the :py:class:`ZMQBaseEndpoint` :py:func:`start` using the ioloop callback handler
         """
         self.ioloop.add_callback(super(ZMQEndPoint, self).start)
+        
+        for s in extended_start:
+            if callable(s): self.ioloop.add_callback(s)
+            elif type(s) is tuple and len(s) == 2: self.ioloop.add_callback(functools.partial(s[0], *s[1]))
+            elif type(s) is tuple and len(s) == 3: self.ioloop.add_callback(functools.partial(s[0], *s[1], **s[2]))
     
     def send(self, *args, **kargs):
         """
@@ -119,8 +135,7 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         :param args: Only this is sent to the parent send
         :param kargs: Should be consumed by the SEND plugins and formatted into the args paramater
         """
-        for p in self.send_plugins: args, kargs = p.apply(*args, **kargs)
-        self.ioloop.add_callback(functools.partial(super(ZMQEndPoint, self).send, args))
+        self.ioloop.add_callback(functools.partial(self.send_fn, *args, **kargs))
 
 class ZMQListenEndPoint(ZMQEndPoint):
     """
@@ -136,14 +151,14 @@ class ZMQListenEndPoint(ZMQEndPoint):
         :param bind=False: Instructs the zmq Socket to bind if set to True
         :param plugins: A list of plugins to be associated with this endpoint of the type ZMQBasePlugin
         """
-        super(ZMQListenEndPoint, self).__init__(socket_type, address, bind=bind, plugins=plugins)
+        super(ZMQListenEndPoint, self).__init__(socket_type, address, bind=bind, plugins=plugins, **kargs)
         self.receive_plugins = filter(lambda x: x.plugin_type & ZMQBasePlugin.RECEIVE, self.plugins)
         
-    def start(self):
+    def start(self, extended_start=[]):
         """
         call this to bind or connect the socket
         """
-        super(ZMQListenEndPoint, self).start()
+        super(ZMQListenEndPoint, self).start(extended_start=extended_start)
         # Closure is required here since we utilise the socket outside the loop thread
         def _add_handler():
             self.ioloop.add_handler(self.socket, self._recv_callback, zmq.POLLIN)
@@ -158,7 +173,7 @@ class ZMQListenEndPoint(ZMQEndPoint):
         msg = socket.recv()
         for p in self.receive_plugins:
             try: msg = p.apply(msg)
-            except Exception as e: print 'Error', e
+            except Exception as e: print 'Error', p, e
         
 class ZMQBasePlugin(object):
     """
@@ -187,9 +202,10 @@ class ZMQBasePlugin(object):
         
         :param endpoint: The endpoint instance containing this Plugin Class
         """
-        pass
+        self.endpoint = endpoint
+        if self.__class__._plugin_type_ == self.__class__.SEND: self.apply(endpoint.send)
     
-    def apply(self, *args, **kargs):
+    def apply(self, *args, **kargs): #@ReservedAssignment
         """
         This method is called every time the Plugin is to be invoked.
         
@@ -198,6 +214,25 @@ class ZMQBasePlugin(object):
         :param args: Iterable that is passed on from the :py:func:`ZMQEndpoint.send()` method or preceding Plugins, this is the final set sent from :py:func:`ZMQBaseEndpoint.send()`
         :param kargs: :py:class:`Dictionary` passed on from the :py:func:`ZMQEndpoint.send()` method, these are ignored by :py:func:`ZMQBaseEndpoint.send()`, any useful data must be integrated into the `args` parameter
         :returns: tuple (args, kargs)
+        
+        The :func:`apply` method MUST be of a decorator form, wrapping the send callback, for example::
+        
+            def apply(self, callback):
+                '''
+                The overridden apply function
+                '''
+                @wraps(callback)
+                def _apply(*args, **kargs):
+                    '''
+                    Receiving args and kargs from previous plugins or from the server
+                    As an example we want to send the message in the form 'args-kargs'
+                    '''
+                    msg = args and reduce(lambda x, y: '%s%s'%(x,y),args)
+                    if kargs: msg = msg + '-' + json.dumps(kargs)
+                    callback(msg) # This is the send callback to be invoked
+        
+        All the SEND Plugins are invoked from within the thread containing the ZMQ Socket, so using the Socket data structures is safe
+        
         
         **In case of a** :py:attr:`ZMQBasePlugin.RECEIVE` **type plugin**
         

@@ -9,6 +9,8 @@ import threading
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQBasePlugin,\
     ZMQListenEndPoint
 import inspect
+from zmq.eventloop import ioloop
+from functools import wraps
         
 class ZMQJsonReply(ZMQBasePlugin):
     """
@@ -21,9 +23,6 @@ class ZMQJsonReply(ZMQBasePlugin):
     Anything within the braces will be jsonified and returned including the braces themselves
     """
     _plugin_type_ = ZMQBasePlugin.RECEIVE
-    
-    def setup(self, endpoint):
-        pass
 
     def apply(self, msg):
         if msg.index('{') > -1 and msg.index('}') > -1:
@@ -44,13 +43,14 @@ class ZMQJsonRequest(ZMQBasePlugin):
     """
     _plugin_type_ = ZMQBasePlugin.SEND
     
-    def setup(self, endpoint):
-        pass
-    
-    def apply(self, *args, **kargs):
-        msg = args and '-'.join('%s'%args)
-        if kargs: msg = msg + ' ' + json.dumps(kargs)
-        return msg, None
+    def apply(self, send_fn):
+        @wraps(send_fn)
+        def _wrapper(*args, **kargs):
+            msg = args and reduce(lambda x, y: '%s-%s'%(x,y),args)
+            if kargs: msg = msg + ' ' + json.dumps(kargs)
+            send_fn(msg)
+        
+        return _wrapper
 
 class ZMQCallbackPattern(ZMQBasePlugin):
     """
@@ -60,19 +60,26 @@ class ZMQCallbackPattern(ZMQBasePlugin):
     _plugin_type_ = ZMQBasePlugin.RECEIVE
     _all_callbacks_hash = dict()
     
-    def __init__(self, callback_hash={}):
+    GLOBAL = 0
+    SERVER = 1
+    ENDPOINT = 2
+        
+    def __init__(self, callback_hash={}, callback_depth=2):
         """
         Constructor
         
         :param callback_hash: A :py:class:`Dictionary` holding *path* : *callback* key : value pairs
+        :param callback_depth: May be of type :attr:`ZMQCallbackPattern.GLOBAL`, :attr:`ZMQCallbackPattern.SERVER`, :attr:`ZMQCallbackPattern.ENDPOINT`. This should reflect where all the callbacks reside
         """
         self._callback_hash = callback_hash
+        self._callback_depth = callback_depth
         
     def setup(self, endpoint):
         try:
             for k,v in self.__class__._all_callbacks_hash[(endpoint.socket_type, endpoint.address)].iteritems():
                 self._callback_hash[k] = v
         except KeyError: pass
+        super(ZMQCallbackPattern, self).setup(endpoint)
     
     def apply(self, msg):
         try : path = msg['path']
@@ -89,17 +96,22 @@ class ZMQCallbackPattern(ZMQBasePlugin):
         args = msg.get('args', None)
         # Kargs as a dictionary
         kwargs = msg.get('kwargs', None)
+    
+        if type(args) is not tuple: args = tuple(args)      
         
-        if type(args) is not tuple: args = tuple(args)
+        if self._callback_depth is self.__class__.SERVER: callback = self.endpoint.server.__getattribute__(callback.func_name)
+        elif self._callback_depth is self.__class__.ENDPOINT: callback = self.endpoint.callback
+        
         threading.Thread(target=callback, args=args, kwargs=kwargs).start()
         
         return msg
     
     @classmethod
-    def ZMQPatternRoute(cls, socket_type, socket_address, pattern):
+    def ZMQPatternRoute(cls, socket_type, socket_address, pattern, callback_depth=0):
         def decorator(fn):
             cls._all_callbacks_hash.setdefault((socket_type, socket_address), dict())
             cls._all_callbacks_hash[(socket_type, socket_address)][pattern] = fn
+            return fn
         return decorator
             
     def register_callback_path(self, path, callback):
@@ -111,6 +123,35 @@ class ZMQCallbackPattern(ZMQBasePlugin):
         """
         self.callback_hash[path] = callback
 
+class ZMQRequestEndPoint(ZMQListenEndPoint):
+    
+    def __init__(self, address, **kargs):
+        super(ZMQRequestEndPoint, self).__init__(zmq.REQ, address, **kargs)
+        self.poller = None
+    
+    def setup(self, extended_setup=[]):
+        def _setup():
+            self.poller = zmq.Poller()
+            
+        extended_setup.append(_setup)
+        super(ZMQRequestEndPoint, self).setup(extended_setup=extended_setup)
+    
+    def start(self, extended_start=[]):
+        def _start():
+            self.poller.register(self.socket, zmq.POLLIN|zmq.POLLOUT)
+        
+        extended_start.append(_start)
+        super(ZMQRequestEndPoint, self).start(extended_start=extended_start)
+    
+    def send(self, *args, **kargs):
+        def _send():
+            p = dict(self.poller.poll(timeout=1)) #immediate
+            if self.socket in p and p[self.socket] is zmq.POLLOUT:
+                super(ZMQRequestEndPoint, self).send(*args, **kargs)
+            # Do queueing
+            
+        ioloop.IOLoop.instance().add_callback(_send)
+    
 class ZMQSubscribeEndPoint(ZMQListenEndPoint):
     """
     Special ZMQListenEndpoint that creates a SUBSCRIBE Socket
@@ -119,7 +160,7 @@ class ZMQSubscribeEndPoint(ZMQListenEndPoint):
     
     def __init__(self, address, bind=False, callback_hash={}, **kargs):
         super(ZMQSubscribeEndPoint, self).__init__(zmq.SUB, address, bind=bind, 
-                                                   plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_hash=callback_hash)], **kargs)
+                                                   plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_hash=callback_hash, callback_depth=ZMQCallbackPattern.SERVER)], **kargs)
     
     def add_filter(self, pattern):
         """
