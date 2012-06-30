@@ -61,7 +61,7 @@ class ZMQBaseEndPoint(EndPoint):
     
     def start(self):
         """
-        Binds or connects to the created socket as indeicated by the constructor param bind
+        Binds or connects to the created socket as indicated by the constructor param bind
         Must only be called after setup
         """
         print 'Start ', self.uuid
@@ -100,7 +100,7 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         
     def setup(self, extended_setup=[]):
         """
-        Calls back the :py:class:`ZMQBaseEndpoint` :py:func:`setup` using the ioloop callback handler
+        Calls back the :class:`ZMQBaseEndpoint` :func:`setup` using the ioloop callback handler
         
         It also sets up the :class:`ZMQBasePlugin` extensions associated with this EndPoint and for all SEND Plugins
         does the :func:`apply`
@@ -118,7 +118,7 @@ class ZMQEndPoint(ZMQBaseEndPoint):
 
     def start(self, extended_start=[]):
         """
-        Calls back the :py:class:`ZMQBaseEndpoint` :py:func:`start` using the ioloop callback handler
+        Calls back the :class:`ZMQBaseEndpoint` :func:`start` using the ioloop callback handler
         """
         self.ioloop.add_callback(super(ZMQEndPoint, self).start)
         
@@ -139,8 +139,8 @@ class ZMQEndPoint(ZMQBaseEndPoint):
 
 class ZMQListenEndPoint(ZMQEndPoint):
     """
-    This is an Extension of the :py:class:`ZMQEndPoint` class.
-    It implements a receive loop that runs the :py:attr:`ZMQBasePlugin.RECEIVE` Plugins serially
+    This is an Extension of the :class:`ZMQEndPoint` class.
+    It implements a receive loop that runs the :attr:`ZMQBasePlugin.RECEIVE` Plugins serially
     """
     def __init__(self, socket_type, address, bind=False, plugins=[], **kargs):
         """
@@ -179,12 +179,12 @@ class ZMQBasePlugin(object):
     """
     This is Base ZMQ Plugin class, inherit this for every Plugin class
     
-    Plugins are of type :py:attr:`ZMQBasePlugin.SEND` and :py:attr:`ZMQBasePlugin.RECEIVE`,
-    as should be represented by the internal :py:attr:`_plugin_type_` attribute
+    Plugins are of type :attr:`ZMQBasePlugin.SEND` and :attr:`ZMQBasePlugin.RECEIVE`,
+    as should be represented by the internal :attr:`_plugin_type_` attribute
     
-    :py:attr:`ZMQBasePlugin.SEND` type plugins are invoked serially before a message is sent on the ZMQ Socket
+    :attr:`ZMQBasePlugin.SEND` type plugins are invoked serially before a message is sent on the ZMQ Socket
     
-    :py:attr:`ZMQBasePlugin.RECEIVE` type plugins are invoked serially after a message is received on the ZMQ Socket
+    :attr:`ZMQBasePlugin.RECEIVE` type plugins are invoked serially after a message is received on the ZMQ Socket
     """
     SEND, RECEIVE = 1, 2
     _plugin_type_ = None
@@ -209,10 +209,10 @@ class ZMQBasePlugin(object):
         """
         This method is called every time the Plugin is to be invoked.
         
-        **In case of a** :py:attr:`ZMQBasePlugin.SEND` **type plugin**
+        **In case of a** :attr:`ZMQBasePlugin.SEND` **type plugin**
         
-        :param args: Iterable that is passed on from the :py:func:`ZMQEndpoint.send()` method or preceding Plugins, this is the final set sent from :py:func:`ZMQBaseEndpoint.send()`
-        :param kargs: :py:class:`Dictionary` passed on from the :py:func:`ZMQEndpoint.send()` method, these are ignored by :py:func:`ZMQBaseEndpoint.send()`, any useful data must be integrated into the `args` parameter
+        :param args: Iterable that is passed on from the :func:`ZMQEndpoint.send()` method or preceding Plugins, this is the final set sent from :func:`ZMQBaseEndpoint.send()`
+        :param kargs: :class:`Dictionary` passed on from the :func:`ZMQEndpoint.send()` method, these are ignored by :func:`ZMQBaseEndpoint.send()`, any useful data must be integrated into the `args` parameter
         :returns: tuple (args, kargs)
         
         The :func:`apply` method MUST be of a decorator form, wrapping the send callback, for example::
@@ -234,7 +234,7 @@ class ZMQBasePlugin(object):
         All the SEND Plugins are invoked from within the thread containing the ZMQ Socket, so using the Socket data structures is safe
         
         
-        **In case of a** :py:attr:`ZMQBasePlugin.RECEIVE` **type plugin**
+        **In case of a** :attr:`ZMQBasePlugin.RECEIVE` **type plugin**
         
         :param msg: String data received form the ZMQ Socket, or any other type passed through from preceding Plugins
         
