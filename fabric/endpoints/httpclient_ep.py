@@ -135,7 +135,7 @@ class HTTPClient(EndPoint):
     protocol in making requests.
     '''
     
-    def __init__(self, url=None, data=None, headers=None, origin_req_host=None, method='POST'):
+    def __init__(self, url=None, data=None, headers=None, origin_req_host=None, method='POST', server=None):
         '''
         :param str url: the url that this request object should bind to. This is optional and the url provided with
             :py:meth:`request` supercedes this value. The url will be urlquoted before sending
@@ -143,8 +143,10 @@ class HTTPClient(EndPoint):
         :param headers: optional headers to include with the request. headers is a dict or a :py:class:`Header` object
         :param origin_req_host: refer urllib2.Request
         :param str method: one of 'GET' or 'POST'
+        :param Server server: (defaults None). A reference to the server object to which this endpoint belongs to
         '''
         
+        super(HTTPClient, self).__init__(server=server)
         self.url = url
         self.data = data
         self.headers = Header(headers or {})
@@ -323,7 +325,7 @@ class HTTPAsyncClient(HTTPClient, threading.Thread):
     runaway creation of long-lived requests. Supports all the methods of :py:class:`HTTPClient`
     '''
     
-    def __init__(self, url=None, headers=None, origin_req_host=None, method='POST', onsuccess=None, onerror=None, sync=False, timeout=None):
+    def __init__(self, url=None, headers=None, origin_req_host=None, method='POST', onsuccess=None, onerror=None, sync=False, timeout=None, server=None):
         '''
         
         :param str url: the url that this request object should bind to. This is optional and the url provided with
@@ -335,13 +337,14 @@ class HTTPAsyncClient(HTTPClient, threading.Thread):
         :param onerror: a function to be invoked on failure of the request. Invoked with the exception that got raised.
         :param bool sync: whether this request should be synchronous (True) or async (default) 
         :param timeout: (currently not implemented). Whether to timeout if no response is received in a specified time.
+        :param Server server: (defaults None). A reference to the server object to which this endpoint belongs to
         '''
         do_nothing = lambda x: None
         self.onsuccess = onsuccess or do_nothing
         self.onerror = onerror or do_nothing
         self.sync = sync
         self.timeout = timeout
-        super(HTTPAsyncClient, self).__init__(url=None, headers=None, origin_req_host=None, method=method)
+        super(HTTPAsyncClient, self).__init__(url=None, headers=None, origin_req_host=None, method=method, server=server)
         threading.Thread.__init__(self)
         self.daemon = True
 

@@ -454,7 +454,7 @@ class HTTPServerEndPoint(EndPoint):
         :param bool activate: whether to activate this endpoint on creation or later through an explicit 
             :py:meth:`activate` call
         '''
-
+        super(HTTPServerEndPoint, self).__init__(server=server)
         self.name = name = name or self._name_prefix + str(HTTPServerEndPoint._counter())
         self.mountpoint = mountpoint
         self.plugins = getattr(self, 'plugins', []) + (plugins or []) # in case plugins have already been set up
