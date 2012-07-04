@@ -46,7 +46,7 @@ class ZMQJsonRequest(ZMQBasePlugin):
     def apply(self, send_fn):
         @wraps(send_fn)
         def _wrapper(*args, **kargs):
-            msg = args and reduce(lambda x, y: '%s-%s'%(x,y),args)
+            msg = reduce(lambda x, y: '%s/%s'%(x,y),args) if len(args) > 0 else ''
             if kargs: msg = msg + ' ' + json.dumps(kargs)
             send_fn(msg)
         
@@ -122,6 +122,37 @@ class ZMQCallbackPattern(ZMQBasePlugin):
         :type callback: Callable
         """
         self.callback_hash[path] = callback
+        
+class ZMQCoupling(ZMQBasePlugin):
+    
+    _plugin_type_ = ZMQBasePlugin.RECEIVE
+    _coupled_eps = {}
+    _coupled_process = {}
+    
+    def __init__(self, couple_id, process_context=None):
+        self.couple_id = couple_id
+        self._other_half = None
+        
+        self.__class__._coupled_eps.setdefault(self.couple_id, [])
+        self.__class__._coupled_eps[self.couple_id].append(self)
+        
+        if process_context is not None and self.__class__._coupled_process.get(self.couple_id) is not None: 
+            self.__class__._coupled_process[self.couple_id] = process_context.__getattribute__(self.__class__._coupled_process[self.couple_id].func_name)
+    
+    def apply(self, msg): #@ReservedAssignment
+        if not self._other_half:
+            self._other_half = self.__class__._coupled_eps[self.couple_id][0] if self.__class__._coupled_eps[self.couple_id][0] is not self else self.__class__._coupled_eps[self.couple_id][1]
+        try: msg = self.__class__._coupled_process[self.couple_id](msg)
+        except TypeError, KeyError: pass #@ReservedAssignment
+        self._other_half.endpoint.send(**msg)
+    
+    @classmethod
+    def CoupledProcess(cls, couple_id):
+        def decorator(fn):
+            cls._coupled_process.setdefault(couple_id)
+            cls._coupled_process[couple_id] = fn
+            return fn
+        return decorator
 
 class ZMQRequestEndPoint(ZMQListenEndPoint):
     
@@ -162,11 +193,3 @@ class ZMQSubscribeEndPoint(ZMQListenEndPoint):
         super(ZMQSubscribeEndPoint, self).__init__(zmq.SUB, address, bind=bind, 
                                                    plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_hash=callback_hash, callback_depth=ZMQCallbackPattern.SERVER)], **kargs)
     
-    def add_filter(self, pattern):
-        """
-        :param pattern: The pattern to discern between which messages to drop and which to accept
-        :type pattern: String
-        """
-        def _filter():
-            self.socket.setsockopt(zmq.SUBSCRIBE, pattern)
-        self.ioloop.add_callback(_filter)

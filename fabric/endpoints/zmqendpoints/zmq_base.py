@@ -41,14 +41,19 @@ class ZMQBaseEndPoint(EndPoint):
         self.address = address
         self.socket_type = socket_type
         self.socket = None
+        self._activated = False
     
     def activate(self):
         """
         Should be called when endpoints are being activated
         This is turn calls setup and start
         """
+        if self._activated: return False
+        
         self.setup()
         self.start()
+        self._activated = True
+        return True
     
     def setup(self):
         """
@@ -174,6 +179,16 @@ class ZMQListenEndPoint(ZMQEndPoint):
         for p in self.receive_plugins:
             try: msg = p.apply(msg)
             except Exception as e: print 'Error', p, e
+    
+    def add_filter(self, pattern):
+        """
+        :param pattern: The pattern to discern between which messages to drop and which to accept
+        :type pattern: String
+        """
+        if self.socket_type != zmq.SUB: raise TypeError('Only subscribe sockets may have filters')
+        def _filter():
+            self.socket.setsockopt(zmq.SUBSCRIBE, pattern)
+        self.ioloop.add_callback(_filter)
         
 class ZMQBasePlugin(object):
     """
