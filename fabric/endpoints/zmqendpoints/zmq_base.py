@@ -80,7 +80,7 @@ class ZMQBaseEndPoint(EndPoint):
         :param data: A string format message to send
         """
         # print 'sending', data
-        self.socket.send(data)
+        self.socket.send_multipart(data)
 
 class ZMQEndPoint(ZMQBaseEndPoint):
     '''
@@ -175,7 +175,7 @@ class ZMQListenEndPoint(ZMQEndPoint):
         '''
         assert event == zmq.POLLIN
         
-        msg = socket.recv()
+        msg = socket.recv_multipart()
         for p in self.receive_plugins:
             try: msg = p.apply(msg)
             except Exception as e: print 'Error', p, e

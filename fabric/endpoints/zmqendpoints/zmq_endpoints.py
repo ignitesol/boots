@@ -25,9 +25,10 @@ class ZMQJsonReply(ZMQBasePlugin):
     _plugin_type_ = ZMQBasePlugin.RECEIVE
 
     def apply(self, msg):
-        if msg.index('{') > -1 and msg.index('}') > -1:
-            msg = '{' + msg.split('{',1)[1]
-            msg = msg.rsplit('}',1)[0] + '}'
+#        if msg.index('{') > -1 and msg.index('}') > -1:
+#            msg = '{' + msg.split('{',1)[1]
+#            msg = msg.rsplit('}',1)[0] + '}'
+        if type(msg) is list: msg = msg[-1]
         msg = json.loads(msg)
         return msg
     
@@ -47,7 +48,7 @@ class ZMQJsonRequest(ZMQBasePlugin):
         @wraps(send_fn)
         def _wrapper(*args, **kargs):
             msg = reduce(lambda x, y: '%s/%s'%(x,y),args) if len(args) > 0 else ''
-            if kargs: msg = msg + ' ' + json.dumps(kargs)
+            if kargs: msg = [msg ,json.dumps(kargs)]
             send_fn(msg)
         
         return _wrapper
