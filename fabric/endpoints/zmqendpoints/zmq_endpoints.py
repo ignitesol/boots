@@ -125,12 +125,31 @@ class ZMQCallbackPattern(ZMQBasePlugin):
         self.callback_hash[path] = callback
         
 class ZMQCoupling(ZMQBasePlugin):
+    '''
+    This is a :class:`ZMQBasePlugin` extension meant for quick iterations on multi device servers.
+    Using a "coupling ID" attach this Plugin to both required :class:`ZMQEndPoint`'s.
+    Use the :func:`CoupledProcess` decorator to wrap a processing function to manipulate data
+    as it is rerouted through the coupling.
     
+    example::
+    
+        @ZMQCoupling.CoupledProcess("some_id")
+        def process(self, message):
+            # Some processing
+            return args, kargs
+    
+    '''
     _plugin_type_ = ZMQBasePlugin.RECEIVE
     _coupled_eps = {}
     _coupled_process = {}
     
     def __init__(self, couple_id, process_context=None):
+        '''
+        Constructor
+        
+        :param couple_id: Trivial ID to be shared between the two coupled :class:`ZMQEndPoint`'s and the process function
+        :param process_context: The Context from which to execute itself from, example **self**
+        '''
         self.couple_id = couple_id
         self._other_half = None
         
