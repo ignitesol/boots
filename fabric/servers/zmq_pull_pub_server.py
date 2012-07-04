@@ -66,7 +66,7 @@ class ZMQPullPubServer(ZMQServer):
     @ZMQCoupling.CoupledProcess('pull_pub')
     def process_fn(self, msg):
         msg['path'] = '*'
-        return msg
+        return '', msg
         
         
 class ZMQSubscribeServer(ZMQServer):

@@ -142,9 +142,9 @@ class ZMQCoupling(ZMQBasePlugin):
     def apply(self, msg): #@ReservedAssignment
         if not self._other_half:
             self._other_half = self.__class__._coupled_eps[self.couple_id][0] if self.__class__._coupled_eps[self.couple_id][0] is not self else self.__class__._coupled_eps[self.couple_id][1]
-        try: msg = self.__class__._coupled_process[self.couple_id](msg)
-        except TypeError, KeyError: pass #@ReservedAssignment
-        self._other_half.endpoint.send(**msg)
+        try: args, kargs = self.__class__._coupled_process.get(self.couple_id)(msg)
+        except TypeError: args, kargs = msg, {}
+        self._other_half.endpoint.send(*args, **kargs)
     
     @classmethod
     def CoupledProcess(cls, couple_id):
