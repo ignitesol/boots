@@ -130,6 +130,7 @@ class Server(object):
         self.start_all_sub_servers()
         
         if self.is_master:
+            Server.main_server = self
             self.start_main_server()
             
     # these can be overridden defined by the subclasses
