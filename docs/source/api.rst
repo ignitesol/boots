@@ -109,6 +109,9 @@ Handy Plugins
 .. autoclass:: ZMQJsonRequest
     :members:
 
+.. autoclass:: ZMQCoupling
+    :members:
+
 .. autoclass:: ZMQCallbackPattern
 	:members:
 

@@ -18,7 +18,7 @@ from fabric.servers.zmqserver import ZMQServer
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQEndPoint, t,\
     ZMQListenEndPoint
 from fabric.endpoints.zmqendpoints.zmq_endpoints import ZMQSubscribeEndPoint,\
-    ZMQJsonReply, ZMQJsonRequest, ZMQCallbackPattern
+    ZMQJsonReply, ZMQJsonRequest, ZMQCallbackPattern, ZMQCoupling
 
 class ZMQPullPubServer(ZMQServer):
     '''
@@ -41,8 +41,8 @@ class ZMQPullPubServer(ZMQServer):
         super(ZMQPullPubServer, self).__init__(name="PullPubServer", **kargs)
         
         self.listen_endpoint = ZMQListenEndPoint(zmq.PULL, pull_address, bind=True, 
-                                                 plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_depth=ZMQCallbackPattern.SERVER)], server=self)
-        self.pub_endpoint = ZMQEndPoint(zmq.PUB, pub_address, bind=True, plugins=[ZMQJsonRequest()], server=self)
+                                                 plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_depth=ZMQCallbackPattern.SERVER), ZMQCoupling('pull_pub')], server=self)
+        self.pub_endpoint = ZMQEndPoint(zmq.PUB, pub_address, bind=True, plugins=[ZMQJsonRequest(), ZMQCoupling('pull_pub', process_context=self)], server=self)
         
         self.add_endpoint(self.listen_endpoint)
         self.add_endpoint(self.pub_endpoint)
@@ -60,7 +60,13 @@ class ZMQPullPubServer(ZMQServer):
         
         Re-routes message to the Publish Endpoint
         """
-        self.send_from_endpoint(self.pub_endpoint.uuid, '1', args=(msg,), path='*')
+#        self.send_from_endpoint(self.pub_endpoint.uuid, '1', args=(msg,), path='*')
+        pass
+    
+    @ZMQCoupling.CoupledProcess('pull_pub')
+    def process_fn(self, msg):
+        msg['path'] = '*'
+        return '', msg
         
         
 class ZMQSubscribeServer(ZMQServer):

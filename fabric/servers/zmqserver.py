@@ -4,7 +4,7 @@ Created on 13-Jun-2012
 @author: rishi
 '''
 from fabric.servers import server
-from fabric.endpoints.zmqendpoints.zmq_base import ZMQBaseEndPoint, ZMQEndPoint
+from fabric.endpoints.zmqendpoints.zmq_base import ZMQBaseEndPoint
     
 class ZMQServer(server.Server):
     '''
@@ -23,7 +23,8 @@ class ZMQServer(server.Server):
         for ep in endpoints:
             self.ep_hash[ep.uuid] = ep
             
-    def start_main_server(self):
+    def start_main_server(self, **kargs):
+        super(ZMQServer, self).start_main_server(**kargs)
         self.activate_endpoints()
     
     def activate_endpoints(self):
