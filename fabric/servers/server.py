@@ -143,7 +143,7 @@ class Server(object):
         ''' starts all added sub_servers. This is **experimental** '''
         [ server.start_server(parent_server=self) for server in self.sub_servers ]
             
-    def start_main_server(self):
+    def start_main_server(self, **kargs):
         ''' Typically run after all endpoints of the master and sub_server are activated. This actually
             runs the main event loop (if any) for the servers. Typically overridden in subclasses '''
         pass

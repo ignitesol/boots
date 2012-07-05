@@ -129,7 +129,7 @@ def jsonify_request(func):
         return func(*args, headers=headers, **dict([ (k, json.dumps(v)) for k,v in kargs.iteritems() ]))
     return wrapper
 
-class HTTPClient(EndPoint):
+class HTTPClientEndPoint(EndPoint):
     '''
     A (currently) unmanaged endpoint that provides simple abstractions to marshall, unmarshall and perform the http
     protocol in making requests.
@@ -146,7 +146,7 @@ class HTTPClient(EndPoint):
         :param Server server: (defaults None). A reference to the server object to which this endpoint belongs to
         '''
         
-        super(HTTPClient, self).__init__(server=server)
+        super(HTTPClientEndPoint, self).__init__(server=server)
         self.url = url
         self.data = data
         self.headers = Header(headers or {})
@@ -194,7 +194,7 @@ class HTTPClient(EndPoint):
         
         **Example**::
         
-            HTTPClient().get_request('http://www.google.com', q="ignite solutions", method='GET')
+            HTTPClientEndPoint().get_request('http://www.google.com', q="ignite solutions", method='GET')
 
         '''
         method = kargs.get('method', 'POST')
@@ -319,10 +319,10 @@ class HTTPClient(EndPoint):
                             l.append(k + '=' + urllib2.quote(str(elt)))
         return '&'.join(l)
     
-class HTTPAsyncClient(HTTPClient, threading.Thread):
+class HTTPAsyncClient(HTTPClientEndPoint, threading.Thread):
     '''
     A class that supports asynchronous HTTP requests. Currently, this does not use thread pooling so the user should be careful with 
-    runaway creation of long-lived requests. Supports all the methods of :py:class:`HTTPClient`
+    runaway creation of long-lived requests. Supports all the methods of :py:class:`HTTPClientEndPoint`
     '''
     
     def __init__(self, url=None, headers=None, origin_req_host=None, method='POST', onsuccess=None, onerror=None, sync=False, timeout=None, server=None):
@@ -383,11 +383,11 @@ if __name__ == '__main__':
     headers = Header()
     headers['Cookie'] = 'helloworld=123'
     headers['Cookie'] = 'shakesphere=123456'
-#    print 'get_request', HTTPClient(method='GET').request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
-#    print 'post_request', HTTPClient().request('http://localhost:9000/poster', headers=headers, a=10, b='hello', c=1.2)
-#    print 'json_in_request', HTTPClient().json_in_request('http://localhost:9000/jsonin', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
-#    print 'json_out_request', HTTPClient().json_out_request('http://localhost:9000/jsonout', headers=headers, a=10, b='hello', c=1.2)
-#    print 'json_inout_request', HTTPClient().json_inout_request('http://localhost:9000/jsoninout', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
+#    print 'get_request', HTTPClientEndPoint(method='GET').request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
+#    print 'post_request', HTTPClientEndPoint().request('http://localhost:9000/poster', headers=headers, a=10, b='hello', c=1.2)
+#    print 'json_in_request', HTTPClientEndPoint().json_in_request('http://localhost:9000/jsonin', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
+#    print 'json_out_request', HTTPClientEndPoint().json_out_request('http://localhost:9000/jsonout', headers=headers, a=10, b='hello', c=1.2)
+#    print 'json_inout_request', HTTPClientEndPoint().json_inout_request('http://localhost:9000/jsoninout', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
 #    
     for i in range(5):
         HTTPAsyncClient(method='GET', onsuccess=success, onerror=error).request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
