@@ -34,6 +34,8 @@ class ZMQServer(server.Server):
         for ep in self.ep_hash:
             if isinstance(self.ep_hash[ep], ZMQBaseEndPoint):
                 self.ep_hash[ep].activate()
+        super(ZMQServer, self).activate_endpoints()
+
     
     def send_from_endpoint(self, uuid, *args, **kargs):
         """
@@ -47,6 +49,7 @@ class ZMQServer(server.Server):
     def add_endpoint(self, endpoint):
         assert self.ep_hash.get(endpoint.uuid) is None
         self.ep_hash[endpoint.uuid] = endpoint
+        super(ZMQServer, self).add_endpoint(endpoint)
         
 if __name__ == '__main__':
     pass

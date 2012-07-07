@@ -82,6 +82,19 @@ class Server(object):
         if logger: self.__class__.config_callbacks['Logging'] = Server._logger_config_update # defined in this class
         self.uuid = generate_uuid()
         
+    def add_endpoint(self, endpoint):
+        '''
+        Simply add to the list of endpoints if it does not already exist. assumes an activated endpoint is being added if the server has already been activated
+        '''
+        if endpoint.uuid not in [ e.uuid for e in self.endpoints ]:
+            self.endpoints += [ endpoint ]
+    
+    def remove_endpoint(self, endpoint):
+        '''
+        Remove an endpoint from the list
+        '''
+        self.endpoints = list(filter(lambda e: endpoint.uuid != e.uuid, self.endpoints))
+        
     def add_sub_server(self, server, mount_prefix=None):
         '''
         Add sub_servers to support a model of server composition. Allows servers to be independently developed

@@ -136,12 +136,12 @@ class ManagedServer(HTTPServer):
         '''
         self._stats.add(handler_name, time_taken, url, **kargs)
     
-    def __init__(self,  endpoints=None, *args, **kargs):
+    def __init__(self,  endpoints=None, **kargs):
         endpoints = endpoints or []
         endpoints = [ endpoints ] if type(endpoints) not in [list, tuple] else endpoints
         endpoints = endpoints + [ ManagedEP()]
         self._stats = StatsCollection()
-        super(ManagedServer, self).__init__(*args, endpoints=endpoints, **kargs)
+        super(ManagedServer, self).__init__(endpoints=endpoints, **kargs)
 
     def get_standard_plugins(self, plugins):
         '''

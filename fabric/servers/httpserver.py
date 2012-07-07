@@ -6,7 +6,8 @@ including basic argument processing, activating all endpoints and starting up th
 basic exception handling for requests, session, cache and authorization for the server.
 '''
 from fabric import concurrency
-from fabric.endpoints.http_ep import Tracer, WrapException, RequestParams
+from fabric.endpoints.http_ep import Tracer, WrapException, RequestParams,\
+    HTTPServerEndPoint
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
 
@@ -88,14 +89,15 @@ class HTTPBaseServer(Server):
             port = kargs.get('default_port', None) or self.cmmd_line_args['port'] or '9000'
             server = kargs.get('server', 'wsgiref')
             if concurrency == 'gevent': server = 'gevent'
-    #        bottle.debug(True)
+#            bottle.debug(True)
             bottle.run(app=self, host=host, port=port, server=server)
 
     def activate_endpoints(self):
         '''
         Activate this server's endpoints
         '''
-        [ endpoint.activate(server=self, mount_prefix=self.mount_prefix) for endpoint in self.endpoints ]
+        [ endpoint.activate(server=self, mount_prefix=self.mount_prefix) for endpoint in self.endpoints if isinstance(endpoint, HTTPServerEndPoint)]
+        super(HTTPBaseServer, self).activate_endpoints()
 
 
 class HTTPServer(HTTPBaseServer):

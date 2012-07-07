@@ -48,6 +48,11 @@ ZMQServer
     
 .. autoclass:: ZMQSubscribeServer
     :members:
+    
+ HybridServer
+ --------------
+ -- automodule:: fabric.servers.hybrid
+ 	:members:
 
 Endpoints
 =========
