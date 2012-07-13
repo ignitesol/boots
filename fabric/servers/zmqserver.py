@@ -31,11 +31,8 @@ class ZMQServer(server.Server):
         """
         Activates all ZMQBaseEndPoints registered with this server
         """
-        for ep in self.ep_hash:
-            if isinstance(self.ep_hash[ep], ZMQBaseEndPoint):
-                self.ep_hash[ep].activate()
+        [ self.ep_hash[ep].activate() for ep in self.ep_hash if isinstance(self.ep_hash[ep], ZMQBaseEndPoint) ]
         super(ZMQServer, self).activate_endpoints()
-
     
     def send_from_endpoint(self, uuid, *args, **kargs):
         """
@@ -50,6 +47,9 @@ class ZMQServer(server.Server):
         assert self.ep_hash.get(endpoint.uuid) is None
         self.ep_hash[endpoint.uuid] = endpoint
         super(ZMQServer, self).add_endpoint(endpoint)
+    
+    def stop_server(self):
+        [ self.ep_hash[uuid].close() for uuid in self.ep_hash if isinstance(self.ep_hash[uuid], ZMQBaseEndPoint) ]
         
 if __name__ == '__main__':
     pass
