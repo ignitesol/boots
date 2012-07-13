@@ -9,6 +9,8 @@ from zmq.eventloop import ioloop
 from fabric.endpoints.endpoint import EndPoint
 import functools
 import threading
+from multiprocessing.pool import ThreadPool
+import multiprocessing
 
 class Locker(object):
     loop_lock = RLock()
@@ -20,7 +22,8 @@ def iolooper():
     loop.start()
     # This should execute once the start loop has ended
     # Which happens after its stop() method is called
-    loop.close(True)
+    try: loop.close(True)
+    except ValueError: pass 
     
 def close_ioloop():
     ioloop_instance().stop()
@@ -105,6 +108,7 @@ class ZMQBaseEndPoint(EndPoint):
     
     def close(self, linger=1):
         self.socket.close(linger=linger)
+        super(ZMQBaseEndPoint, self).close()
 
 class ZMQEndPoint(ZMQBaseEndPoint):
     '''
@@ -178,7 +182,8 @@ class ZMQListenEndPoint(ZMQEndPoint):
     This is an Extension of the :class:`ZMQEndPoint` class.
     It implements a receive loop that runs the :attr:`ZMQBasePlugin.RECEIVE` Plugins serially
     """
-    def __init__(self, socket_type, address, bind=False, plugins=[], **kargs):
+    
+    def __init__(self, socket_type, address, bind=False, plugins=[], threads=1, **kargs):
         """
         Constructor
         
@@ -186,9 +191,12 @@ class ZMQListenEndPoint(ZMQEndPoint):
         :param address: The inproc, ipc, tcp or pgm address to use with the zmq socket
         :param bind=False: Instructs the zmq Socket to bind if set to True
         :param plugins: A list of plugins to be associated with this endpoint of the type ZMQBasePlugin
+        :param threads: Number of threads to start the thread pool with
         """
         super(ZMQListenEndPoint, self).__init__(socket_type, address, bind=bind, plugins=plugins, **kargs)
+        self._threads = threads
         self.receive_plugins = filter(lambda x: x.plugin_type & ZMQBasePlugin.RECEIVE, self.plugins)
+        self._thread_pool = ThreadPool(processes=threads)
         
     def start(self, extended_start=[]):
         """
@@ -215,10 +223,7 @@ class ZMQListenEndPoint(ZMQEndPoint):
         assert event == zmq.POLLIN
         
         msg = socket.recv_multipart()
-#        for p in self.receive_plugins:
-#            try: msg = p.apply(msg)
-#            except Exception as e: print 'Error', p, e
-        threading.Thread(target=self._recv_thread, args=(msg, self.receive_plugins)).start()
+        self._thread_pool.apply_async(self._recv_thread, args=(msg, self.receive_plugins))
     
     def _recv_thread(self, msg, plugins):
         

@@ -14,6 +14,9 @@ class EndPoint(object):
     def __init__(self, server=None): 
         self.uuid = generate_uuid()
         self.server = server
+    
+    def close(self):
+        pass
 
 class EndPointException(Exception):
     '''

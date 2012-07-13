@@ -5,6 +5,7 @@
 import os,sys
 import zmq
 import time
+import threading
 
 FILE = os.path.abspath(__file__) if not hasattr(sys, 'frozen') else os.path.abspath(sys.executable)  
 DIR = os.path.dirname(FILE)
@@ -16,7 +17,7 @@ sys.path.append(PROJ_DIR)  if not hasattr(sys, 'frozen') else sys.path.append(DI
 
 from fabric.servers.zmqserver import ZMQServer
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQEndPoint, \
-    ZMQListenEndPoint, close_ioloop, context_instance, cleanup_zmq
+    ZMQListenEndPoint,  cleanup_zmq
 from fabric.endpoints.zmqendpoints.zmq_endpoints import ZMQSubscribeEndPoint,\
     ZMQJsonReply, ZMQJsonRequest, ZMQCallbackPattern, ZMQCoupling
 
@@ -62,7 +63,7 @@ class ZMQPullPubServer(ZMQServer):
         """
 #        self.send_from_endpoint(self.pub_endpoint.uuid, '1', args=(msg,), path='*')
         pass
-    
+        
     @ZMQCoupling.CoupledProcess('pull_pub')
     def process_fn(self, msg):
         msg['path'] = '*'
@@ -104,6 +105,5 @@ if __name__ == '__main__':
     time.sleep(2)
     zsubserver.stop_server()
     zpubserver.stop_server()
-    close_ioloop()
     cleanup_zmq()
     
