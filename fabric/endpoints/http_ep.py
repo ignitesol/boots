@@ -64,8 +64,9 @@ class BasePlugin(object):
         :param callback: the callback passed to the decorator (i.e. the actual method/function that will be decorated)
         :param wrapper: the wrapper function that wraps callback (in plugins this is typically called *wrapper*)
         '''
-        wrapper._signature = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
-        wrapper._callback_obj = callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+#        wrapper._signature = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
+#        wrapper._callback_obj = callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        pass
         
     def get_callback_obj(self, callback):
         '''
