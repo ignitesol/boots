@@ -19,6 +19,7 @@ import os
 import functools
 from fabric.servers.helpers.serverconfig import ServerConfig
 from logging.config import dictConfig
+import logging
 
 from fabric.common.utils import new_counter, generate_uuid
 
@@ -324,5 +325,6 @@ class Server(object):
             warn('Cannot instantiate logging: %s' % (e,))
         except ValueError as e:
             warn('Incomplete logging configuration: %s' % (e,))
+        self.logger = logging.getLogger()
 
 

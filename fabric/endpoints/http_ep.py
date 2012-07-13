@@ -560,3 +560,33 @@ class HTTPServerEndPoint(EndPoint):
         '''
         return bottle.request.COOKIES
     
+    @property
+    def host(self):
+        '''
+        returns the scheme :// actual-host of the request. Note - this returns the host that was part of the original  
+        query from the client (before load balancing and proxy manipulation if any)
+        If you get confusing results, ensure X-Forwarded-Hosts is set properly
+        '''
+        scheme, host, _, _, _ = bottle.request.urlparts
+        return '://'.join([scheme, host])  
+        
+    @property
+    def server_name(self):
+        '''
+        returns the scheme :// original host of the request. 
+        If you get confusing results, ensure X-Forwarded-Hosts
+        is set properly
+        '''
+        scheme = bottle.request.urlparts()[0] 
+        return '://'.join([scheme, self.environ['SERVER_NAME']])
+    
+    def selected_cookies(self, keys=None):
+        '''
+        returns a dict of selected cookies that match keys. keys can be a string, a regular expression, a list of strings or regular expressions
+        if keys is None, returns all cookies
+        
+        :param keys: (default None which implies all cookies). A string/re or a list of string/re to match the cookie keys
+        '''
+        if not keys: keys = [ '.*' ] # match all
+        if not hasattr(keys, '__iter__'): keys = [ keys ] # make a list if one does not exist
+        return dict([ (ck, cv) for k in keys for (ck, cv) in self.cookies if re.match(k, cv, flags=re.IGNORECASE)])
