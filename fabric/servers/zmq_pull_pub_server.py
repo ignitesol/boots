@@ -65,6 +65,7 @@ class ZMQPullPubServer(ZMQServer):
     
     @ZMQCoupling.CoupledProcess('pull_pub')
     def process_fn(self, msg):
+        print msg
         msg['path'] = '*'
         return '', msg
         
@@ -99,9 +100,9 @@ class ZMQSubscribeServer(ZMQServer):
 if __name__ == '__main__':
         
     zsubserver = ZMQSubscribeServer('tcp://127.0.0.1:9876', '')
-    zpubserver = ZMQPullPubServer('tcp://*:9876', 'ipc:///tmp/zpydealer')
+    zpubserver = ZMQPullPubServer('tcp://*:9876', 'ipc:///tmp/wormhole-in')
         
-    time.sleep(2)
+    time.sleep(2000)
     
 #    try: t.join()
 #    except: pass
