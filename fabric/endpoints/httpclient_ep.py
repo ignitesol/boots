@@ -121,6 +121,7 @@ class Response(object):
     def headers(self):
         '''
         returns a :py:class:`Header` object with all the headers returned as part of this response
+        trailing \r and \n are removed from each header
         '''
         if self._headers == None:
             head = StringIO(self.raw_headers)
@@ -136,7 +137,7 @@ class Response(object):
     
     def extract_header(self, keys=None, header=None):
         '''
-        this returns a Header object populated with any header values returned from the request
+        this returns a :py:class:`Header object populated with any header values returned from the request
         :param keys: an optional list of keys (defaults to None which implies all keys present in the response header). Keys are strings that take the regular expressions syntax. keys
         can also be a single key, i.e not a list
         :param header: the header object to append the extracted headers to. If None, a new Header object is created and returned. Header can be used as a dict 
