@@ -84,7 +84,7 @@ class ZMQBaseEndPoint(EndPoint):
         Creates the zmq Socket with the socket_type given in the constructor
         """
         # should we be locking this
-        print 'Setup ', self.uuid
+        print 'Setup ', self.uuid, self.address, self.socket_type
         self.socket = context_instance().socket(self.socket_type)
         return self.socket
     
@@ -93,7 +93,7 @@ class ZMQBaseEndPoint(EndPoint):
         Binds or connects to the created socket as indicated by the constructor param bind
         Must only be called after setup
         """
-        print 'Start ', self.uuid
+        print 'Start ', self.uuid, self.address, self.socket_type
         if self.bind: self.socket.bind(self.address)
         else: self.socket.connect(self.address)
         
@@ -103,7 +103,9 @@ class ZMQBaseEndPoint(EndPoint):
         
         :param data: A string format message to send
         """
-        # print 'sending', data
+#        print 'sending', data, self.address
+        if type(data) == str:
+            data = [data]
         self.socket.send_multipart(data)
     
     def close(self, linger=1):
@@ -194,9 +196,14 @@ class ZMQListenEndPoint(ZMQEndPoint):
         :param threads: Number of threads to start the thread pool with
         """
         super(ZMQListenEndPoint, self).__init__(socket_type, address, bind=bind, plugins=plugins, **kargs)
+        self.filters = []
         self._threads = threads
         self.receive_plugins = filter(lambda x: x.plugin_type & ZMQBasePlugin.RECEIVE, self.plugins)
         self._thread_pool = ThreadPool(processes=threads)
+    
+    def setup(self, extended_setup=[], **kargs):
+        extended_setup += [(self._set_filter, [p]) for p in self.filters]
+        super(ZMQListenEndPoint, self).setup(extended_setup=extended_setup , **kargs)
         
     def start(self, extended_start=[]):
         """
@@ -223,6 +230,7 @@ class ZMQListenEndPoint(ZMQEndPoint):
         assert event == zmq.POLLIN
         
         msg = socket.recv_multipart()
+#        if self.socket_type in [zmq.SUB, zmq.PULL]: print self.address, msg
         self._thread_pool.apply_async(self._recv_thread, args=(msg, self.receive_plugins))
     
     def _recv_thread(self, msg, plugins):
@@ -238,9 +246,16 @@ class ZMQListenEndPoint(ZMQEndPoint):
         :type pattern: String
         """
         if self.socket_type != zmq.SUB: raise TypeError('Only subscribe sockets may have filters')
-        def _filter():
-            self.socket.setsockopt(zmq.SUBSCRIBE, pattern)
-        self.ioloop.add_callback(_filter)
+        if pattern not in self.filters: self.filters += [pattern]
+        if self._activated:
+            self.ioloop.add_callback(functools.partial(self._set_filter, [pattern]))
+    
+    def _set_filter(self, pattern):
+        """
+        :param pattern: The pattern to discern between which messages to drop and which to accept
+        :type pattern: String
+        """
+        self.socket.setsockopt(zmq.SUBSCRIBE, pattern)
     
     def callback(self, msg):
         pass

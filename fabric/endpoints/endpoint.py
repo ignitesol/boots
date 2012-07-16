@@ -17,6 +17,9 @@ class EndPoint(object):
     
     def close(self):
         pass
+    
+    def activate(self):
+        self._activated = True
 
 class EndPointException(Exception):
     '''
