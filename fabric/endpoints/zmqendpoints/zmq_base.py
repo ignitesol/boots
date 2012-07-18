@@ -6,11 +6,12 @@ Created on 19-Jun-2012
 from threading import Thread, RLock
 import zmq
 from zmq.eventloop import ioloop
-from fabric.endpoints.endpoint import EndPoint
 import functools
-import threading
 from multiprocessing.pool import ThreadPool
-import multiprocessing
+import sys
+import traceback
+
+from fabric.endpoints.endpoint import EndPoint
 
 class Locker(object):
     loop_lock = RLock()
@@ -19,6 +20,7 @@ class Locker(object):
 def iolooper():
     loop = ioloop_instance() # get the singleton
     print 'ioloop Started', id(loop)
+    loop.handle_callback_exception(_handle_loop_exception)
     loop.start()
     # This should execute once the start loop has ended
     # Which happens after its stop() method is called
@@ -38,6 +40,9 @@ def ioloop_instance():
 def cleanup_zmq():
     close_ioloop()
     context_instance().destroy(linger=1)
+    
+def _handle_loop_exception(*args):
+    print 'Handling Loop Exception', args, sys.exc_info()
 
 # This eliminates the race condition within ioloops instance() method
 # incase of threads
@@ -93,9 +98,11 @@ class ZMQBaseEndPoint(EndPoint):
         Binds or connects to the created socket as indicated by the constructor param bind
         Must only be called after setup
         """
-        print 'Start ', self.uuid, self.address, self.socket_type
+        print 'Start ', self.uuid, self.address, self.socket_type, self.bind
         if self.bind: self.socket.bind(self.address)
         else: self.socket.connect(self.address)
+        
+        print self.socket
         
     def send(self, data):
         """
@@ -103,7 +110,7 @@ class ZMQBaseEndPoint(EndPoint):
         
         :param data: A string format message to send
         """
-#        print 'sending', data, self.address
+        # print 'sending', data, self.address
         if type(data) == str:
             data = [data]
         self.socket.send_multipart(data)
@@ -230,14 +237,13 @@ class ZMQListenEndPoint(ZMQEndPoint):
         assert event == zmq.POLLIN
         
         msg = socket.recv_multipart()
-#        if self.socket_type in [zmq.SUB, zmq.PULL]: print self.address, msg
         self._thread_pool.apply_async(self._recv_thread, args=(msg, self.receive_plugins))
     
     def _recv_thread(self, msg, plugins):
-        
         for p in plugins:
-            try: msg = p.apply(msg)
-            except Exception as e: print 'Error', p, e
+            try: 
+                msg = p.apply(msg)
+            except Exception as e: self.server.logger.error('Error %s - %s - %s', p, e, traceback.print_exc(sys.exc_info()))
         self.callback(msg)
     
     def add_filter(self, pattern):

@@ -9,6 +9,7 @@ from fabric.endpoints.zmqendpoints.zmq_base import ZMQBasePlugin,\
     ZMQListenEndPoint, ioloop_instance
 from functools import wraps
 from fabric.common.messenger import ZMQSPARXMessage
+from twisted.python.reflect import isinst
         
 class ZMQJsonReply(ZMQBasePlugin):
     """
@@ -51,6 +52,7 @@ class ZMQJsonRequest(ZMQBasePlugin):
             send_fn(msg)
         
         return _wrapper
+    
 
 class ZMQCallbackPattern(ZMQBasePlugin):
     """
@@ -150,13 +152,13 @@ class ZMQCoupling(ZMQBasePlugin):
         self.__class__._coupled_eps[self.couple_id].append(self)
         
         if None not in [ process_context , self.__class__._coupled_process.get(self.couple_id) ]: 
-            self.__class__._coupled_process[self.couple_id] = process_context.__getattribute__(self.__class__._coupled_process[self.couple_id].func_name)
+            self.__class__._coupled_process[self.couple_id] = getattr(process_context, self.__class__._coupled_process[self.couple_id].func_name)
     
     def apply(self, msg): #@ReservedAssignment
         if not self._other_half:
             self._other_half = self.__class__._coupled_eps[self.couple_id][0] if self.__class__._coupled_eps[self.couple_id][0] is not self else self.__class__._coupled_eps[self.couple_id][1]
         try: args, kargs = self.__class__._coupled_process.get(self.couple_id)(msg)
-        except TypeError: args, kargs = msg, {}
+        except TypeError: args, kargs = (msg,), {}
         self._other_half.endpoint.send(*args, **kargs)
         return args, kargs
         

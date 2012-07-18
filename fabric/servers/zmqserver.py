@@ -5,6 +5,7 @@ Created on 13-Jun-2012
 '''
 from fabric.servers import server
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQBaseEndPoint
+from collections import OrderedDict
     
 class ZMQServer(server.Server):
     '''
@@ -18,7 +19,7 @@ class ZMQServer(server.Server):
         '''
         Constructor
         '''
-        self.ep_hash = {}
+        self.ep_hash = OrderedDict()
         super(ZMQServer, self).__init__(name=name, endpoints=endpoints, **kargs)
         for ep in endpoints:
             self.ep_hash[ep.uuid] = ep
