@@ -590,4 +590,4 @@ class HTTPServerEndPoint(EndPoint):
         '''
         if not keys: keys = [ '.*' ] # match all
         if not hasattr(keys, '__iter__'): keys = [ keys ] # make a list if one does not exist
-        return dict([ (ck, cv) for k in keys for (ck, cv) in self.cookies if re.match(k, cv, flags=re.IGNORECASE)])
+        return dict([ (ck, cv) for k in keys for (ck, cv) in self.cookies.iteritems() if re.match(k, ck, flags=re.IGNORECASE)])

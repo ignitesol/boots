@@ -192,7 +192,7 @@ class ZMQListenEndPoint(ZMQEndPoint):
     It implements a receive loop that runs the :attr:`ZMQBasePlugin.RECEIVE` Plugins serially
     """
     
-    def __init__(self, socket_type, address, bind=False, plugins=[], threads=1, **kargs):
+    def __init__(self, socket_type, address, bind=False, plugins=[], threads=5, **kargs):
         """
         Constructor
         
