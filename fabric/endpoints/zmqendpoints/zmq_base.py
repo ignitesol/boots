@@ -3,21 +3,50 @@ Created on 19-Jun-2012
 
 @author: anand
 '''
-from threading import Thread
+from threading import Thread, RLock
 import zmq
 from zmq.eventloop import ioloop
-from fabric.endpoints.endpoint import EndPoint
 import functools
+from multiprocessing.pool import ThreadPool
+import sys
+import traceback
+
+from fabric.endpoints.endpoint import EndPoint
+
+class Locker(object):
+    loop_lock = RLock()
 
 # first, start a background ioloop thread and start ioloop
 def iolooper():
-    loop = ioloop.IOLoop.instance() # get the singleton
+    loop = ioloop_instance() # get the singleton
     print 'ioloop Started', id(loop)
+    loop.handle_callback_exception(_handle_loop_exception)
     loop.start()
+    # This should execute once the start loop has ended
+    # Which happens after its stop() method is called
+    try: loop.close(True)
+    except ValueError: pass 
+    
+def close_ioloop():
+    ioloop_instance().stop()
+
+def context_instance():
+    return zmq.Context.instance()
+
+def ioloop_instance():
+    with Locker.loop_lock:
+        return ioloop.IOLoop.instance()
+
+def cleanup_zmq():
+    close_ioloop()
+    context_instance().destroy(linger=1)
+    
+def _handle_loop_exception(*args):
+    print 'Handling Loop Exception', args, sys.exc_info()
 
 # This eliminates the race condition within ioloops instance() method
 # incase of threads
-ioloop.IOLoop.instance() 
+ioloop_instance() 
 t = Thread(target=iolooper)
 t.daemon = True
 t.start()
@@ -60,8 +89,8 @@ class ZMQBaseEndPoint(EndPoint):
         Creates the zmq Socket with the socket_type given in the constructor
         """
         # should we be locking this
-        print 'Setup ', self.uuid
-        self.socket = zmq.Context.instance().socket(self.socket_type)
+        print 'Setup ', self.uuid, self.address, self.socket_type
+        self.socket = context_instance().socket(self.socket_type)
         return self.socket
     
     def start(self):
@@ -69,9 +98,11 @@ class ZMQBaseEndPoint(EndPoint):
         Binds or connects to the created socket as indicated by the constructor param bind
         Must only be called after setup
         """
-        print 'Start ', self.uuid
+        print 'Start ', self.uuid, self.address, self.socket_type, self.bind
         if self.bind: self.socket.bind(self.address)
         else: self.socket.connect(self.address)
+        
+        print self.socket
         
     def send(self, data):
         """
@@ -79,8 +110,14 @@ class ZMQBaseEndPoint(EndPoint):
         
         :param data: A string format message to send
         """
-        # print 'sending', data
+        # print 'sending', data, self.address
+        if type(data) == str:
+            data = [data]
         self.socket.send_multipart(data)
+    
+    def close(self, linger=1):
+        self.socket.close(linger=linger)
+        super(ZMQBaseEndPoint, self).close()
 
 class ZMQEndPoint(ZMQBaseEndPoint):
     '''
@@ -98,7 +135,7 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         :param plugins: A list of plugins to be associated with this endpoint of the type ZMQBasePlugin
         '''
         super(ZMQEndPoint, self).__init__(socket_type, address, bind=bind, **kargs)
-        self.ioloop = ioloop.IOLoop.instance()
+        self.ioloop = ioloop_instance()
         self.plugins = plugins
         self.send_plugins = filter(lambda x: x.plugin_type & ZMQBasePlugin.SEND, self.plugins)
         self.send_fn = super(ZMQEndPoint, self).send
@@ -111,7 +148,6 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         does the :func:`apply`
         """
         self.ioloop.add_callback(super(ZMQEndPoint, self).setup)
-        
         for s in extended_setup:
             if callable(s): self.ioloop.add_callback(s)
             elif type(s) is tuple and len(s) == 2: self.ioloop.add_callback(functools.partial(s[0], *s[1]))
@@ -141,13 +177,22 @@ class ZMQEndPoint(ZMQBaseEndPoint):
         :param kargs: Should be consumed by the SEND plugins and formatted into the args paramater
         """
         self.ioloop.add_callback(functools.partial(self.send_fn, *args, **kargs))
+    
+    def close(self, linger=1, extended_close=[], **kargs):
+        for s in extended_close:
+            if callable(s): self.ioloop.add_callback(s)
+            elif type(s) is tuple and len(s) == 2: self.ioloop.add_callback(functools.partial(s[0], *s[1]))
+            elif type(s) is tuple and len(s) == 3: self.ioloop.add_callback(functools.partial(s[0], *s[1], **s[2]))
+            
+        self.ioloop.add_callback(functools.partial(super(ZMQEndPoint, self).close, (linger,), **kargs))
 
 class ZMQListenEndPoint(ZMQEndPoint):
     """
     This is an Extension of the :class:`ZMQEndPoint` class.
     It implements a receive loop that runs the :attr:`ZMQBasePlugin.RECEIVE` Plugins serially
     """
-    def __init__(self, socket_type, address, bind=False, plugins=[], **kargs):
+    
+    def __init__(self, socket_type, address, bind=False, plugins=[], threads=5, **kargs):
         """
         Constructor
         
@@ -155,9 +200,17 @@ class ZMQListenEndPoint(ZMQEndPoint):
         :param address: The inproc, ipc, tcp or pgm address to use with the zmq socket
         :param bind=False: Instructs the zmq Socket to bind if set to True
         :param plugins: A list of plugins to be associated with this endpoint of the type ZMQBasePlugin
+        :param threads: Number of threads to start the thread pool with
         """
         super(ZMQListenEndPoint, self).__init__(socket_type, address, bind=bind, plugins=plugins, **kargs)
+        self.filters = []
+        self._threads = threads
         self.receive_plugins = filter(lambda x: x.plugin_type & ZMQBasePlugin.RECEIVE, self.plugins)
+        self._thread_pool = ThreadPool(processes=threads)
+    
+    def setup(self, extended_setup=[], **kargs):
+        extended_setup += [(self._set_filter, [p]) for p in self.filters]
+        super(ZMQListenEndPoint, self).setup(extended_setup=extended_setup , **kargs)
         
     def start(self, extended_start=[]):
         """
@@ -168,6 +221,14 @@ class ZMQListenEndPoint(ZMQEndPoint):
         def _add_handler():
             self.ioloop.add_handler(self.socket, self._recv_callback, zmq.POLLIN)
         self.ioloop.add_callback(_add_handler)
+        
+    def close(self, linger=1, extended_close=[]):
+        """
+        """
+        def _remove_handler():
+            self.ioloop.remove_handler(self.socket)
+        extended_close.append(_remove_handler)
+        super(ZMQListenEndPoint, self).close(linger=linger, extended_close=extended_close)
     
     def _recv_callback(self, socket, event):
         '''
@@ -176,9 +237,14 @@ class ZMQListenEndPoint(ZMQEndPoint):
         assert event == zmq.POLLIN
         
         msg = socket.recv_multipart()
-        for p in self.receive_plugins:
-            try: msg = p.apply(msg)
-            except Exception as e: print 'Error', p, e
+        self._thread_pool.apply_async(self._recv_thread, args=(msg, self.receive_plugins))
+    
+    def _recv_thread(self, msg, plugins):
+        for p in plugins:
+            try: 
+                msg = p.apply(msg)
+            except Exception as e: self.server.logger.error('Error %s - %s - %s', p, e, traceback.print_exc(sys.exc_info()))
+        self.callback(msg)
     
     def add_filter(self, pattern):
         """
@@ -186,9 +252,19 @@ class ZMQListenEndPoint(ZMQEndPoint):
         :type pattern: String
         """
         if self.socket_type != zmq.SUB: raise TypeError('Only subscribe sockets may have filters')
-        def _filter():
-            self.socket.setsockopt(zmq.SUBSCRIBE, pattern)
-        self.ioloop.add_callback(_filter)
+        if pattern not in self.filters: self.filters += [pattern]
+        if self._activated:
+            self.ioloop.add_callback(functools.partial(self._set_filter, [pattern]))
+    
+    def _set_filter(self, pattern):
+        """
+        :param pattern: The pattern to discern between which messages to drop and which to accept
+        :type pattern: String
+        """
+        self.socket.setsockopt(zmq.SUBSCRIBE, pattern)
+    
+    def callback(self, msg):
+        pass
         
 class ZMQBasePlugin(object):
     """

@@ -69,7 +69,7 @@ class Header(dict):
         if type(keyval) == dict:
             keyval = keyval.iteritems()
         for k, v in keyval:
-            self['Cookie'] = '='.join(k, v) 
+            self['Cookie'] = '='.join([k, v])
     
 class HTTPUtils(object):
     
@@ -124,7 +124,7 @@ class Response(object):
         trailing \r and \n are removed from each header
         '''
         if self._headers == None:
-            head = StringIO(self.raw_headers)
+            head = StringIO.StringIO(self.raw_headers)
             self._headers = Header()
             
             for s in head:
@@ -135,7 +135,7 @@ class Response(object):
         return self._headers
         
     
-    def extract_header(self, keys=None, header=None):
+    def extract_headers(self, keys=None, header=None):
         '''
         this returns a :py:class:`Header object populated with any header values returned from the request
         :param keys: an optional list of keys (defaults to None which implies all keys present in the response header). Keys are strings that take the regular expressions syntax. keys
@@ -144,12 +144,12 @@ class Response(object):
         '''
         header = header or Header()
         if not keys:
-            header.update(self.header)
+            header.update(self.headers)
         else:
             if not hasattr(keys, '__iter__'): keys = [ keys ]  # if single key specified, make it a list
             for k in keys:
                 regexp = re.compile(k, flags=re.IGNORECASE)
-                header.update(filter(lambda item: regexp.match(item[0]), self.header.iteritems()))
+                header.update(filter(lambda item: regexp.match(item[0]), self.headers.iteritems()))
         return header
     
     def extract_cookies(self, keys=None):
@@ -158,7 +158,7 @@ class Response(object):
         :param keys: an optional list of keys (defaults to None which implies all keys present in the response header). Keys are strings that take the regular expressions syntax. keys
         can also be a single key, i.e not a list
         '''
-        cookies = self.extract_header('Set-Cookie')
+        cookies = self.extract_headers('Set-Cookie')
         # TODO: obtain the cookies by splitting, extract the correct keys
             
 def dejsonify_response(func):
@@ -240,7 +240,7 @@ class HTTPClientEndPoint(EndPoint):
             # FIXME: change logging to warning.warn
             raise
         except urllib2.URLError as err:
-            logging.getLogger().exception('URLError: %d', err.reason)
+            logging.getLogger().exception('URLError: %s', err.reason)
             # FIXME: change logging to warning.warn
             raise
 

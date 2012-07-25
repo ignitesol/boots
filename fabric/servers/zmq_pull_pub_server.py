@@ -5,6 +5,7 @@
 import os,sys
 import zmq
 import time
+import threading
 
 FILE = os.path.abspath(__file__) if not hasattr(sys, 'frozen') else os.path.abspath(sys.executable)  
 DIR = os.path.dirname(FILE)
@@ -15,8 +16,8 @@ PROJ_DIR = os.path.abspath(DIR + os.sep + '../..')  # we are 2 level deeper than
 sys.path.append(PROJ_DIR)  if not hasattr(sys, 'frozen') else sys.path.append(DIR)
 
 from fabric.servers.zmqserver import ZMQServer
-from fabric.endpoints.zmqendpoints.zmq_base import ZMQEndPoint, t,\
-    ZMQListenEndPoint
+from fabric.endpoints.zmqendpoints.zmq_base import ZMQEndPoint, \
+    ZMQListenEndPoint,  cleanup_zmq
 from fabric.endpoints.zmqendpoints.zmq_endpoints import ZMQSubscribeEndPoint,\
     ZMQJsonReply, ZMQJsonRequest, ZMQCallbackPattern, ZMQCoupling
 
@@ -41,7 +42,7 @@ class ZMQPullPubServer(ZMQServer):
         super(ZMQPullPubServer, self).__init__(name="PullPubServer", **kargs)
         
         self.listen_endpoint = ZMQListenEndPoint(zmq.PULL, pull_address, bind=True, 
-                                                 plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_depth=ZMQCallbackPattern.SERVER), ZMQCoupling('pull_pub')], server=self)
+                                                 plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_context=self), ZMQCoupling('pull_pub')], server=self)
         self.pub_endpoint = ZMQEndPoint(zmq.PUB, pub_address, bind=True, plugins=[ZMQJsonRequest(), ZMQCoupling('pull_pub', process_context=self)], server=self)
         
         self.add_endpoint(self.listen_endpoint)
@@ -53,7 +54,7 @@ class ZMQPullPubServer(ZMQServer):
         print 'starting server'
         super(ZMQPullPubServer, self).start_main_server()
     
-    @ZMQCallbackPattern.ZMQPatternRoute(zmq.PULL, 'ipc:///tmp/zpydealer', 'benchmark')
+    @ZMQCallbackPattern.ZMQPatternRoute('benchmark', socket_type=zmq.PULL, socket_address='ipc:///tmp/zpydealer')
     def callback_fn(self, msg):
         """
         Callback function of receiving a message with "path" : "benchmark"
@@ -62,11 +63,12 @@ class ZMQPullPubServer(ZMQServer):
         """
 #        self.send_from_endpoint(self.pub_endpoint.uuid, '1', args=(msg,), path='*')
         pass
-    
+        
     @ZMQCoupling.CoupledProcess('pull_pub')
     def process_fn(self, msg):
+        print msg
         msg['path'] = '*'
-        return '', msg
+        return msg, {}
         
         
 class ZMQSubscribeServer(ZMQServer):
@@ -92,16 +94,18 @@ class ZMQSubscribeServer(ZMQServer):
         self.start_main_server()
         self.sub_endpoint.add_filter(sub_filter)
     
-    @ZMQCallbackPattern.ZMQPatternRoute(zmq.SUB, 'tcp://127.0.0.1:9876', '*')
+    @ZMQCallbackPattern.ZMQPatternRoute('*', socket_type=zmq.SUB, socket_address='tcp://127.0.0.1:9876')
     def printme(self, msg):
         print 'Subscription received', msg
         
 if __name__ == '__main__':
         
     zsubserver = ZMQSubscribeServer('tcp://127.0.0.1:9876', '')
-    zpubserver = ZMQPullPubServer('tcp://*:9876', 'ipc:///tmp/zpydealer')
+    zpubserver = ZMQPullPubServer('tcp://*:9876', 'ipc:///tmp/wormhole-in')
         
-    time.sleep(2)
+
+    time.sleep(2000)
+    zsubserver.stop_server()
+    zpubserver.stop_server()
+    cleanup_zmq()
     
-#    try: t.join()
-#    except: pass
