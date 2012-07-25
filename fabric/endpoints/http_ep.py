@@ -317,7 +317,7 @@ class WrapException(BasePlugin):
                     errstr += "{}:{} in {}: {}<br/>".format(file, line, f, text)
     
                 if handler:
-                    err_ret=handler(errstr, qstr, *args, **kargs)
+                    err_ret = handler(errstr, qstr, exception=err, *args, **kargs)
                 for f in cleanup_funcs:
                     try:
                         f(qstr, *args, **kargs)
