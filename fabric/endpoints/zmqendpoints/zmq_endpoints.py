@@ -62,7 +62,7 @@ class ZMQCallbackPattern(ZMQBasePlugin):
     _plugin_type_ = ZMQBasePlugin.RECEIVE
     _all_callbacks_hash = dict()
         
-    def __init__(self, callback_hash={}, callback_context=None):
+    def __init__(self, lookup_attr='path', callback_hash={}, callback_context=None, socket_key=None):
         """
         Constructor
         
@@ -71,13 +71,16 @@ class ZMQCallbackPattern(ZMQBasePlugin):
         """
         self._callback_hash = callback_hash
         self._callback_context = callback_context
+        self._socket_key = socket_key
+        self._lookup_attr = lookup_attr
         
     def setup(self, endpoint):
         try:
-            for k,v in self.__class__._all_callbacks_hash[(endpoint.socket_type, endpoint.address)].iteritems():
+            if not self._callback_context: self._callback_context = endpoint
+            for k,v in self.__class__._all_callbacks_hash[self._socket_key].iteritems():
                 self._callback_hash[k] = getattr(self._callback_context, v.func_name) if self._callback_context else v
-            for attr in vars(endpoint.__class__):
-                callback = getattr(endpoint, attr, None)
+            for attr in vars(self._callback_context.__class__):
+                callback = getattr(self._callback_context, attr, None)
                 if type(getattr(callback, '_zmq_callback', None)) is tuple: 
                     self._callback_hash[getattr(callback, '_zmq_callback')[1]] = callback
                 
@@ -86,7 +89,7 @@ class ZMQCallbackPattern(ZMQBasePlugin):
         super(ZMQCallbackPattern, self).setup(endpoint)
     
     def apply(self, msg): #@ReservedAssignment
-        try : path = msg['path']
+        try : path = getattr(msg, self._lookup_attr)
         except KeyError:
             print 'No Path Found'
             return msg
@@ -100,13 +103,13 @@ class ZMQCallbackPattern(ZMQBasePlugin):
         return msg
     
     @classmethod
-    def ZMQPatternRoute(cls, pattern, socket_type=None, socket_address=None):
+    def ZMQPatternRoute(cls, pattern, socket_key=None):
         def decorator(fn):
-            if (socket_type, socket_address) == (None, None): 
+            if socket_key is None: 
                 fn._zmq_callback = (True, pattern)
-            elif None not in [socket_address, socket_type]: 
-                cls._all_callbacks_hash.setdefault((socket_type, socket_address), dict())
-                cls._all_callbacks_hash[(socket_type, socket_address)][pattern] = fn
+            else: 
+                cls._all_callbacks_hash.setdefault(socket_key, dict())
+                cls._all_callbacks_hash[socket_key][pattern] = fn
             return fn
         return decorator
             

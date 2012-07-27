@@ -7,7 +7,6 @@ function EndPoint() {
 	var _uuid = utils.generate_UUID()
 
 	function _activate() {
-		console.log('ACTIVATING');
 		_activated = true;
 	}
 
@@ -79,6 +78,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 
 	function _recv_message() {		
 		var msg = utils.listify_arguments(arguments);
+		msg.forEach( function(v, i) { msg[i] = v.toString(); } );
 		
 		// Plugins
 		_recv_plugins.forEach(function(v) {
@@ -93,11 +93,9 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 	}
 
 	function _add_filter(filter) {
-		console.log('here', zmq_endpoint.activated);
 		if(zmq_endpoint.socket_type === 'sub') {
 			if (zmq_endpoint.activated) {
 				_socket.subscribe(filter);
-				console.log('added filter', filter);
 			}
 		} else
 			throw Error('Socket must be of sub type')

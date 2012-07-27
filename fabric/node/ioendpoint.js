@@ -62,6 +62,10 @@ function IOClientServiceEndpoint(_socket/*optional*/) {
 		socket.emit.apply(socket, utils.listify_arguments(arguments));
 	}
 	
+	function _join(room_name) {
+		
+	}
+	
 	// public
 	var io_ep = {
 		activate: _activate,
@@ -69,7 +73,8 @@ function IOClientServiceEndpoint(_socket/*optional*/) {
 		on: _add_route_callback,
 		drop: _remove_route,
 		get id() { return socket? socket.id: null; },
-		get emit() { return _emit; }
+		get emit() { return _emit; },
+		get join() { return _join; }
 	};
 	
 	// inheritance

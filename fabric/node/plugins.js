@@ -16,14 +16,40 @@ function ZMQBasePlugin() {
 	return zmq_plugin;
 }
 
-function SPARXMessage(jsonify/*optional*/) {
+function SPARXDeMessage(jsonify/*optional*/) {
 	// default
 	jsonify = jsonify === undefined? true: jsonify;
 	
-	var message = {
+	function _apply(msg) {
+		var signal = null;
+		var tuneid = null;
+		var cid = null;
 		
+		try {
+			signal = JSON.parse(msg[2]);
+			tuneid = signal.tuneid.split('@')[1];
+			cid = signal.tuneid.split('@')[0];
+		} catch(e) {
+			console.log(e);
+			return;
+		}
+		
+		return [cid, tuneid, signal];
+	}
+	
+	var sparx_dmsg = {
+		get plugin_type() { return 'receive'},
+		get apply() { return _apply; }
 	};
 	
 	// inheritance
-	utils.inherit(message, ZMQBasePlugin);
+	utils.inherit(sparx_dmsg, ZMQBasePlugin);
+	
+	return sparx_dmsg;
 }
+
+// Exports
+var Plugins = {};
+Plugins.SPARXDeMessage = SPARXDeMessage;
+
+module.exports = Plugins;
