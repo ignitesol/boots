@@ -9,7 +9,6 @@ from fabric.endpoints.zmqendpoints.zmq_base import ZMQBasePlugin,\
     ZMQListenEndPoint, ioloop_instance
 from functools import wraps
 from fabric.common.messenger import ZMQSPARXMessage
-from twisted.python.reflect import isinst
         
 class ZMQJsonReply(ZMQBasePlugin):
     """
@@ -77,8 +76,9 @@ class ZMQCallbackPattern(ZMQBasePlugin):
     def setup(self, endpoint):
         try:
             if not self._callback_context: self._callback_context = endpoint
-            for k,v in self.__class__._all_callbacks_hash[self._socket_key].iteritems():
-                self._callback_hash[k] = getattr(self._callback_context, v.func_name) if self._callback_context else v
+            if self._socket_key and self.__class__._all_callbacks_hash.get(self._socket_key):
+                for k,v in self.__class__._all_callbacks_hash[self._socket_key].iteritems():
+                    self._callback_hash[k] = getattr(self._callback_context, v.func_name) if self._callback_context else v
             for attr in vars(self._callback_context.__class__):
                 callback = getattr(self._callback_context, attr, None)
                 if type(getattr(callback, '_zmq_callback', None)) is tuple: 
