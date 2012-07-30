@@ -9,6 +9,7 @@ from fabric.endpoints.zmqendpoints.zmq_base import ZMQBasePlugin,\
     ZMQListenEndPoint, ioloop_instance
 from functools import wraps
 from fabric.common.messenger import ZMQSPARXMessage
+import re
         
 class ZMQJsonReply(ZMQBasePlugin):
     """
@@ -61,29 +62,39 @@ class ZMQCallbackPattern(ZMQBasePlugin):
     _plugin_type_ = ZMQBasePlugin.RECEIVE
     _all_callbacks_hash = dict()
         
-    def __init__(self, lookup_attr='path', callback_hash={}, callback_context=None, socket_key=None):
+    def __init__(self, lookup_attr='path', callback_list=[], callback_context=None, namespace=None):
         """
         Constructor
         
         :param callback_hash: A :py:class:`Dictionary` holding *path* : *callback* key : value pairs
         :param callback_context: The context from which to call the callback method from
         """
-        self._callback_hash = callback_hash
+        self._callback_list = callback_list
         self._callback_context = callback_context
-        self._socket_key = socket_key
+        self._namespace = namespace
         self._lookup_attr = lookup_attr
         
     def setup(self, endpoint):
         self.endpoint = endpoint
+        contained_expressions = []
         try:
             if not self._callback_context: self._callback_context = endpoint
-            if self._socket_key and self.__class__._all_callbacks_hash.get(self._socket_key):
-                for k,v in self.__class__._all_callbacks_hash[self._socket_key].iteritems():
-                    self._callback_hash[k] = getattr(self._callback_context, v.func_name) if self._callback_context else v
-            for attr in vars(self._callback_context.__class__):
+            
+            if self._namespace and self.__class__._all_callbacks_hash.get(self._namespace):
+                for k,v in self.__class__._all_callbacks_hash[self._namespace].iteritems():
+                    if k not in contained_expressions:
+                        contained_expressions.append(k)
+                        t = (k, re.compile(k), getattr(self._callback_context, v[0].func_name) if self._callback_context else v[0], v[1])
+                        self._callback_list.append(t)
+                    
+            for attr in dir(self._callback_context.__class__):
                 callback = getattr(self._callback_context, attr, None)
-                if type(getattr(callback, '_zmq_callback', None)) is tuple: 
-                    self._callback_hash[getattr(callback, '_zmq_callback')[1]] = callback
+                t = getattr(callback, '_zmq_callback', None) if callback else None
+                if type(t) is tuple and t[0] not in contained_expressions: # already exists
+                    contained_expressions.append(t[0])
+                    self._callback_list.append((t[0], re.compile(t[0]), callback, t[1]))
+            
+            self._callback_list.sort(cmp=lambda x,y: y[3] - x[3]) # Largest first
                 
         except AttributeError: pass
         except KeyError: pass
@@ -95,33 +106,29 @@ class ZMQCallbackPattern(ZMQBasePlugin):
             self.endpoint.server.logger.debug('No Path Found for %s in %s', self._lookup_attr, msg)
             return msg
         
-        try: callback = self._callback_hash[path]
-        except KeyError:
-            self.endpoint.server.logger.debug('No Path Callback Found for %s in %s', path, self._callback_hash)
+        try: 
+            callback = lambda x: x
+            for t in self._callback_list:
+                if t[1].match(path):
+                    callback = t[2]
+                    break
+        except IndexError:
+            self.endpoint.server.logger.debug('No Path Callback Found for %s in %s', path, self._callback_list)
             return msg
         
         callback(msg)
         return msg
     
     @classmethod
-    def ZMQPatternRoute(cls, pattern, socket_key=None):
+    def ZMQPatternRoute(cls, pattern, namespace=None, priority=-1):
         def decorator(fn):
-            if socket_key is None: 
-                fn._zmq_callback = (True, pattern)
+            if namespace is None: 
+                fn._zmq_callback = (pattern, priority)
             else: 
-                cls._all_callbacks_hash.setdefault(socket_key, dict())
-                cls._all_callbacks_hash[socket_key][pattern] = fn
+                cls._all_callbacks_hash.setdefault(namespace, dict())
+                cls._all_callbacks_hash[namespace][pattern] = (fn, priority)
             return fn
         return decorator
-            
-    def register_callback_path(self, path, callback):
-        """
-        :param path: String path that to associate the callback with
-        :type path: String
-        :param callback: Callable to be associated with the path
-        :type callback: Callable
-        """
-        self._callback_hash[path] = callback
         
 class ZMQCoupling(ZMQBasePlugin):
     '''
