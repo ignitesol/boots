@@ -63,7 +63,11 @@ function IOClientServiceEndpoint(_socket/*optional*/) {
 	}
 	
 	function _join(room_name) {
-		
+		socket.join(room_name);
+	}
+	
+	function _leave(room_name) {
+		socket.leave(room_name);
 	}
 	
 	// public
@@ -74,7 +78,8 @@ function IOClientServiceEndpoint(_socket/*optional*/) {
 		drop: _remove_route,
 		get id() { return socket? socket.id: null; },
 		get emit() { return _emit; },
-		get join() { return _join; }
+		get join() { return _join; },
+		get leave() { return _leave; }
 	};
 	
 	// inheritance
@@ -82,8 +87,35 @@ function IOClientServiceEndpoint(_socket/*optional*/) {
 	return io_ep;
 }
 
+function IORoomEndpoint(_io, _name) {
+	// private
+	var io = _io
+	  , name = _name
+	  ;
+	
+	function _add_client(ep) {
+		ep.join(name);
+	}
+	
+	function _remove_client(ep) {
+		ep.leave(name);
+	}
+	
+	// public
+	var room = {
+		get name() { return name; },
+		get include() { return _add_client; },
+		get exclude() { return _remove_client; },
+		get broadcast() { return io.sockets.in(name).emit; }
+	}
+	
+	// inheritance
+	utils.inherit(room, ep.EndPoint);
+}
+
 // Module Exports
 var Exports = {};
 Exports.IOConnectionEndpoint = IOConnectionEndpoint;
 Exports.IOClientServiceEndpoint = IOClientServiceEndpoint;
+Exports.IORoomEndpoint = IORoomEndpoint
 module.exports = Exports;

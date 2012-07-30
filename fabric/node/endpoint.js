@@ -31,12 +31,13 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 	filters = filters || [];
 
 	// private
-	var _socket = null;
-	var _filters = filters;
-	var _plugins = plugins;
-	var _bind = bind;
-	var _address = address;
-	var _socket_type = socket_type;
+	var _socket = null
+	  , _filters = filters
+	  , _plugins = plugins
+	  , _bind = bind
+	  , _address = address
+	  , _socket_type = socket_type
+	  ;
 
 	var _recv_plugins = _plugins.filter(function(p) {
 		return p.plugin_type === 'receive';

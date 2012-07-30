@@ -74,6 +74,7 @@ class ZMQCallbackPattern(ZMQBasePlugin):
         self._lookup_attr = lookup_attr
         
     def setup(self, endpoint):
+        self.endpoint = endpoint
         try:
             if not self._callback_context: self._callback_context = endpoint
             if self._socket_key and self.__class__._all_callbacks_hash.get(self._socket_key):
@@ -91,12 +92,12 @@ class ZMQCallbackPattern(ZMQBasePlugin):
     def apply(self, msg): #@ReservedAssignment
         try : path = getattr(msg, self._lookup_attr)
         except KeyError:
-            print 'No Path Found'
+            self.endpoint.server.logger.debug('No Path Found for %s in %s', self._lookup_attr, msg)
             return msg
         
         try: callback = self._callback_hash[path]
         except KeyError:
-            print 'No Path Callback Found'
+            self.endpoint.server.logger.debug('No Path Callback Found for %s in %s', path, self._callback_hash)
             return msg
         
         callback(msg)
