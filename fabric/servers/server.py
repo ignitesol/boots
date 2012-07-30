@@ -194,7 +194,10 @@ class Server(object):
             return self._proj_dir
 
         subdir = subdir or 'conf'        
-        root_module = inspect.stack()[-1][1]
+        root_module = getattr(self, "root_module", None)
+        if not root_module:
+            root_module = inspect.stack()[-1][1]
+            warn('Did not find Server.root_module. Using %s' % (root_module,))
         root_module = os.path.abspath(root_module)
         path_subset = [ os.path.abspath(s) for s in sys.path if root_module.startswith(os.path.abspath(s)) and os.path.exists(os.path.join(os.path.abspath(s), '..', subdir)) ]
         try:
@@ -205,7 +208,10 @@ class Server(object):
         
     def _get_config_files(self, conf_dir, config_file='<auto>'):
         if config_file == '<auto>':
-            root_module = inspect.stack()[-1][1]
+            root_module = getattr(self, "root_module", None)
+            if not root_module:
+                root_module = inspect.stack()[-1][1]
+                warn('Did not find Server.root_module. Using %s' % (root_module,))
             stem = os.path.splitext(os.path.basename(root_module))[0]
             config_file_stem = stem.replace('meta_', '')
             ext = '.ini'
