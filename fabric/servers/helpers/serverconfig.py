@@ -43,7 +43,7 @@ class ServerConfig(Config):
 
         # Empty config initialized,Now we will add callbacks before reading the file.
         for key,values in callbacks.items():
-            self.add_callback([key], values)
+            self.add_callback(list(key) if type(key) is tuple else [key], values) #Key can be string or tuple
         
         val = Validator()
         

@@ -13,5 +13,6 @@ utils.foreach(ioserver, function(k, v) { exports.server[k] = v; });
 exports.endpoint = ep;
 utils.foreach(ioep, function(k, v) { exports.endpoint[k] = v; });
 exports.plugins = plugins;
+exports.utils = utils;
 
 module.exports = exports;

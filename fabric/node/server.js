@@ -4,7 +4,7 @@ var utils = require('./utils.js')
 // This will be the exported module
 var Fabric = {}
 
-function Server(name) {
+function Server(name, endpoints) {
 	// private
 	var _endpoints = {};
 	
@@ -21,6 +21,11 @@ function Server(name) {
 	}
 	
 	function _start_main_server() {
+		// ugly hack, self does not exist until constructor returns
+		utils.foreach(_endpoints, function(k, v) {
+			server.self.add_endpoint(v);
+		});
+		
 		server.self.activate_endpoints();
 	}
 	
@@ -31,6 +36,10 @@ function Server(name) {
 		start_main_server: _start_main_server,
 		get endpoints() { return _endpoints; }
 	};
+	
+	utils.foreach(endpoints, function(k, v) {
+		_endpoints[v.uuid] = v;
+	});
 	
 	return server;
 }
@@ -49,11 +58,7 @@ function ZMQServer(name, endpoints) {
 	};
 	
 	// inheritance
-	utils.inherit(zmq_server, Server, [name]);
-	
-	utils.foreach(endpoints, function(k, v) {
-		zmq_server.self.add_endpoint(v);
-	});
+	utils.inherit(zmq_server, Server, [name, endpoints]);
 	
 	return zmq_server;
 }

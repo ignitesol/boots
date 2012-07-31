@@ -2,22 +2,48 @@ var server = require('./server.js')
   , utils = require('./utils.js')
   , ioendpoint = require('./ioendpoint.js');
 
+
+// Express based server
+function ExpressServer(name, endpoints, port) {
+	// private
+	var express = require('express')
+	  , app = express.createServer()
+	  ;
+	  
+	function _start_main_server() {
+		express_server.Super.start_main_server();
+		app.listen(port);
+	}
+	
+	function _get(route, fn) {
+		app.get(route, fn);
+	}
+	
+	// public
+	var express_server = {
+		start_main_server: _start_main_server,
+		get context() { return app; },
+		get get() { return _get; }
+	}
+	
+	utils.inherit(express_server, server.Server, [name, endpoints]);
+	
+	return express_server;
+}
+
 // Express and socket.io based server
 function WebSocketServer(name, endpoints, port) {
 	// defaults
 	endpoints = endpoints || [];
 	
 	// private
-	var express = require('express')
-	  , app = express.createServer()
-	  , connect_ep = ioendpoint.IOConnectionEndpoint(app)
-	  , client_eps = {}
+	var client_eps = {}
 	  , client_callback = null;
 	
 	function _start_main_server() {
-		console.log
-		app.listen(port);
-		socket_server.Super.start_main_server();
+		// This order is important
+		socket_server.self.add_endpoint(connect_ep);
+		socket_server.Super.start_main_server();		
 	}
 	
 	function _activate_endpoints() {
@@ -46,10 +72,11 @@ function WebSocketServer(name, endpoints, port) {
 	}
 	
 	// inheritance
-	utils.inherit(socket_server, server.Server, [name, endpoints]);
+	utils.inherit(socket_server, ExpressServer, [name, endpoints, port]);
 	
 	// Add default IO Endpoint
-	socket_server.add_endpoint(connect_ep);
+	// We cannot rely on Super for this, since at that time we dont have the 'server' running
+	var connect_ep = ioendpoint.IOConnectionEndpoint(socket_server.context);
 	
 	return socket_server;
 }

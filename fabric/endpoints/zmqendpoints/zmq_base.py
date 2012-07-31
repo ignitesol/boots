@@ -12,6 +12,7 @@ import sys
 import traceback
 
 from fabric.endpoints.endpoint import EndPoint
+import logging
 
 class Locker(object):
     loop_lock = RLock()
@@ -19,8 +20,7 @@ class Locker(object):
 # first, start a background ioloop thread and start ioloop
 def iolooper():
     loop = ioloop_instance() # get the singleton
-    print 'ioloop Started', id(loop)
-    loop.handle_callback_exception(_handle_loop_exception)
+    logging.getLogger().debug('ioloop Started')
     loop.start()
     # This should execute once the start loop has ended
     # Which happens after its stop() method is called
@@ -41,9 +41,6 @@ def cleanup_zmq():
     close_ioloop()
     context_instance().destroy(linger=1)
     
-def _handle_loop_exception(*args):
-    print 'Handling Loop Exception', args, sys.exc_info()
-
 # This eliminates the race condition within ioloops instance() method
 # incase of threads
 ioloop_instance() 
@@ -89,7 +86,7 @@ class ZMQBaseEndPoint(EndPoint):
         Creates the zmq Socket with the socket_type given in the constructor
         """
         # should we be locking this
-        print 'Setup ', self.uuid, self.address, self.socket_type
+        self.server.logger.debug('Setup uuid: %s address: %s type: %s', self.uuid, self.address, self.socket_type)
         self.socket = context_instance().socket(self.socket_type)
         return self.socket
     
@@ -98,11 +95,9 @@ class ZMQBaseEndPoint(EndPoint):
         Binds or connects to the created socket as indicated by the constructor param bind
         Must only be called after setup
         """
-        print 'Start ', self.uuid, self.address, self.socket_type, self.bind
+        self.server.logger.debug('Start uuid: %s address: %s type: %s bind: %s', self.uuid, self.address, self.socket_type, self.bind)
         if self.bind: self.socket.bind(self.address)
         else: self.socket.connect(self.address)
-        
-        print self.socket
         
     def send(self, data):
         """
@@ -251,10 +246,11 @@ class ZMQListenEndPoint(ZMQEndPoint):
         :param pattern: The pattern to discern between which messages to drop and which to accept
         :type pattern: String
         """
+        pattern = str(pattern)
         if self.socket_type != zmq.SUB: raise TypeError('Only subscribe sockets may have filters')
         if pattern not in self.filters: self.filters += [pattern]
         if self._activated:
-            self.ioloop.add_callback(functools.partial(self._set_filter, [pattern]))
+            self.ioloop.add_callback(functools.partial(self._set_filter, pattern))
     
     def _set_filter(self, pattern):
         """

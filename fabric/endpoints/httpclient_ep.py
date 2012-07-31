@@ -236,10 +236,12 @@ class HTTPClientEndPoint(EndPoint):
                 rv = Response(data=req.read(), headers=req.info())
                 return rv
         except urllib2.HTTPError as err:
+            logging.getLogger().exception('HTTPError for url:%s', url)
             logging.getLogger().exception('HTTPError: %d', err.code)
             # FIXME: change logging to warning.warn
             raise
         except urllib2.URLError as err:
+            logging.getLogger().exception('URLError for url:%s', url)
             logging.getLogger().exception('URLError: %s', err.reason)
             # FIXME: change logging to warning.warn
             raise
