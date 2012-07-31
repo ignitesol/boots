@@ -246,10 +246,11 @@ class ZMQListenEndPoint(ZMQEndPoint):
         :param pattern: The pattern to discern between which messages to drop and which to accept
         :type pattern: String
         """
+        pattern = str(pattern)
         if self.socket_type != zmq.SUB: raise TypeError('Only subscribe sockets may have filters')
         if pattern not in self.filters: self.filters += [pattern]
         if self._activated:
-            self.ioloop.add_callback(functools.partial(self._set_filter, [pattern]))
+            self.ioloop.add_callback(functools.partial(self._set_filter, pattern))
     
     def _set_filter(self, pattern):
         """
