@@ -64,7 +64,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 		else
 			_socket.connect(zmq_endpoint.address);
 			
-		if (socket_type === 'sub') _filters.forEach(function(v){ _socket.subscribe(v); })
+		if (socket_type === 'sub') _filters.forEach(function(v){ _socket.subscribe(v); });
 		
 		_socket.on('message', _recv_message);
 	}
@@ -81,6 +81,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 		var msg = utils.listify_arguments(arguments);
 		msg.forEach( function(v, i) { msg[i] = v.toString(); } );
 		
+		// console.log('Received ', msg);
 		// Plugins
 		_recv_plugins.forEach(function(v) {
 			msg = v.apply(msg);
@@ -90,7 +91,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 	}
 
 	function _callback(msg) {
-		console.log(msg);
+		// console.log(msg);
 	}
 
 	function _add_filter(filter) {

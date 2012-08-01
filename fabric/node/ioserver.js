@@ -38,6 +38,7 @@ function WebSocketServer(name, endpoints, port) {
 	
 	// private
 	var client_eps = {}
+	  , rooms = {}
 	  , client_callback = null;
 	
 	function _start_main_server() {
@@ -62,12 +63,19 @@ function WebSocketServer(name, endpoints, port) {
 		client_callback = callback;
 	}
 	
+	function _create_room(name) {
+		if (!rooms[name]) rooms[name] = ioendpoint.IORoomEndpoint(connect_ep.socketio, name);
+		return rooms[name];
+	}
+	
 	// public
 	var socket_server = {
 		activate_endpoints: _activate_endpoints,
 		start_main_server: _start_main_server,
 		get connection_endpoint() { return connect_ep; },
 		get clients() { return client_eps; },
+		get rooms() { return rooms; },
+		get room() { return _create_room; },
 		onclient: _new_client_callback
 	}
 	
