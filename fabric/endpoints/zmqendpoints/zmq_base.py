@@ -48,6 +48,13 @@ t = Thread(target=iolooper)
 t.daemon = True
 t.start()
 
+class ZMQSocketTypeMap(object):
+    types = {}
+    __required__ = ['PUB', 'SUB', 'PUSH', 'PULL', 'REQ', 'REP']
+    for k, v in vars(zmq.core.constants).iteritems():
+        if type(v) is int and types.get(v) not in __required__: types[v] = k
+
+
 class ZMQBaseEndPoint(EndPoint):
     '''
     The ZMQ Socket Base class
@@ -86,7 +93,7 @@ class ZMQBaseEndPoint(EndPoint):
         Creates the zmq Socket with the socket_type given in the constructor
         """
         # should we be locking this
-        self.server.logger.debug('Setup uuid: %s address: %s type: %s', self.uuid, self.address, self.socket_type)
+        self.server.logger.debug('Setup uuid: %s address: %s type: %s', self.uuid, self.address, ZMQSocketTypeMap.types[self.socket_type])
         self.socket = context_instance().socket(self.socket_type)
         return self.socket
     
@@ -95,7 +102,7 @@ class ZMQBaseEndPoint(EndPoint):
         Binds or connects to the created socket as indicated by the constructor param bind
         Must only be called after setup
         """
-        self.server.logger.debug('Start uuid: %s address: %s type: %s bind: %s', self.uuid, self.address, self.socket_type, self.bind)
+        self.server.logger.debug('Start uuid: %s address: %s type: %s bind: %s', self.uuid, self.address, ZMQSocketTypeMap.types[self.socket_type], self.bind)
         if self.bind: self.socket.bind(self.address)
         else: self.socket.connect(self.address)
         

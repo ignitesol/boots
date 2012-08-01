@@ -20,7 +20,8 @@ function IOConnectionEndpoint(_context, _onconnect) {
 		onconnect: function(callback) {
 			connection_callback = callback;
 			io && io.sockets.on('connection', connection_callback);
-		}
+		},
+		get socketio() { return io; }
 	};
 	
 	// inheritance
@@ -101,16 +102,25 @@ function IORoomEndpoint(_io, _name) {
 		ep.leave(name);
 	}
 	
+	function _broadcast() {
+		var args = utils.listify_arguments(arguments)
+		  , these_sockets = io.sockets.in(name)
+		  ;
+		
+		these_sockets.emit.apply(these_sockets, args);
+	}
 	// public
 	var room = {
 		get name() { return name; },
 		get include() { return _add_client; },
 		get exclude() { return _remove_client; },
-		get broadcast() { return io.sockets.in(name).emit; }
+		get broadcast() { return _broadcast; }
 	}
 	
 	// inheritance
 	utils.inherit(room, ep.EndPoint);
+	
+	return room;
 }
 
 // Module Exports
