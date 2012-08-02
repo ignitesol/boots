@@ -14,6 +14,7 @@ function Server(name, endpoints) {
 	
 	function _activate_endpoints() {
 		var args_list = utils.listify_arguments(arguments);
+		args_list = [server.self].concat(args_list);
 		utils.foreach(_endpoints, function(k, v) {
 			// For any extra arguments
 			v.activate.apply(v, args_list);
