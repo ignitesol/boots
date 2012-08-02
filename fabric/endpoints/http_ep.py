@@ -528,6 +528,19 @@ class HTTPServerEndPoint(EndPoint):
         return bottle.request.POST if bottle.request.method == 'POST' or bottle.request.method == 'ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
     
     @property
+    def request_params_as_dict(self):
+        '''
+        returns request params as a dict instead of multidict. Multi-valued items will be returned as a list
+        '''
+        params = self.request_params
+        d = {}
+        for k in params.keys():
+            d[k] = params.getall(k)
+            if len(d[k]) == 1:
+                d[k] = d[k][0] # drop the list of single valued params
+        return d
+    
+    @property
     def session(self):
         '''
         returns a session related to this request if one is configured. Else, returns None
