@@ -85,7 +85,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 		var msg = utils.listify_arguments(arguments);
 		msg.forEach( function(v, i) { msg[i] = v.toString(); } );
 		
-		// console.log('Received ', msg);
+		// zmq_endpoint.server.logger.info('Received ', msg);
 		// Plugins
 		_recv_plugins.forEach(function(v) {
 			msg = v.apply(msg);
@@ -95,7 +95,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 	}
 
 	function _callback(msg) {
-		// console.log(msg);
+		// zmq_endpoint.server.logger.info(msg);
 	}
 
 	function _add_filter(filter) {

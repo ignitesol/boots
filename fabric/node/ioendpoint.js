@@ -122,13 +122,16 @@ function IORoomEndpoint(_io, _name) {
 	// private
 	var io = _io
 	  , name = _name
+	  , clients = {}
 	  ;
 	
 	function _add_client(ep) {
+		clients[ep.id] = true;
 		ep.join(name);
 	}
 	
 	function _remove_client(ep) {
+		delete clients[ep.id];
 		ep.leave(name);
 	}
 	
@@ -140,18 +143,23 @@ function IORoomEndpoint(_io, _name) {
 		these_sockets.emit.apply(these_sockets, args);
 	}
 	
+	function _real_name() {
+		// We dont know what namespace it is part of
+		return '/' + name;
+	}
+	
 	function _clients() {
-		var clients = [];
-		// Namespace adjusted room, currently we only use '/', i.e. no namespace
-		var nsp_room = io.rooms['/' + name];
-		// Get all socket ids of this room from the socketio manager
-		if (nsp_room)
-		{
-			nsp_room.forEach(function(v, k) {
-				clients.push(room.server.clients[v])
-			});
-		}
-		return clients;
+		var clients_list = [];
+		utils.foreach(clients, function(k, v) { clients_list.push(v); });
+		return clients_list;
+	}
+	
+	function _has_client(id) {
+		return clients[id] !== undefined;
+	}
+	
+	function _close() {
+		room.Super.close();
 	}
 	
 	// public
@@ -161,7 +169,8 @@ function IORoomEndpoint(_io, _name) {
  	  , get exclude() { return _remove_client; }
 	  , get broadcast() { return _broadcast; }
 	  , get clients() { return _clients(); }
-		
+	  , get close() { return _close; }
+	  , get has() { return _has_client; }
 	}
 	
 	// inheritance

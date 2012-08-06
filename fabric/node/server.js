@@ -6,7 +6,9 @@ var Fabric = {}
 
 function Server(name, endpoints) {
 	// private
-	var _endpoints = {};
+	var _endpoints = {}
+	  , _logger = console // The default logger
+	  ;
 	
 	function _add_endpoint(ep) {
 		_endpoints[ep.uuid] = ep;
@@ -32,10 +34,12 @@ function Server(name, endpoints) {
 	
 	// public
 	var server = {
-		add_endpoint: _add_endpoint,
-		activate_endpoints: _activate_endpoints,
-		start_main_server: _start_main_server,
-		get endpoints() { return _endpoints; }
+		add_endpoint: _add_endpoint
+	  , activate_endpoints: _activate_endpoints
+	  , start_main_server: _start_main_server
+	  , get endpoints() { return _endpoints; }
+	  , get logger() { return _logger; }
+	  , set logger(value) { _logger = value; }
 	};
 	
 	utils.foreach(endpoints, function(k, v) {
@@ -49,13 +53,9 @@ function ZMQServer(name, endpoints) {
 	endpoints = endpoints || [];
 	
 	// private
-	function _add_endpoint(ep) {
-		zmq_server.Super.add_endpoint(ep);
-	}
 	
 	// public
 	var zmq_server = {
-		add_endpoint: _add_endpoint
 	};
 	
 	// inheritance

@@ -63,7 +63,7 @@ function WebSocketServer(name, endpoints, port) {
 	}
 	
 	function _expire(id) {
-		// console.log('expiring', id);
+		// socket_server.logger.info('expiring', id);
 		if (client_eps[id]) {
 			client_eps[id].close();
 			delete client_eps[id];
@@ -71,7 +71,7 @@ function WebSocketServer(name, endpoints, port) {
 	}
 	
 	function _on_disconnect(client) {
-		// console.log('disconnected', client.id);
+		// socket_server.logger.info('disconnected', client.id);
 		if (dc_callback(client))
 			_expire(client.id);
 	}
@@ -85,29 +85,41 @@ function WebSocketServer(name, endpoints, port) {
 			rooms[name] = ioendpoint.IORoomEndpoint(connect_ep.socketio, name);
 			rooms[name].activate(socket_server);
 		}
-		
 		return rooms[name];
 	}
 	
 	function _rooms_of(id) {
-		var all_rooms = connect_ep.socketio.roomClients[id]
-		  , room_list = []
-		  , re = RegExp('^'+(client_eps[id].namespace || '/'))
-		  ;
+		var room_list = [];
 		
-		if (all_rooms && client_eps[id])
-			utils.foreach(all_rooms, function(k, v) {
-				// Adjust for namespace and push
-				var name = k.replace(re, '');
-				if (rooms[name]) // Is this room created by us
-					room_list.push(rooms[name]);
-			});
-		
+		utils.foreach(rooms, function (k, v) {
+			if (v.has(id)) room_list.push(v);
+		});
 		return room_list;
+	}
+	
+	function _close_room(name) {
+		rooms[name].close();
+		delete rooms[name];
 	}
 	
 	function _disconnect_callback(fn) {
 		dc_callback = fn;
+	}
+	
+	/**
+	 * HouseKeeping, synchronise socketio and fabric data structures :(
+	 * 	When should we do this, is it best suited as a CRON job
+	 */
+	function _drop_ghost_rooms() {
+		var ghosts = [];
+		utils.foreach(rooms, function(k, v) {
+			if (!connect_ep.socketio.rooms[v.internal_name]) {
+				v.close();
+				delete rooms[k];
+				ghosts.push(k);
+			}
+		});
+		return ghosts;
 	}
 	
 	// public
@@ -122,6 +134,7 @@ function WebSocketServer(name, endpoints, port) {
 	  , get onclient() { return _new_client_callback; }
 	  , get ondisconnect() { return _disconnect_callback; }
 	  , get expire() { return _expire; }
+	  , get drop_ghost_rooms() { return _drop_ghost_rooms; }
 	}
 	
 	// inheritance
