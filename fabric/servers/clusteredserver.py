@@ -1,8 +1,11 @@
 '''
-Clustered server provides abstraction for managing the cluster of server and handling the load-balancing, stickiness to server
+Clustered server provides abstraction for managing the cluster of server and handling the load-balancing, stickiness to server.
+
+Each server  registers itself to a common datastore when it comes up.
+Also each server has access to common datastore 
+
 '''
 from __future__ import division
-from bottle import redirect
 from fabric import concurrency
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint, \
     ClusteredPlugin
@@ -11,8 +14,6 @@ from fabric.servers.helpers.clusterenum import ClusterDictKeyEnum
 from fabric.servers.managedserver import ManagedServer
 import logging
 import os
-import uuid
-
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -54,61 +55,6 @@ class ClusteredEP(HTTPServerEndPoint):
         return os.getpid()
         #return self.server.redisclient.red.get(self.server.my_end_point)
 
-    
-    
-   
-    
-class DataStructure(object):
-    '''
-    This class used to maintain the data require on the Data-Store
-    <UniqueId> per adapter
-    <Adapter Type>
-    <source-adapter-endpoint>
-        State
-        Load (%)
-        Channels  - List
-        Client-types - List 
-    
-    '''    
-    
-    def __init__(self, server_type, source_server_endpoint, load=0):
-        self.uniqueid = str(uuid.uuid4())
-        self._server_type = server_type
-        self._source_server_endpoint = source_server_endpoint
-        self._load = load
-        self._channels = []
-        
-    @property
-    def server_type(self):
-        return self._server_type
-    
-    @server_type.setter
-    def server_type(self, v):
-        self._server_type = v     
-        
-    @property
-    def source_server_endpoint(self):
-        return self._source_server_endpoint
-    
-    @source_server_endpoint.setter
-    def source_server_endpoint(self, v):
-        self._source_server_endpoint = v      
-        
-    @property
-    def load(self):
-        return self._load
-    
-    @load.setter
-    def load(self, v):
-        self._load = v      
-        
-    @property
-    def channels(self):
-        return self._channels
-    
-    @channels.setter
-    def channels(self, v):
-        self._channels = v  
         
 class ClusterServerException(Exception):
     
@@ -166,37 +112,6 @@ class ClusteredServer(ManagedServer):
     def update_data(self, my_end_point, load=None, channel=[]):
         self.redisclient.update_channel(my_end_point, channel, load)
     
-    
-    def core_plugin_logic(self, channel, **kargs):
-        '''
-        This method will check if the server being requested is current server or any other.
-        It will check is_local and if not try and find the request if it is 
-        '''
-        # Check if this request is handled by me is_local()
-        # If not find the right server if already handled by somebody
-        #            If handled : Redirect to corresponding server
-        #            else : Find a new/existing (depending on adapter type)
-
-        if not self.is_local(channel):
-            print " this is not a local request"
-            serverdata = self.get_by_channel(channel)
-            if serverdata:
-                #first check i am not the one
-                if serverdata[ClusterDictKeyEnum.SERVER] != self.my_end_point:
-                    redirect(serverdata[ClusterDictKeyEnum.SERVER], 303)
-            else:
-                #find by key if key is given (if this is re-usable adapter)
-                try:
-                    key = kargs['key']
-                except KeyError:
-                    key = None
-                new_server_for_client = self.get_existing_or_free(key)
-                #If its current server, do not redirect
-                #first check i am not the one
-                if new_server_for_client[ClusterDictKeyEnum.SERVER] != self.my_end_point:
-                    redirect(new_server_for_client[ClusterDictKeyEnum.SERVER], 303) 
-                                
-
     def get_existing_or_free(self, key , servertype, **kargs):
         #TOBE OVERRIDDEN METHOD
         print "get_existing_or_free "
