@@ -72,7 +72,7 @@ function WebSocketServer(name, endpoints, port) {
 	
 	function _on_disconnect(client) {
 		// socket_server.logger.info('disconnected', client.id);
-		if (dc_callback(client))
+		if (dc_callback(client) !== false) // undefined is acceptable
 			_expire(client.id);
 	}
 	
@@ -106,21 +106,6 @@ function WebSocketServer(name, endpoints, port) {
 		dc_callback = fn;
 	}
 	
-	/**
-	 * HouseKeeping, synchronise socketio and fabric data structures :(
-	 * 	When should we do this, is it best suited as a CRON job
-	 */
-	function _drop_ghost_rooms() {
-		var ghosts = [];
-		utils.foreach(rooms, function(k, v) {
-			if (!connect_ep.socketio.rooms[v.internal_name]) {
-				v.close();
-				delete rooms[k];
-				ghosts.push(k);
-			}
-		});
-		return ghosts;
-	}
 	
 	// public
 	var socket_server = {
@@ -134,7 +119,7 @@ function WebSocketServer(name, endpoints, port) {
 	  , get onclient() { return _new_client_callback; }
 	  , get ondisconnect() { return _disconnect_callback; }
 	  , get expire() { return _expire; }
-	  , get drop_ghost_rooms() { return _drop_ghost_rooms; }
+	  , get close_room() { return _close_room; }
 	}
 	
 	// inheritance

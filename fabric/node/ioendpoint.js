@@ -11,6 +11,11 @@ function IOConnectionEndpoint(_context, _onconnect) {
 	 function _activate(server) {
 	 	io = iolib.listen(context);
 	 	io.set('log level', 2);
+	 	
+	 	/* Testing purposes */
+	 	// io.set('heartbeat interval', 3);
+	 	// io.set('heartbeat timeout', 9);
+	 	
 	 	io.sockets.on('connection', connection_callback);
 	 	io_conn.Super.activate(server);
 	 }
@@ -64,15 +69,15 @@ function IOClientServiceEndpoint(_socket/*optional*/) {
 	}
 	
 	function _emit() {
-		socket.emit.apply(socket, utils.listify_arguments(arguments));
+		if (!socket.disconnected) socket.emit.apply(socket, utils.listify_arguments(arguments));
 	}
 	
 	function _join(room_name) {
-		socket.join(room_name);
+		if (!socket.disconnected) socket.join(room_name);
 	}
 	
 	function _leave(room_name) {
-		socket.leave(room_name);
+		if (!socket.disconnected) socket.leave(room_name);
 	}
 	
 	function _ondisconnect(fn) {
