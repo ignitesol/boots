@@ -31,9 +31,7 @@ function SPARXDeMessage(jsonify/*optional*/) {
 				signal.tunenum = signal.tuneid.split('@')[1];
 				signal.cid = signal.tuneid.split('@')[0];
 			}
-		} catch(e) {
-			console.log(e);
-		}
+		} catch(e) {}
 		
 		return signal;
 	}

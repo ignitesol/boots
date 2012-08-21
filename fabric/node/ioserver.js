@@ -39,7 +39,9 @@ function WebSocketServer(name, endpoints, port) {
 	// private
 	var client_eps = {}
 	  , rooms = {}
-	  , client_callback = null;
+	  , client_callback = null
+	  , dc_callback = function() {}
+	  ;
 	
 	function _start_main_server() {
 		// This order is important
@@ -54,9 +56,24 @@ function WebSocketServer(name, endpoints, port) {
 	
 	function _on_connect(socket) {
 		var client = ioendpoint.IOClientServiceEndpoint(socket);
-		client.activate();
+		client.activate(socket_server);
 		client_eps[socket.id] = client;
+		client.ondisconnect(_on_disconnect);
 		if (client_callback) client_callback(client);
+	}
+	
+	function _expire(id) {
+		// socket_server.logger.info('expiring', id);
+		if (client_eps[id]) {
+			client_eps[id].close();
+			delete client_eps[id];
+		}
+	}
+	
+	function _on_disconnect(client) {
+		// socket_server.logger.info('disconnected', client.id);
+		if (dc_callback(client) !== false) // undefined is acceptable
+			_expire(client.id);
 	}
 	
 	function _new_client_callback(callback) {
@@ -64,19 +81,45 @@ function WebSocketServer(name, endpoints, port) {
 	}
 	
 	function _create_room(name) {
-		if (!rooms[name]) rooms[name] = ioendpoint.IORoomEndpoint(connect_ep.socketio, name);
+		if (!rooms[name]) {
+			rooms[name] = ioendpoint.IORoomEndpoint(connect_ep.socketio, name);
+			rooms[name].activate(socket_server);
+		}
 		return rooms[name];
 	}
 	
+	function _rooms_of(id) {
+		var room_list = [];
+		
+		utils.foreach(rooms, function (k, v) {
+			if (v.has(id)) room_list.push(v);
+		});
+		return room_list;
+	}
+	
+	function _close_room(name) {
+		rooms[name].close();
+		delete rooms[name];
+	}
+	
+	function _disconnect_callback(fn) {
+		dc_callback = fn;
+	}
+	
+	
 	// public
 	var socket_server = {
-		activate_endpoints: _activate_endpoints,
-		start_main_server: _start_main_server,
-		get connection_endpoint() { return connect_ep; },
-		get clients() { return client_eps; },
-		get rooms() { return rooms; },
-		get room() { return _create_room; },
-		onclient: _new_client_callback
+		activate_endpoints: _activate_endpoints
+	  , start_main_server: _start_main_server
+	  , get connection_endpoint() { return connect_ep; }
+	  , get clients() { return client_eps; }
+	  , get rooms() { return rooms; }
+	  , get room() { return _create_room; }
+	  , get rooms_of(){ return _rooms_of; } // Rooms of a given socket
+	  , get onclient() { return _new_client_callback; }
+	  , get ondisconnect() { return _disconnect_callback; }
+	  , get expire() { return _expire; }
+	  , get close_room() { return _close_room; }
 	}
 	
 	// inheritance

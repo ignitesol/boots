@@ -32,6 +32,17 @@ class EP(HTTPServerEndPoint):
         logging.getLogger().debug('hello called with %s', name)
         return 'hello %s' % name
 
+class EP_SUB(EP):
+    @methodroute()
+    def hello(self, name=None):
+        ''' 
+        @methodroute converts this method to a route handler which 
+        matches /hello or /hello/anyname since we have a keyword argument that takes a default value
+        '''
+        name = name or 'world'  # the name is passed as an argument
+        logging.getLogger().debug('HELLO called with %s', name)
+        return 'HELLO %s' % name
+    
 # create an endpoint
 ep1 = EP()
 # associate the endpoint with a server

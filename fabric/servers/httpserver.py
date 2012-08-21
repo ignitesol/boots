@@ -116,6 +116,7 @@ class HTTPServer(HTTPBaseServer):
     config_callbacks = { }  # we can set these directly out of the class body or in __init__
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
+                 session=False, cache=False, auth=False, handle_exception=False,
                  **kargs):
         '''
         :params bool session: controls whether sessions based on configuration ini should be instantiated. sessions
@@ -130,12 +131,13 @@ class HTTPServer(HTTPBaseServer):
         self.mount_prefix = mount_prefix or ''
         
         # setup the callbacks for configuration
-        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
+#        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
         if session: self.config_callbacks['Session'] = self.session_config_update
         if cache: self.config_callbacks['Caching'] = self.cache_config_update
         if auth: self.config_callbacks['Auth'] = self.auth_config_update
         
-        self.handle_exception = kargs.get('handle_exception', False)
+        self.handle_exception = handle_exception
+#        self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
     
     def auth_config_update(self, action, full_key, new_val, config_obj):

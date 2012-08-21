@@ -3,10 +3,12 @@ var utils = require('./utils.js')
 
 function EndPoint() {
 	// private
-	var _activated = false;
-	var _uuid = utils.generate_UUID()
+	var _activated = false
+	  , _uuid = utils.generate_UUID()
+	  , _server = null;
 
-	function _activate() {
+	function _activate(server) {
+		endpoint.server = server;
 		_activated = true;
 	}
 
@@ -16,10 +18,12 @@ function EndPoint() {
 
 	//public
 	var endpoint = {
-		activate : _activate,
-		get activated() { return _activated; },
-		close : _close,
-		get uuid() { return _uuid; }
+		activate : _activate
+	  , get activated() { return _activated; }
+	  , close : _close
+	  , get uuid() { return _uuid; }
+	  , get server() { return _server; }
+	  , set server(value) { _server = value; }
 	};
 
 	return endpoint;
@@ -45,8 +49,8 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 	var _send_plugins = _plugins.filter(function(p) {
 		return p.plugin_type === 'send';
 	});
-	function _activate() {
-		zmq_endpoint.Super.activate();
+	function _activate(server) {
+		zmq_endpoint.Super.activate(server);
 		_setup();
 		_start();
 	}
@@ -81,7 +85,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 		var msg = utils.listify_arguments(arguments);
 		msg.forEach( function(v, i) { msg[i] = v.toString(); } );
 		
-		// console.log('Received ', msg);
+		// zmq_endpoint.server.logger.info('Received ', msg);
 		// Plugins
 		_recv_plugins.forEach(function(v) {
 			msg = v.apply(msg);
@@ -91,7 +95,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 	}
 
 	function _callback(msg) {
-		// console.log(msg);
+		// zmq_endpoint.server.logger.info(msg);
 	}
 
 	function _add_filter(filter) {
