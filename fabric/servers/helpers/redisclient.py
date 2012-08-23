@@ -34,15 +34,15 @@ class RedisClient(Singleton):
             value[ClusterDictKeyEnum.SERVER] = key
         
         #Send into Redis data store & put the relevant tags
-        print "Data dumped into Redis ", json.dumps(value)
+        #print "Data dumped into Redis ", json.dumps(value)
         self.red.set(key, json.dumps(value))
         for tag in tags:
             self.red.sadd(tag, key)
             
             
     def getdata(self, key):
-        ret = json.loads(self.red.get(key))
-        print "Data retrieved from Redis ", ret
+        # ret = json.loads(self.red.get(key))
+        # print "Data retrieved from Redis ", ret
         return json.loads(self.red.get(key))
             
     def update_channel(self, key ,channel, load):
@@ -52,8 +52,8 @@ class RedisClient(Singleton):
         3) set the new load
         '''
         value = self.red.get(key)
-        print "Key is : ", key
-        print "value fetched : ", value
+#        print "Key is : ", key
+#        print "value fetched : ", value
         value = json.loads(value)
         if channel not in  value[ClusterDictKeyEnum.CHANNELS]:
             value[ClusterDictKeyEnum.CHANNELS] +=  [channel] 
