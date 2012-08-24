@@ -266,6 +266,20 @@ class ZMQListenEndPoint(ZMQEndPoint):
         """
         self.socket.setsockopt(zmq.SUBSCRIBE, pattern)
     
+    def remove_filter(self, pattern):
+        if self.socket_type != zmq.SUB: raise TypeError('Only subscribe sockets may have filters')
+        if pattern in self.filters:
+            self.filters.remove(pattern)
+            if self._activated:
+                self.ioloop.add_callback(functools.partial(self._drop_filter, pattern))
+    
+    def _drop_filter(self, pattern):
+        """
+        :param pattern: The pattern to discern between which messages to drop and which to accept
+        :type pattern: String
+        """
+        self.socket.setsockopt(zmq.UNSUBSCRIBE, pattern)
+    
     def callback(self, msg):
         pass
         
