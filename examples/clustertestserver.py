@@ -39,7 +39,28 @@ class EP(HTTPServerEndPoint):
     
         
 print "My end point : " , my_end_Point
-application = ClusteredServer(my_end_Point , AdapterTagEnum.MPEG,  endpoints=[EP()], cache=True, logger=True)
+
+class MpegCluterServer(ClusteredServer):
+    
+    def __init__(self, *args, **kwargs ):
+        super(MpegCluterServer, self).__init__(*args, **kwargs)
+        
+    def get_existing_or_free(self, key , servertype, **kargs):
+        #TOBE OVERRIDDEN METHOD
+        print "get_existing_or_free "
+        resusable = None
+        if key:
+            resusable =  self.get_by_key(key=key)
+        if not resusable:
+            #find server with least load
+            resusable = self.redisclient.get_least_loaded(servertype)
+        return resusable
+            
+    def get_least_loaded(self, servertype):
+        return self.redisclient.get_least_loaded(servertype)
+        
+
+application = MpegCluterServer(my_end_Point , AdapterTagEnum.MPEG,  endpoints=[EP()], cache=True, logger=True)
 
 
 if __name__ == '__main__':
