@@ -51,8 +51,8 @@ class MpegCluterServer(ClusteredServer):
     def get_least_loaded(self, servertype):
         return self.datastore.get_least_loaded(servertype)
         
-
-application = MpegCluterServer(my_end_Point , AdapterTagEnum.MPEG,  endpoints=[EP()], cache=True, logger=True)
+stickykey = 'channel'
+application = MpegCluterServer(my_end_Point , AdapterTagEnum.MPEG,  stickykey, endpoints=[EP()], cache=False, logger=True)
 
 
 if __name__ == '__main__':

@@ -23,9 +23,11 @@ class BaseDataBinding(object)  :
         pass
     
     
-    def get_server_of_type(self, tag):
+    def get_server_of_type(self, servertype):
         pass
-        return self.red.smembers(tag)
+    
+    def get_server_by_stickykey(self, stickykey):
+        pass
     
     def get_least_loaded(self, servertype):
         pass
@@ -92,12 +94,22 @@ class RedisBinding(BaseDataBinding):
     
     def get_server_of_type(self, servertype):
         # get the type of the server based on the tags given ( servertype )
-        return self.red.smembers(servertype)
+        return self.get_by_tag(servertype)
+    
+    def get_server_by_stickykey(self, stickeykey):
+        return self.get_by_tag(stickeykey)
     
     def get_least_loaded(self, servertype):
         key_list = self.red.smembers(servertype)
         load, serverdata = min([(self.getdata(key)[ClusterDictKeyEnum.LOAD] , self.getdata(key)) for key in key_list if self.getdata(key)], key=lambda x:x[0])
         return serverdata
+    
+    
+    def get_by_tag(self, tag):
+        '''
+            This is redis specific method. Tagging and retrieving by tag , redis specific
+        '''
+        return self.red.smembers(tag)
     
     
     
