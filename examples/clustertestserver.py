@@ -47,17 +47,16 @@ class MpegCluterServer(ClusteredServer):
         
     def get_existing_or_free(self, key , servertype, **kargs):
         #TOBE OVERRIDDEN METHOD
-        print "get_existing_or_free "
         resusable = None
         if key:
             resusable =  self.get_by_key(key=key)
         if not resusable:
             #find server with least load
-            resusable = self.redisclient.get_least_loaded(servertype)
+            resusable = self.get_least_loaded(servertype)
         return resusable
             
     def get_least_loaded(self, servertype):
-        return self.redisclient.get_least_loaded(servertype)
+        return self.datastore.get_least_loaded(servertype)
         
 
 application = MpegCluterServer(my_end_Point , AdapterTagEnum.MPEG,  endpoints=[EP()], cache=True, logger=True)

@@ -6,14 +6,16 @@ Also each server has access to common datastore
 
 '''
 from __future__ import division
+import os
 from fabric import concurrency
+from fabric.datastore.datamodule import RedisBinding
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint, \
     ClusteredPlugin
-from fabric.servers.helpers import redisclient, clusterenum
+from fabric.servers.helpers import clusterenum
 from fabric.servers.helpers.clusterenum import ClusterDictKeyEnum
 from fabric.servers.managedserver import ManagedServer
 import logging
-import os
+
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -74,7 +76,7 @@ class ClusteredServer(ManagedServer):
         '''
         :param type: defines the param type adapter MPEG, CODF etc
         '''
-        self.redisclient = redisclient.RedisClient()
+        self.datastore = RedisBinding()
         self.servertype = servertype
         self.my_end_point = my_end_point
         endpoints = endpoints or []
@@ -101,16 +103,16 @@ class ClusteredServer(ManagedServer):
         d = { ClusterDictKeyEnum.SERVER : my_end_point , 
               ClusterDictKeyEnum.LOAD : 0 , 
               ClusterDictKeyEnum.CHANNELS :[] }
-        self.redisclient.setdata(my_end_point, d , tags =[servertype] )
+        self.datastore.setdata(my_end_point, d , servertype )
         
     
     
     def get_data(self, my_end_point):
-        return self.redisclient.getdata(my_end_point)
+        return self.datastore.getdata(my_end_point)
     
     
     def update_data(self, my_end_point, load=None, channel=[]):
-        self.redisclient.update_channel(my_end_point, channel, load)
+        self.datastore.update_server(my_end_point, channel, load)
     
     def get_existing_or_free(self, key , servertype, **kargs):
         #TOBE OVERRIDDEN METHOD
@@ -120,11 +122,11 @@ class ClusteredServer(ManagedServer):
             resusable =  self.get_by_key(key=key)
         if not resusable:
             #find server with least load
-            resusable = self.redisclient.get_least_loaded(servertype)
+            resusable = self.datastore.get_least_loaded(servertype)
         return resusable
             
     def get_least_loaded(self, servertype):
-        return self.redisclient.get_least_loaded(servertype)
+        return self.datastore.get_least_loaded(servertype)
         
     
     def get_by_channel(self, channel, **kargs):
@@ -133,27 +135,27 @@ class ClusteredServer(ManagedServer):
             [ Channel for mpeg : <adapter-type>/<host:port:channel-id]
             [ Channel for CODF : <adapter-type>/<tune-id> ]
         '''
-        key = self.redisclient.get_server_with_tag(clusterenum.Constants.channel_tag_prefix +channel)
+        key = self.datastore.get_server_of_type(clusterenum.Constants.channel_tag_prefix + channel)
         adapter = None
         #Assumption we have only one key 
         if key:
-            adapter = self.redisclient.getdata(list(key)[0])
+            adapter = self.datastore.getdata(list(key)[0])
         return adapter
         
     def get_by_key(self, key , **kargs):
         '''
         This method will get the server who is handling the request based on the key
         '''
-        return self.redisclient.get_server_with_tag(key)
+        return self.datastore.get_server_of_type(key)
         
-    def is_local(self, channel, **krags):
+    def is_local(self, channel, **kwrags):
         '''
         This method checks if the request will be handled by this server or we need a redirect to the actual server.
         If we need to find the 
         '''
         #Check in data store if this channel is handled already
         #if its already handled we will redirect to that corresponding server
-        record = self.redisclient.getdata(self.my_end_point)
+        record = self.datastore.getdata(self.my_end_point)
         return True if record and channel in record[ClusterDictKeyEnum.CHANNELS] else False
         
     
@@ -161,6 +163,6 @@ class ClusteredServer(ManagedServer):
         '''
         This method return the load % on this server
         '''
-        record = self.redisclient.getdata(self.my_end_point)
+        record = self.datastore.getdata(self.my_end_point)
         return record[ClusterDictKeyEnum.LOAD]
     
