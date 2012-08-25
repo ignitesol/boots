@@ -24,7 +24,6 @@ from fabric import concurrency
 from fabric.common.utils import new_counter
 from fabric.endpoints.endpoint import EndPoint
 from fabric.servers.helpers.clusterenum import ClusterDictKeyEnum
-from fabric.servers.helpers.redisclient import RedisClient
 from functools import wraps
 from urlparse import urlsplit
 import bottle
@@ -371,7 +370,7 @@ class ClusteredPlugin(BasePlugin):
             try:
                 try:
                     channel = kargs['channel']
-                    if not server.is_local(channel):
+                    if not server.is_43local(channel):
                         serverdata = server.get_by_channel(channel)
                 except KeyError:
                     pass

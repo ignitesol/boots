@@ -30,13 +30,6 @@ class EP(HTTPServerEndPoint):
         self.server.update_data(my_end_point, load, channel=channel)
         return "Registered"
         
-    @methodroute()
-    def status(self, channel=None):
-        my_end_point = self.server.my_end_point
-        print "we are at the status process id " + str(os.getpid())
-        return "we are at the status process id " + str(os.getpid())  + " My end point is  : " + my_end_point + "\n" + \
-                "My load is : " + str(self.server.get_data(my_end_point))
-    
         
 print "My end point : " , my_end_Point
 

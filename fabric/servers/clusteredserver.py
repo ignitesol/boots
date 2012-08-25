@@ -40,16 +40,15 @@ class ClusteredEP(HTTPServerEndPoint):
         '''
         This method route will stop this server
         '''
-        self.server.get_data('MPEG', new=True)
-        return self.servt_sever_name()
+        pass
     
     
     @methodroute()
-    def service(self):
-        '''
-        This is the entry point for the server where we handle and do the checking logic
-        '''
-        pass
+    def status(self, channel=None):
+        my_end_point = self.server.my_end_point
+        print "we are at the status process id " + str(os.getpid())
+        return "we are at the status process id " + str(os.getpid())  + " My end point is  : " + my_end_point + "\n" + \
+                "My load is : " + str(self.server.get_data(my_end_point))
     
     @methodroute()
     def test(self):
@@ -92,7 +91,7 @@ class ClusteredServer(ManagedServer):
             par_plugins = super(ClusteredServer, self).get_standard_plugins(plugins)
         except AttributeError:
             par_plugins = []
-        print ( "Addded the ClusteredPlugin to the server")
+        print ( "Added the ClusteredPlugin to the server")
         return par_plugins + [ ClusteredPlugin() ] 
         
 
@@ -100,13 +99,11 @@ class ClusteredServer(ManagedServer):
         '''
         This create DataStructure in Redis
         '''
-        d = { ClusterDictKeyEnum.SERVER : my_end_point , 
-              ClusterDictKeyEnum.LOAD : 0 , 
-              ClusterDictKeyEnum.CHANNELS :[] }
-        self.datastore.setdata(my_end_point, d , servertype )
+        data_dict = {ClusterDictKeyEnum.SERVER : my_end_point , 
+                     ClusterDictKeyEnum.LOAD : 0 , 
+                     ClusterDictKeyEnum.CHANNELS :[]}
+        self.datastore.setdata(my_end_point, data_dict , servertype )
         
-    
-    
     def get_data(self, my_end_point):
         return self.datastore.getdata(my_end_point)
     
@@ -116,17 +113,10 @@ class ClusteredServer(ManagedServer):
     
     def get_existing_or_free(self, key , servertype, **kargs):
         #TOBE OVERRIDDEN METHOD
-        print "get_existing_or_free "
-        resusable = None
-        if key:
-            resusable =  self.get_by_key(key=key)
-        if not resusable:
-            #find server with least load
-            resusable = self.datastore.get_least_loaded(servertype)
-        return resusable
+        pass
             
     def get_least_loaded(self, servertype):
-        return self.datastore.get_least_loaded(servertype)
+        pass
         
     
     def get_by_channel(self, channel, **kargs):
