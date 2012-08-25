@@ -129,6 +129,9 @@ class ZMQCallbackPattern(ZMQBasePlugin):
                 cls._all_callbacks_hash[namespace][pattern] = (fn, priority)
             return fn
         return decorator
+    
+    def add_callbackpath(self, context, fn, pattern, priority):
+        self._callback_list.append(pattern, re.compile(pattern), getattr(context, fn.func_name), priority)
         
 class ZMQCoupling(ZMQBasePlugin):
     '''
