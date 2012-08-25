@@ -9,13 +9,12 @@ from __future__ import division
 import os
 from fabric import concurrency
 from fabric.datastore.datamodule import RedisBinding
-from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint, \
-    ClusteredPlugin
+from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
+from fabric.endpoints.cluster_ep import ClusteredPlugin
 from fabric.servers.helpers import clusterenum
 from fabric.servers.helpers.clusterenum import ClusterDictKeyEnum
 from fabric.servers.managedserver import ManagedServer
 import logging
-
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
