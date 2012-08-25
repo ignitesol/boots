@@ -169,6 +169,7 @@ class HTTPServer(HTTPBaseServer):
         '''
         Called by Config to update the Cache Configuration.
         '''
+        print "cache_config_update"
         self.cache = bkcache.CacheManager(**bkutil.parse_cache_config_options(config_obj['Caching']))
         logging.getLogger().debug('Cache config updated')
         
