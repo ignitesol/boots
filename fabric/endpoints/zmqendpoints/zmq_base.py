@@ -17,6 +17,11 @@ import logging
 class Locker(object):
     loop_lock = RLock()
 
+class ZMQType:
+    PUSH = zmq.PUSH
+    PULL = zmq.PULL
+    SUB = zmq.SUB
+
 # first, start a background ioloop thread and start ioloop
 def iolooper():
     loop = ioloop_instance() # get the singleton
