@@ -16,8 +16,9 @@ var utils = {
 	 */
 	listify_arguments: function(args) {
 		var l = []
-		for(var i = 0; args[i] !== undefined; i++) 
+		for(var i = 0; args[i] !== undefined; i++) {
 			l.push(args[i].toString());
+        }
 		return l;
 	},
 	

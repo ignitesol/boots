@@ -27,41 +27,6 @@ function ZMQBasePlugin() {
 }
 
 /**
- * Accepts a SPARX message from a ZMQ Endpoint
- * Returns a deconstructed message
- */
-function SPARXDeMessage(jsonify/*optional*/) {
-	// default
-	jsonify = jsonify === undefined? true: jsonify;
-	
-	function _apply(msg) {
-		var signal = null;
-		var tuneid = null;
-		var cid = null;
-		
-		try {
-			signal = JSON.parse(msg[2]);
-			if (signal.tuneid) {
-				signal.tunenum = signal.tuneid.split('@')[1];
-				signal.cid = signal.tuneid.split('@')[0];
-			}
-		} catch(e) {}
-		
-		return signal;
-	}
-	
-	var sparx_dmsg = {
-		get plugin_type() { return 'receive'},
-		get apply() { return _apply; }
-	};
-	
-	// inheritance
-	utils.inherit(sparx_dmsg, ZMQBasePlugin);
-	
-	return sparx_dmsg;
-}
-
-/**
  * Callback Plugin for ZMQ messages received
  * Messages must be a dictionary type object
  * The attribute supplied must match the supplied value, then the callback will be called
@@ -121,7 +86,7 @@ function MessageRoute(routes) {
 
 // Exports
 var Plugins = {};
-Plugins.SPARXDeMessage = SPARXDeMessage;
+Plugins.ZMQBasePlugin = ZMQBasePlugin;
 Plugins.MessageRoute = MessageRoute;
 
 module.exports = Plugins;
