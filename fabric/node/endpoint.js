@@ -73,8 +73,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 		_socket.on('message', _recv_message);
 	}
 
-	function _send() {
-		var msg = arguments;
+	function _send(msg) {
 		_send_plugins.forEach(function(v) {
 			msg = v.apply(msg);
 		});
@@ -149,7 +148,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 }
 
 // Exports
-Endpoints = {};
+var Endpoints = {};
 Endpoints.EndPoint = EndPoint;
 Endpoints.ZMQEndpoint = ZMQEndpoint;
 

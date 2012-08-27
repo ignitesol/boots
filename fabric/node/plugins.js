@@ -4,6 +4,16 @@ var utils = require('./utils.js');
  * ZMQ Plugins
  */
 
+/**
+ * The ZMQ base plugin object
+ * Plugins for ZMQ Endpoints will inherit from this
+ * Plugins must implement and expose a
+ *  *setup method
+ *  *apply method
+ * setup will be called when the endpoint is activated
+ * apply is called with the message and the return must be what needs
+ * to be passed on to subsequent plugins or pushed on to the socket
+ */
 function ZMQBasePlugin() {
 	var _plugin_type = null;
 	
@@ -16,37 +26,11 @@ function ZMQBasePlugin() {
 	return zmq_plugin;
 }
 
-function SPARXDeMessage(jsonify/*optional*/) {
-	// default
-	jsonify = jsonify === undefined? true: jsonify;
-	
-	function _apply(msg) {
-		var signal = null;
-		var tuneid = null;
-		var cid = null;
-		
-		try {
-			signal = JSON.parse(msg[2]);
-			if (signal.tuneid) {
-				signal.tunenum = signal.tuneid.split('@')[1];
-				signal.cid = signal.tuneid.split('@')[0];
-			}
-		} catch(e) {}
-		
-		return signal;
-	}
-	
-	var sparx_dmsg = {
-		get plugin_type() { return 'receive'},
-		get apply() { return _apply; }
-	};
-	
-	// inheritance
-	utils.inherit(sparx_dmsg, ZMQBasePlugin);
-	
-	return sparx_dmsg;
-}
-
+/**
+ * Callback Plugin for ZMQ messages received
+ * Messages must be a dictionary type object
+ * The attribute supplied must match the supplied value, then the callback will be called
+ */
 function MessageRoute(routes) {
 	var _endpoint = null
 	  , _routes = routes || {}
@@ -102,7 +86,7 @@ function MessageRoute(routes) {
 
 // Exports
 var Plugins = {};
-Plugins.SPARXDeMessage = SPARXDeMessage;
+Plugins.ZMQBasePlugin = ZMQBasePlugin;
 Plugins.MessageRoute = MessageRoute;
 
 module.exports = Plugins;
