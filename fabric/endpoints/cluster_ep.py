@@ -39,10 +39,7 @@ class ClusteredPlugin(BasePlugin):
                 server_adress = server.get_by_stickyvalue(stickyvalue)
                 if not server_adress:
                     server_adress = server.get_least_loaded(server.servertype)
-                    # Update new load 
-                    # TODO find how load gets updated 
-                    # Also need to determine how load is decremented
-                    server.update_data(server_adress, load=10, stickyvalue=stickyvalue)
+
                 if server_adress != server.server_adress: 
                     urlpath = bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
                     print "Redirecting to : ", server_adress + urlpath
@@ -54,6 +51,10 @@ class ClusteredPlugin(BasePlugin):
             finally:
                 if exception:
                     raise
+            # Update New load 
+            # TODO find how load gets updated 
+            # Also need to determine how load is decremented
+            server.update_data(server_adress, load=10, stickyvalue=stickyvalue)    
             return result
         self.plugin_post_apply(callback, wrapper)
         return wrapper
