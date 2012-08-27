@@ -4,6 +4,16 @@ var utils = require('./utils.js');
  * ZMQ Plugins
  */
 
+/**
+ * The ZMQ base plugin object
+ * Plugins for ZMQ Endpoints will inherit from this
+ * Plugins must implement and expose a
+ *  *setup method
+ *  *apply method
+ * setup will be called when the endpoint is activated
+ * apply is called with the message and the return must be what needs
+ * to be passed on to subsequent plugins or pushed on to the socket
+ */
 function ZMQBasePlugin() {
 	var _plugin_type = null;
 	
@@ -16,6 +26,10 @@ function ZMQBasePlugin() {
 	return zmq_plugin;
 }
 
+/**
+ * Accepts a SPARX message from a ZMQ Endpoint
+ * Returns a deconstructed message
+ */
 function SPARXDeMessage(jsonify/*optional*/) {
 	// default
 	jsonify = jsonify === undefined? true: jsonify;
@@ -47,6 +61,11 @@ function SPARXDeMessage(jsonify/*optional*/) {
 	return sparx_dmsg;
 }
 
+/**
+ * Callback Plugin for ZMQ messages received
+ * Messages must be a dictionary type object
+ * The attribute supplied must match the supplied value, then the callback will be called
+ */
 function MessageRoute(routes) {
 	var _endpoint = null
 	  , _routes = routes || {}
