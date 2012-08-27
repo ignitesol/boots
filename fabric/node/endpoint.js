@@ -74,7 +74,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 	}
 
 	function _send() {
-		var msg = arguments;
+		var msg = utils.listify_arguments(arguments);
 		_send_plugins.forEach(function(v) {
 			msg = v.apply(msg);
 		});
