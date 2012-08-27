@@ -109,8 +109,9 @@ class ClusteredServer(ManagedServer):
         return self.datastore.getdata(my_end_point)
     
     
-    def update_data(self, my_end_point, load=None, channel=[]):
-        self.datastore.update_server(my_end_point, channel, load)
+    def update_data(self, my_end_point, load=None, channel=None):
+        # stciky key is same as the channel passed . Will not be the real-life case
+        self.datastore.update_server(my_end_point, channel, channel,  load)
     
     def get_existing_or_free(self, key , servertype, **kargs):
         #TOBE OVERRIDDEN METHOD
@@ -126,7 +127,7 @@ class ClusteredServer(ManagedServer):
             [ Channel for mpeg : <adapter-type>/<host:port:channel-id]
             [ Channel for CODF : <adapter-type>/<tune-id> ]
         '''
-        key = self.datastore.get_server_by_stickykey(clusterenum.Constants.channel_tag_prefix + stickykey)
+        key = self.datastore.get_server_by_stickykey (stickykey)
         adapter = None
         #Assumption we have only one key 
         if key:
