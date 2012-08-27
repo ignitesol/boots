@@ -155,7 +155,7 @@ function IORoomEndpoint(_io, _name) {
 	
 	function _clients() {
 		var clients_list = [];
-		utils.foreach(clients, function(k, v) { clients_list.push(v); });
+		utils.foreach(clients, function(k, v) { clients_list.push(k); });
 		return clients_list;
 	}
 	

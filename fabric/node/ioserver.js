@@ -98,7 +98,7 @@ function WebSocketServer(name, endpoints, port) {
 	}
 	
 	function _close_room(name) {
-		rooms[name].close();
+		rooms[name] && rooms[name].close();
 		delete rooms[name];
 	}
 	
