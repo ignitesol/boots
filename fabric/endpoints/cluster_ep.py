@@ -35,9 +35,10 @@ class ClusteredPlugin(BasePlugin):
             exception = None
             try:
                 try:
-                    channel = kargs['channel']
+                    channel = kargs[server.stickykey]
+                    #TODO : check first if server is of the required type ( adapter:mpeg OR adapter:CODF etc)
                     if not server.is_local(channel):
-                        serverdata = server.get_by_channel(channel)
+                        serverdata = server.get_by_stickykey(channel)
                 except KeyError:
                     pass
                 if serverdata:

@@ -1,7 +1,8 @@
 
 
 class Constants:
-    channel_tag_prefix = 'channel:'
+    sticky_tag_prefix = 'sticky:'
+    servertype_tag_prefix = "servertype:"
 
 class AdapterTagEnum :
     

@@ -70,13 +70,15 @@ class ClusteredServer(ManagedServer):
     ClusteredServer provides inbuilt capabilities over and above HTTPServer for clustering
     '''
 
-    def __init__(self, my_end_point, servertype, endpoints=None, **kargs):
+    def __init__(self, my_end_point, servertype, stickykey, endpoints=None, **kargs):
         '''
         :param type: defines the param type adapter MPEG, CODF etc
         '''
         self.datastore = RedisBinding()
         self.servertype = servertype
         self.my_end_point = my_end_point
+        self.stickykey = stickykey or self.get_sticky_key()
+        
         endpoints = endpoints or []
         endpoints = endpoints + [ ClusteredEP()]
         super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs)
@@ -107,8 +109,9 @@ class ClusteredServer(ManagedServer):
         return self.datastore.getdata(my_end_point)
     
     
-    def update_data(self, my_end_point, load=None, channel=[]):
-        self.datastore.update_server(my_end_point, channel, load)
+    def update_data(self, my_end_point, load=None, channel=None):
+        # stciky key is same as the channel passed . Will not be the real-life case
+        self.datastore.update_server(my_end_point, channel, channel,  load)
     
     def get_existing_or_free(self, key , servertype, **kargs):
         #TOBE OVERRIDDEN METHOD
@@ -118,13 +121,13 @@ class ClusteredServer(ManagedServer):
         pass
         
     
-    def get_by_channel(self, channel, **kargs):
+    def get_by_stickykey(self, stickykey,  **kargs):
         '''
         This method get the server who is serving the given channel
             [ Channel for mpeg : <adapter-type>/<host:port:channel-id]
             [ Channel for CODF : <adapter-type>/<tune-id> ]
         '''
-        key = self.datastore.get_server_of_type(clusterenum.Constants.channel_tag_prefix + channel)
+        key = self.datastore.get_server_by_stickykey (stickykey)
         adapter = None
         #Assumption we have only one key 
         if key:
@@ -135,7 +138,7 @@ class ClusteredServer(ManagedServer):
         '''
         This method will get the server who is handling the request based on the key
         '''
-        return self.datastore.get_server_of_type(key)
+        return self.datastore.get_server_by_stickykey(key)
         
     def is_local(self, channel, **kwrags):
         '''
@@ -154,4 +157,9 @@ class ClusteredServer(ManagedServer):
         '''
         record = self.datastore.getdata(self.my_end_point)
         return record[ClusterDictKeyEnum.LOAD]
+    
+    
+    def get_sticky_keys(self):
+        return 'channel'
+        return None
     
