@@ -33,36 +33,19 @@ class ClusteredEP(HTTPServerEndPoint):
     def __init__(self, name=None, mountpoint='/cluster', plugins=None, server=None, activate=False):
         super(ClusteredEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
         
-    
     @methodroute()
     def status(self, channel=None):
         server_adress = self.server.server_adress
-        print "we are at the status process id " + str(os.getpid())
         return "we are at the status process id " + str(os.getpid())  + " My end point is  : " + server_adress + "\n" + \
                 "My load is : " + str(self.server.get_data(server_adress))
     
-    @methodroute()
-    def test(self):
-        print os.getpid()
-        return os.getpid()
-        #return self.server.redisclient.red.get(self.server.server_adress)
-
         
-class ClusterServerException(Exception):
-    
-    def __init__(self, value="ClusterServerException"):
-        self.value = value
-    
-    def __str__(self):
-        return repr(self.value)
-
-
 class ClusteredServer(ManagedServer):
     '''
     ClusteredServer provides inbuilt capabilities over and above HTTPServer for clustering
     '''
 
-    def __init__(self, server_adress, servertype, stickykeys =[], endpoints=None, **kargs):
+    def __init__(self, server_adress, servertype, endpoints=None, **kargs):
         '''
         
         :param server_adress: defines the the endpoint for the server, this is unique per server
@@ -74,12 +57,11 @@ class ClusteredServer(ManagedServer):
         self.datastore = MySQLBinding() # TODO : write a factory method to get the binding
         self.servertype = servertype
         self.server_adress = server_adress
-        self.stickykeys = stickykeys or self.get_sticky_keys()
         
         endpoints = endpoints or []
         endpoints = endpoints + [ ClusteredEP()]
         super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs)
-        self.create_data(server_adress, servertype) # This will create data if doesn't exist else updates if update flag is passed 
+        self.create_data() # This will create data if doesn't exist else updates if update flag is passed 
         
     def get_standard_plugins(self, plugins):
         '''
@@ -92,18 +74,20 @@ class ClusteredServer(ManagedServer):
         return par_plugins + [ ClusteredPlugin() ] 
         
 
-    def create_data(self, server_adress, servertype):
+    def create_data(self):
         '''
         This create DataStructure in Persistent data store
         '''
-        self.datastore.setdata(server_adress, servertype )
+        self.datastore.setdata(self.server_adress, self.servertype )
         
-    def get_data(self, server_adress):
-        return self.datastore.getdata(server_adress)
+    def get_data(self):
+        return self.datastore.getdata(self.server_adress)
     
     
-    def update_data(self, server_adress, load=None, stickyvalue=None):
-        self.datastore.update_server(server_adress, stickyvalue, load)
+    def update_data(self, load, endpoint_key, endpoint_name, stickyvalue=None, data=None):
+        
+        #jsonify data
+        self.datastore.update_server(self.server_adress, endpoint_key, endpoint_name, stickyvalue, load, data)
         
     def get_current_load(self):
         '''
@@ -111,12 +95,21 @@ class ClusteredServer(ManagedServer):
         It returns new load percentage
         '''
         return 0
+    
+    
+    def cleanup(self):
+        '''
+        This method will cleanup the sticky mapping and update the new load.
+        This needs to be called by the application when it is done with processing and stickyness is removed
+        '''
+        pass
             
-    def get_least_loaded(self, servertype):
+    def get_least_loaded(self, servertype=None):
         '''
         This method gets the least loaded server of the given servertype 
         :param servertype: this parameters contains the type of server
         '''
+        servertype = servertype or self.servertype
         server =  self.datastore.get_least_loaded(servertype)
         return server.unique_key if server else None
         
@@ -127,30 +120,30 @@ class ClusteredServer(ManagedServer):
         by the correct server. 
         :param stickyvalue: stickyvalue which is handled by this server
         '''
-        if not stickyvalue:
+        if stickyvalue is None:
             return None
         server =  self.datastore.get_server_by_stickyvalue(stickyvalue)
         return server.unique_key if server else None
         
 
-    def create_sticky_value(self, kargs):
+    def create_sticky_value(self, sticky_keys, kargs):
         '''
         Creates sticky value from the parameters passed
         This method get the dict of all the parameters passed to the server.
         It extracts the all the sticky key values as specified by the given server and
         concatenates by a separator to form a unique key  
+        :param sticky_keys: List of sticky keys for this end-point
         :param kargs: is the map of the parameters those are passed to the server
         '''
-        sticky_val = ''
-        for key in self.get_sticky_keys():
-            if sticky_val:
-                sticky_val += STICKY_VALUE_SEP
-            sticky_val = sticky_val + kargs[key]
-        return sticky_val
-            
-    def get_sticky_keys(self):
-        '''
-        This method returns the sticky keys.
-        Sticky keys may be list of individual keys , these are the params those are passed for the server request
-        '''
-        return self.stickykeys
+        try:
+            return STICKY_VALUE_SEP.join([ kargs[key] for key in sticky_keys])
+        except KeyError:
+            return None
+       
+# Stickiness at the endpoint level , check if endpoint has this method . otherwise handled by this server             
+#    def get_sticky_keys(self):
+#        '''
+#        This method returns the sticky keys.
+#        Sticky keys may be list of individual keys , these are the params those are passed for the server request
+#        '''
+#        return self.stickykeys

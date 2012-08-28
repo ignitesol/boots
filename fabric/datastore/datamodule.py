@@ -11,6 +11,7 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.schema import UniqueConstraint, ForeignKey, ForeignKeyConstraint
 from sqlalchemy.sql.expression import join, and_, func, outerjoin
 from sqlalchemy.types import String, Integer, Float
+from sqlalchemy.dialects.mysql.base import LONGTEXT
 
 class BaseDataBinding(object)  :
     
@@ -25,14 +26,14 @@ class BaseDataBinding(object)  :
     def getdata(self, server_adress):
         pass
     
-    def update_server(self, server_adress, channel, load = None):
+    def update_server(self, server_adress, stickyvalue, load, data=None):
+        pass
+    
+    def update_stickyvalue(self, server_adress, stickyvalue):
         pass
     
     
-    def get_server_of_type(self, servertype):
-        pass
-    
-    def get_server_by_stickykey(self, stickykey):
+    def get_server_by_stickyvalue(self, stickyvalue):
         pass
     
     def get_least_loaded(self, servertype):
@@ -76,14 +77,14 @@ class MySQLBinding(BaseDataBinding):
         :param servertype: type of the server 
         '''
         try:
-            server = Server(servertype, server_adress, 'data', 0)
+            server = Server(servertype, server_adress, '', 0)
             self.sess.add(server)
             self.sess.commit()
         except IntegrityError as e:
             #Based on the type of mode : Start/Restart we might want to clear or update data
             self.sess.rollback()
             self.sess.query(Server).filter(Server.unique_key == server_adress)\
-                    .update({Server.load:0, Server.server_type:servertype, Server.data:'updateddata'}, synchronize_session=False)
+                    .update({Server.load:0, Server.server_type:servertype}, synchronize_session=False)
             self.sess.commit()
         
     
@@ -100,27 +101,30 @@ class MySQLBinding(BaseDataBinding):
             pass
         except MultipleResultsFound:
             pass
-        return server
+        #un jsonify
+        return server.data
     
     @dbsessionhandler
-    def update_server(self, server_adress, stickyvalue, load, data=None):
+    def update_server(self, server_adress, endpoint_key, endpoint_name, stickyvalue, load, data=None):
         '''
         This method adds the stickyvalue mapping and the load for the server_address
         :param server_adress: the unique server_adress
+        :param endpoint_key: unique key of the endpoint
+        :param endpoint_name: name of the endpoint
         :param stickyvalue: new sticky value
         :param load: load percentage for this server
         '''
         #Complete transactional update
         if data:
             self.sess.query(Server).filter(Server.unique_key == server_adress)\
-                    .update({Server.load:load, Server.data:'updateddata_viaserver'}, synchronize_session=False)
+                    .update({Server.load:load, Server.data:data}, synchronize_session=False)
         else:
             self.sess.query(Server).filter(Server.unique_key == server_adress)\
                     .update({Server.load:load}, synchronize_session=False)
                     
         server = self.sess.query(Server).filter(Server.unique_key == server_adress).one()
         try:
-            stickymapping = StickyMapping(server.server_id, stickyvalue)      
+            stickymapping = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)      
             self.sess.add(stickymapping)
             self.sess.commit()  
         except IntegrityError:
@@ -179,7 +183,7 @@ class Server(Base):
     server_id = Column(Integer, primary_key=True)
     server_type = Column(String(200))
     unique_key = Column(String(200))
-    data = Column(String(500))
+    data = Column(LONGTEXT)
     load =  Column(Float)
    
     __table_args__  = ( saschema.UniqueConstraint("unique_key"), {} ) 
@@ -200,17 +204,21 @@ class StickyMapping(Base):
     
     mapping_id = Column(Integer, primary_key=True)
     server_id = Column(Integer, ForeignKey('server.server_id', ondelete='CASCADE'))
-    sticky_value = Column(String(200))
+    endpoint_key = Column(String(100))
+    endpoint_name = Column(String(100))
+    sticky_value = Column(String(500))
     
-    __table_args__  = ( saschema.UniqueConstraint("server_id", "sticky_value"), {} ) 
+    __table_args__  = ( saschema.UniqueConstraint("server_id", "endpoint_key", "sticky_value", ), {} ) 
     
-    def __init__(self, server_id, sticky_value):
+    def __init__(self, server_id, endpoint_key, endpoint_name, sticky_value):
         self.server_id = server_id
+        self.endpoint_key = endpoint_key
+        self.endpoint_name = endpoint_name
         self.sticky_value = sticky_value   
         
     def __repr__(self):
-        return "<StickyMapping (server_id, sticky_value)('%s', '%s')>" % \
-            (self.server_id, str(self.sticky_value))
+        return "<StickyMapping (server_id, endpoint_key, endpoint_name, sticky_value)('%s', '%s', '%s', '%s')>" % \
+            (self.server_id, str(self.endpoint_key), str(self.endpoint_name), str(self.sticky_value))
 
     
 def create_server(metadata):
@@ -219,7 +227,7 @@ def create_server(metadata):
         schema.Sequence('server_seq_id', optional=False), primary_key=True),
     schema.Column('server_type', types.VARCHAR(200), nullable=False),
     schema.Column('unique_key', types.VARCHAR(200), nullable=False),
-    schema.Column('data', types.Text, nullable=True),
+    schema.Column('data', LONGTEXT , nullable=True),
     schema.Column('load', types.Float, nullable=True ), 
     mysql_engine='InnoDB'
     )
@@ -231,6 +239,8 @@ def create_stickymapping(metadata):
     schema.Column('mapping_id', types.Integer,
                     schema.Sequence('stickymapping_seq_id', optional=False), primary_key=True),
     schema.Column('server_id', types.Integer, ForeignKey("server.server_id", ondelete="CASCADE"), onupdate="CASCADE"),
+    schema.Column('endpoint_key', types.VARCHAR(100), nullable=True),
+    schema.Column('endpoint_name', types.VARCHAR(100), nullable=True),
     schema.Column('sticky_value', types.VARCHAR(500), nullable=True),
     mysql_engine='InnoDB'
     )

@@ -19,11 +19,8 @@ class ClusteredPlugin(BasePlugin):
     If not find out the correct server and redirects to that server
     '''
   
-    def __init__(self, default_handler=None):
-        '''
-        @param default_handler:       
-        '''
-        self.default_handler = default_handler
+    def __init__(self):
+        pass
                
     def setup(self, app):
         for other in app.plugins:
@@ -44,18 +41,21 @@ class ClusteredPlugin(BasePlugin):
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             server_adress = None
             exception = None
+            stickyvalue = None
             try:
-                stickyvalue = server.create_sticky_value(kargs)
-                #TODO : check first if server is of the required type ( adapter|mpeg OR adapter|CODF etc)
-                server_adress = server.get_by_stickyvalue(stickyvalue)
-                if not server_adress:
-                    with Atomic.lock:
-                        server_adress = server.get_least_loaded(server.servertype)
-
-                if server_adress != server.server_adress: 
-                    urlpath = bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
-                    print "Redirecting to : ", server_adress + urlpath
-                    redirect("http://" + server_adress + urlpath, 301)
+                get_sticky_keys_func = getattr(callback.im_self, "get_sticky_keys", None)
+                if get_sticky_keys_func:
+                    stickyvalue = server.create_sticky_value(get_sticky_keys_func(), kargs)
+                    #TODO : check first if server is of the required type ( adapter|mpeg OR adapter|CODF etc)
+                    server_adress = server.get_by_stickyvalue(stickyvalue)
+                    if not server_adress:
+                        with Atomic.lock:
+                            server_adress = server.get_least_loaded(server.servertype)
+    
+                    if server_adress != server.server_adress: 
+                        urlpath = bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
+                        print "Redirecting to : ", server_adress + urlpath
+                        redirect("http://" + server_adress + urlpath, 301)
                 result = callback(*args, **kargs)
             except Exception as e:
                 exception = e
@@ -66,7 +66,8 @@ class ClusteredPlugin(BasePlugin):
             # Application needs to implement how load gets updated 
             # Also need to determine how load is decremented
             with Atomic.lock:
-                server.update_data(server_adress, load=server.get_current_load(), stickyvalue=stickyvalue)    
+                if stickyvalue:
+                    server.update_data(server.get_current_load(), callback.im_self.uuid, callback.im_self.name , stickyvalue=stickyvalue)    
             return result
         self.plugin_post_apply(callback, wrapper)
         return wrapper
