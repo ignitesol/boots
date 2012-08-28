@@ -306,7 +306,8 @@ def create_server(metadata):
     schema.Column('server_type', types.VARCHAR(200), nullable=False),
     schema.Column('unique_key', types.VARCHAR(200), nullable=False),
     schema.Column('data', types.Text, nullable=True),
-    schema.Column('load', types.Float, nullable=True )
+    schema.Column('load', types.Float, nullable=True ), 
+    mysql_engine='InnoDB'
     )
     server.append_constraint(UniqueConstraint("unique_key"))
     server.create(checkfirst=True)
@@ -316,7 +317,8 @@ def create_stickymapping(metadata):
     schema.Column('mapping_id', types.Integer,
                     schema.Sequence('stickymapping_seq_id', optional=False), primary_key=True),
     schema.Column('server_id', types.Integer, ForeignKey("server.server_id", ondelete="CASCADE"), onupdate="CASCADE"),
-    schema.Column('sticky_value', types.VARCHAR(500), nullable=True)
+    schema.Column('sticky_value', types.VARCHAR(500), nullable=True),
+    mysql_engine='InnoDB'
     )
     
     ForeignKeyConstraint(
