@@ -1,6 +1,10 @@
 var utils = require('./utils.js')
   , ep = require('./endpoint.js');
 
+/**
+ * This endpoint accepts new client connections using socketio
+ * It serves as an interface for clients to the server
+ */
 function IOConnectionEndpoint(_context, _onconnect) {
 	// private
 	var connection_callback = _onconnect
@@ -36,7 +40,10 @@ function IOConnectionEndpoint(_context, _onconnect) {
 	return io_conn;
 }
 
-// socket.io based endpoint
+/**
+ * This Endpoint serves as an interface for the server to each client
+ * One endpoint corresponds to one socketio connection
+ */
 function IOClientServiceEndpoint(_socket/*optional*/) {
 	// private
 	var socket = _socket || null;
@@ -50,6 +57,10 @@ function IOClientServiceEndpoint(_socket/*optional*/) {
 		});
 	}
 	
+	/**
+	 * Adds a route to client messages
+	 * The callback is invoked everytime a message on that route is received
+	 */
 	function _add_route_callback(route, callback) {
 		_route_callbacks[route] = callback;
 		if (socket) socket.on(route, callback);
@@ -61,6 +72,10 @@ function IOClientServiceEndpoint(_socket/*optional*/) {
 		if (socket) socket.removeListener(route, del_callback);
 	}
 	
+	/**
+	 * Close the socket
+	 * Remove all listeners and disconnect the socket
+	 */
 	function _close() {
 		if (socket) {
 			socket.removeAllListeners();
@@ -80,15 +95,24 @@ function IOClientServiceEndpoint(_socket/*optional*/) {
 		if (!socket.disconnected) socket.leave(room_name);
 	}
 	
+	/**
+	 * Setup the disconnect callback
+	 */
 	function _ondisconnect(fn) {
 		socket.on('disconnect', function(){ fn(io_ep); });
 	}
 	
+	/**
+	 * Store set function
+	 */
 	function _socket_set() {
 		var args = utils.listify_arguments(arguments);
 		socket.set.apply(socket, args);
 	}
 	
+	/**
+	 * Store retrieve function
+	 */
 	function _socket_get() {
 		var args = utils.listify_arguments(arguments);
 		socket.get.apply(socket, args);
@@ -130,16 +154,25 @@ function IORoomEndpoint(_io, _name) {
 	  , clients = {}
 	  ;
 	
+	/**
+	 * Add a client endpoint to this rooms namespace
+	 */
 	function _add_client(ep) {
 		clients[ep.id] = true;
 		ep.join(name);
 	}
 	
+	/**
+	 * remove a client from this rooms namespace
+	 */
 	function _remove_client(ep) {
 		delete clients[ep.id];
 		ep.leave(name);
 	}
 	
+	/**
+	 * Broadcast a message to all clients
+	 */
 	function _broadcast() {
 		var args = utils.listify_arguments(arguments)
 		  , these_sockets = io.sockets.in(name)
@@ -150,7 +183,7 @@ function IORoomEndpoint(_io, _name) {
 	
 	function _real_name() {
 		// We dont know what namespace it is part of
-		return '/' + name;
+		return io.sockets.name + name;
 	}
 	
 	function _clients() {
@@ -164,6 +197,11 @@ function IORoomEndpoint(_io, _name) {
 	}
 	
 	function _close() {
+	    var clist = io.sockets.clients(name);
+	    // Make all client sockets leave the room
+	    clist.forEach(function(v, k) {
+	        v.leave(name);
+	    });
 		room.Super.close();
 	}
 	

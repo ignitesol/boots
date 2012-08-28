@@ -37,18 +37,11 @@ ManangedServer
 ZMQServer
 ---------------
 .. automodule:: fabric.servers.zmqserver
+    :members:
 
 .. autoclass:: ZMQServer
     :members:
-
-.. automodule:: fabric.servers.zmq_pull_pub_server
-
-.. autoclass:: ZMQPullPubServer
-    :members:
-    
-.. autoclass:: ZMQSubscribeServer
-    :members:
-    
+        
  HybridServer
  --------------
  -- automodule:: fabric.servers.hybrid
@@ -124,7 +117,7 @@ HTTP Client End Points
 -----------------------
 .. automodule:: fabric.endpoints.httpclient_ep
 
-.. autoclass:: HTTPClient
+.. autoclass:: HTTPClientEndPoint
 	:members:
 
 .. autoclass:: HTTPAsyncClient
