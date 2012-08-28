@@ -105,12 +105,12 @@ class ClusteredServer(ManagedServer):
     def update_data(self, server_adress, load=None, stickyvalue=None):
         self.datastore.update_server(server_adress, stickyvalue, load)
         
-    def refreshed_load_on_update(self):
+    def get_current_load(self):
         '''
         This method defines how the load gets updated which each new request being served or completed
         It returns new load percentage
         '''
-        pass
+        return 0
             
     def get_least_loaded(self, servertype):
         '''

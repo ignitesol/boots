@@ -2,6 +2,17 @@ from bottle import redirect
 from fabric.endpoints.http_ep import BasePlugin
 from functools import wraps
 import bottle
+
+from fabric import concurrency
+if concurrency == 'gevent':
+    from gevent import monkey; monkey.patch_all()
+    from gevent.coros import RLock
+elif concurrency == 'threading':
+    from threading import RLock
+    
+class Atomic(object):
+    lock = RLock()
+
 class ClusteredPlugin(BasePlugin):
     '''
     A ClusteredPlugin is a  plugin to execute check if request is handled by this server 
@@ -35,10 +46,11 @@ class ClusteredPlugin(BasePlugin):
             exception = None
             try:
                 stickyvalue = server.create_sticky_value(kargs)
-                #TODO : check first if server is of the required type ( adapter:mpeg OR adapter:CODF etc)
+                #TODO : check first if server is of the required type ( adapter|mpeg OR adapter|CODF etc)
                 server_adress = server.get_by_stickyvalue(stickyvalue)
                 if not server_adress:
-                    server_adress = server.get_least_loaded(server.servertype)
+                    with Atomic.lock:
+                        server_adress = server.get_least_loaded(server.servertype)
 
                 if server_adress != server.server_adress: 
                     urlpath = bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
@@ -51,10 +63,10 @@ class ClusteredPlugin(BasePlugin):
             finally:
                 if exception:
                     raise
-            # Update New load 
-            # TODO find how load gets updated 
+            # Application needs to implement how load gets updated 
             # Also need to determine how load is decremented
-            server.update_data(server_adress, load=10, stickyvalue=stickyvalue)    
+            with Atomic.lock:
+                server.update_data(server_adress, load=server.get_current_load(), stickyvalue=stickyvalue)    
             return result
         self.plugin_post_apply(callback, wrapper)
         return wrapper
