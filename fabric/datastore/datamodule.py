@@ -105,13 +105,13 @@ class MySQLBinding(BaseDataBinding):
         return server.data
     
     @dbsessionhandler
-    def update_server(self, server_adress, endpoint_key, endpoint_name, stickyvalue, load, data=None):
+    def update_server(self, server_adress, endpoint_key, endpoint_name, stickyvalues, load, data=None):
         '''
         This method adds the stickyvalue mapping and the load for the server_address
         :param server_adress: the unique server_adress
         :param endpoint_key: unique key of the endpoint
         :param endpoint_name: name of the endpoint
-        :param stickyvalue: new sticky value
+        :param stickyvalues: list of new sticky values
         :param load: load percentage for this server
         '''
         #Complete transactional update
@@ -124,39 +124,35 @@ class MySQLBinding(BaseDataBinding):
                     
         server = self.sess.query(Server).filter(Server.unique_key == server_adress).one()
         try:
-            stickymapping = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)      
-            self.sess.add(stickymapping)
+            for stickyvalue in stickyvalues:
+                self.sess.add(StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue))    
             self.sess.commit()  
         except IntegrityError:
             #Sticky mapping already exist. This condition should only if server is started and data was not cleared
             self.sess.rollback()
     
-    @dbsessionhandler
-    def update_stickyvalue(self, server_adress, stickyvalue):
-        '''
-        This method adds stickyvalue mapping to the server , does not update the load
-        :param server_adress: the unique server_adress
-        :param stickyvalue: new sticky value
-        '''
-        server = self.sess.query(Server).filter(Server.unique_key == server_adress).one()
-        stickymapping = StickyMapping(server.server_id, stickyvalue)      
-        self.sess.add(stickymapping)
-        self.sess.commit() 
-        
         
     @dbsessionhandler
-    def get_server_by_stickyvalue(self, stickyvalue):
+    def get_server_by_stickyvalue(self, stickyvalues, endpoint_key):
         '''
         This method server which handles the stickyvalue passes
         :param stickyvalue: 
         '''
         # Server.server_id == StickyMapping.server_id
-        try:
-            stickymapping = self.sess.query(StickyMapping).filter(StickyMapping.sticky_value == stickyvalue).one()
-        except NoResultFound:
+        stickymapping = None
+        for stickyvalue in stickyvalues:
+            try:
+                stickymapping = self.sess.query(StickyMapping).filter(and_(StickyMapping.sticky_value == stickyvalue, \
+                                                                           True)).one()
+                break # we break when first one is found
+            except NoResultFound:
+                pass
+        if stickymapping is None:
             return None
         #TODO : Join was screwing up for some reason so , dirty code . Must  fix
         server = self.sess.query(Server).filter(Server.server_id == stickymapping.server_id).one()
+        
+        #Now add all the other stickymapping ( to make sure secondary keys also exist)
         return server
         
 

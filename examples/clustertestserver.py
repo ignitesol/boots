@@ -1,5 +1,6 @@
 import os
 import sys
+from collections import OrderedDict
 try:
     import fabric
 except ImportError:
@@ -20,7 +21,9 @@ if  not opt.port:
 
 host = "aurora.ignitelabs.local"
 my_server_address = host + ':' + str(opt.port)
-stickykeys = ['channel']
+#stickykeys = ['channel']
+
+stickykeys = OrderedDict([("1" , ["channel"]), ("2", ["clientid"])])
 
 
 class ClusterTestEP(HTTPServerEndPoint):
@@ -65,10 +68,7 @@ class MpegCluterServer(ClusteredServer):
         :param load : percentage of load that exists at currently 
         '''
         return 10
-    
-    
-        
- 
+
 
 application = MpegCluterServer(my_server_address , AdapterTagEnum.MPEG,  endpoints=[ClusterTestEP()], cache=False, logger=True)
 

@@ -13,6 +13,7 @@ from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.endpoints.cluster_ep import ClusteredPlugin
 from fabric.servers.managedserver import ManagedServer
 import logging
+from collections import OrderedDict
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -84,10 +85,13 @@ class ClusteredServer(ManagedServer):
         return self.datastore.getdata(self.server_adress)
     
     
-    def update_data(self, load, endpoint_key, endpoint_name, stickyvalue=None, data=None):
-        
+    def update_data(self, load, endpoint_key, endpoint_name, stickyvalues=None, data=None):
+        '''
+        This update the sticky value for the 
+        :param stickyvalues: list of stickyvalues
+        '''
         #jsonify data
-        self.datastore.update_server(self.server_adress, endpoint_key, endpoint_name, stickyvalue, load, data)
+        self.datastore.update_server(self.server_adress, endpoint_key, endpoint_name, stickyvalues, load, data)
         
     def get_current_load(self):
         '''
@@ -114,15 +118,15 @@ class ClusteredServer(ManagedServer):
         return server.unique_key if server else None
         
     
-    def get_by_stickyvalue(self, stickyvalue):
+    def get_by_stickyvalue(self, stickyvalues, endpoint_key):
         '''
         This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
         by the correct server. 
-        :param stickyvalue: stickyvalue which is handled by this server
+        :param stickyvalues: stickyvalues which is handled by this server
         '''
-        if stickyvalue is None:
+        if stickyvalues is None:
             return None
-        server =  self.datastore.get_server_by_stickyvalue(stickyvalue)
+        server =  self.datastore.get_server_by_stickyvalue(stickyvalues, endpoint_key)
         return server.unique_key if server else None
         
 
@@ -132,18 +136,20 @@ class ClusteredServer(ManagedServer):
         This method get the dict of all the parameters passed to the server.
         It extracts the all the sticky key values as specified by the given server and
         concatenates by a separator to form a unique key  
-        :param sticky_keys: List of sticky keys for this end-point
+        :param sticky_keys: Ordered dict of key and list of corresponding param-values for this end-point
         :param kargs: is the map of the parameters those are passed to the server
         '''
-        try:
-            return STICKY_VALUE_SEP.join([ kargs[key] for key in sticky_keys])
-        except KeyError:
-            return None
-       
-# Stickiness at the endpoint level , check if endpoint has this method . otherwise handled by this server             
-#    def get_sticky_keys(self):
-#        '''
-#        This method returns the sticky keys.
-#        Sticky keys may be list of individual keys , these are the params those are passed for the server request
-#        '''
-#        return self.stickykeys
+        if type(sticky_keys) is not OrderedDict:
+            raise Exception("Sticky keys is OrderedDict with key and value to be list of params") 
+        rt = []
+        for k, v in sticky_keys.items():
+            try:
+                rt += [ STICKY_VALUE_SEP.join([ kargs[key] for key in v]) ]
+            except KeyError:
+                pass
+        return rt
+        
+#        try:
+#            return STICKY_VALUE_SEP.join([ kargs[key] for key in sticky_keys])
+#        except KeyError:
+#            return None

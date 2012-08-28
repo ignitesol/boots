@@ -41,13 +41,14 @@ class ClusteredPlugin(BasePlugin):
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             server_adress = None
             exception = None
-            stickyvalue = None
+            stickyvalues = None
             try:
                 get_sticky_keys_func = getattr(callback.im_self, "get_sticky_keys", None)
                 if get_sticky_keys_func:
-                    stickyvalue = server.create_sticky_value(get_sticky_keys_func(), kargs)
+                    stickyvalues = server.create_sticky_value(get_sticky_keys_func(), kargs)
+                    print stickyvalues
                     #TODO : check first if server is of the required type ( adapter|mpeg OR adapter|CODF etc)
-                    server_adress = server.get_by_stickyvalue(stickyvalue)
+                    server_adress = server.get_by_stickyvalue(stickyvalues, callback.im_self.uuid)
                     if not server_adress:
                         with Atomic.lock:
                             server_adress = server.get_least_loaded(server.servertype)
@@ -66,8 +67,8 @@ class ClusteredPlugin(BasePlugin):
             # Application needs to implement how load gets updated 
             # Also need to determine how load is decremented
             with Atomic.lock:
-                if stickyvalue:
-                    server.update_data(server.get_current_load(), callback.im_self.uuid, callback.im_self.name , stickyvalue=stickyvalue)    
+                if stickyvalues:
+                    server.update_data(server.get_current_load(), callback.im_self.uuid, callback.im_self.name , stickyvalues=stickyvalues)    
             return result
         self.plugin_post_apply(callback, wrapper)
         return wrapper
