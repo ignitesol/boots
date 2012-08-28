@@ -111,9 +111,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 	function _remove_filter(filter) {
 		if(zmq_endpoint.socket_type === 'sub') {
 			_socket.unsubscribe(filter);
-			var tail = _filters.slice(_filters.indexOf(filter) + 1);
-			_filters.splice(_filters.indexOf(filter));
-			_filters = _filters.concat(tail);
+			_filters.splice(_filters.indexOf(filter), 1);
 		} else
 			throw Error('Socket must be of sub type')
 	}
