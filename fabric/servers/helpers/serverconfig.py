@@ -39,7 +39,7 @@ class ServerConfig(Config):
         callbacks = callbacks or {}
         env_config = env_config or {}
         
-        super(ServerConfig, self).__init__()
+        super(ServerConfig, self).__init__(interpolation='template')
 
         # Empty config initialized,Now we will add callbacks before reading the file.
         for key,values in callbacks.items():
@@ -78,7 +78,7 @@ class ServerConfig(Config):
             logging.getLogger().warning('Configuration validation not completely successful for %s and result is %s',
                                         configfile, config_test)
 
-    def update_config(self, config, overrides=None):
+    def update_config(self, config, overrides=None): #TODO:Testing pending.
         '''
         Updates the current configuration is a safe manner
         @param config: the new (partial) configuration
@@ -87,22 +87,22 @@ class ServerConfig(Config):
         config = config or {}
         overrides = overrides or []
         
-        curr_config = dict(self)
-        curr_config.update(config)
+        curr_config = Config(dict(self))
         configspec = self.merged_configspec
         val = Validator()
         
         configuration = Config(curr_config, configspec=configspec, interpolation='template')     # Making new object out of merged config and configspec
+        curr_config.merge(config)
         configuration = self.handle_overrides(configuration, overrides)
         config_test = configuration.validate(val, preserve_errors=True)
-        
         if config_test != True:
             logging.getLogger().warning('Update configuration validation not completely successful. Attempting to update with %s. Result is %s',
                                         config, config_test)
-            return # do nothing
+            return #TODO: Return a better error msg.
         else:
             self.merge(config) # selected callbacks should be called
-        
+            return None #TODO: return a success msg.
+
     def handle_overrides(self, conf, overrides):
         # adding overrides
         overrides = overrides or []

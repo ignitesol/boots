@@ -42,15 +42,20 @@ class ManagedEP(HTTPServerEndPoint):
     def __init__(self, name=None, mountpoint='/admin', plugins=None, server=None, activate=False):
         super(ManagedEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
 
-    @methodroute(params=dict(configuration=json.loads), skip_by_type=[Stats, Tracer])
+    @methodroute(params=dict(configuration=str), skip_by_type=[Stats, Tracer], method="POST")
     def config(self, configuration=None):
         '''
         if no configuration is specified, returns the current configuration else updates the current configuration
         and returns the new configuration. All callbacks that get affected should be called
         '''
+            
         if configuration is not None:
-            self.config.update_config(configuration)
-        return self.config
+            try:
+                configuration = json.loads(configuration)
+                self.server.config.update_config(configuration)
+            except Exception as e:
+                logging.exception("Exception in update:%s",e)
+        return self.server.config
         
     @methodroute(skip_by_type=[Stats, Tracer])
     def stats(self):
