@@ -23,8 +23,6 @@ class ClusteredPlugin(BasePlugin):
     def __init__(self, datastore=None ):
         self.datastore = datastore
         
-
-               
     def setup(self, app):
         for other in app.plugins:
             if isinstance(other, ClusteredPlugin):
@@ -56,12 +54,12 @@ class ClusteredPlugin(BasePlugin):
                 sticky_keys = kargs.get('stickykeys', None) or getattr(callback.im_self, 'stickykeys', None) or server.stickykeys
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
-                    stickyvalues = self._get_stickyvalues(sticky_keys, kargs)
+                    stickyvalues = self._get_stickyvalues(server, sticky_keys, kargs)
                     print "stickyvalues : create from the params ", stickyvalues
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
                         self.sticky_mapping_wrapper.read_by_stickyvalue(stickyvalues)
-                        server_adress = self.sticky_mapping_wrapper.server_address()
+                        server_adress = self.sticky_mapping_wrapper.server_address
                         # server_adress = server.get_by_stickyvalue(stickyvalues, callback.im_self.uuid)
                     except Exception:
                         with Atomic.lock: # Do we really need at this level
@@ -69,7 +67,7 @@ class ClusteredPlugin(BasePlugin):
                             self.sticky_mapping_wrapper.server_address = server_adress
                         
                     if server_adress != server.server_adress: 
-                        destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + \
+                        destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
                                                 bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
                         print "Redirecting to : ", destination_url
                         redirect(destination_url, 301)
@@ -95,7 +93,7 @@ class ClusteredPlugin(BasePlugin):
     
     
     
-    def  _get_stickyvalues(self, sticky_keys,  paramdict):
+    def  _get_stickyvalues(self, server, sticky_keys,  paramdict):
         '''
         This method creates the stickyvalues base don the paramaters provided
         :param dict paramdict: this is the dict of all the parameters provided for this route
@@ -110,13 +108,18 @@ class ClusteredPlugin(BasePlugin):
                 pass # If key not present no stickiness 
         elif type(sticky_keys) is tuple:
             value_tuple = self._extract_values_from_keys(sticky_keys, paramdict)
-            stickyvalues += [ self.server.transform_stickyvalues(value_tuple) ]  if value_tuple else []
+            stickyvalues += [ server.transform_stickyvalues(value_tuple) ]  if value_tuple else []
         elif type(sticky_keys) is list:
             for sticky_key in sticky_keys:
-                value_tuple = self._extract_values_from_keys(sticky_key, paramdict)
-                stickyvalues += [ self.server.transform_stickyvalues(value_tuple) ]  if value_tuple else []
+                #recursive call
+                stickyvalues += self._get_stickyvalues(server, sticky_key, paramdict)
+#                value_tuple = self._extract_values_from_keys(sticky_key, paramdict)
+#                stickyvalues += [ server.transform_stickyvalues(value_tuple) ]  if value_tuple else []
         elif hasattr(sticky_keys, '__call__'):
-            stickyvalues +=sticky_keys(paramdict)
+            val = sticky_keys(paramdict)
+            if val is not list:
+                val = [val]
+            stickyvalues +=val
         
         return stickyvalues
 
@@ -130,6 +133,9 @@ class ClusteredPlugin(BasePlugin):
         
         :rtype: return the tuple if all the values are present else return None
         '''
+        print "@_extract_values_from_keys: key_tuple " , key_tuple
+        print "paramdict : ", paramdict
+        
         try:
             return tuple([ paramdict[key] for key in key_tuple ])
         except KeyError:

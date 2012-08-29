@@ -148,7 +148,7 @@ class ClusteredServer(ManagedServer):
         
         :rtype: return the string of transformed stickyvalue
         '''
-        return STICKY_VALUE_SEP.join(value_tuple)
+        return STICKY_VALUE_SEP.join(str(v) for v in value_tuple)
 
     def create_sticky_value(self, sticky_keys, param_dict):
         '''
