@@ -33,10 +33,12 @@ class DatabaseEngine :
     This class contains all the configuration and connection to the database.
     This will contains all the setting like connection pooling etc
     '''
-    engine = None
-    Session = None # create a configured "Session" class
+    # maintain class level dict of db_url to DatabaseEngine. First check if this engine is created already
+    # if already created use this dbengine instance
     
     def __init__(self, dbconfig):
+        self.engine = None
+        self.Session = None  # configured "Session" class
         self.create_engine(dbconfig)
     
     def create_engine(self, dbconfig):

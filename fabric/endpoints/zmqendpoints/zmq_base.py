@@ -66,7 +66,7 @@ class ZMQBaseEndPoint(EndPoint):
     All socket functionalities are wrapped within this and sub classes
     Keeping the complexity of the functionality away from server writers
     '''
-    def __init__(self, socket_type, address, bind=False, **kargs):
+    def __init__(self, socket_type, address, bind=False, name=None, **kargs):
         '''
         Constructor
         
@@ -98,7 +98,7 @@ class ZMQBaseEndPoint(EndPoint):
         Creates the zmq Socket with the socket_type given in the constructor
         """
         # should we be locking this
-        self.server.logger.debug('Setup uuid: %s address: %s type: %s', self.uuid, self.address, ZMQSocketTypeMap.types[self.socket_type])
+        # self.server.logger.debug('Setup uuid: %s address: %s type: %s', self.uuid, self.address, ZMQSocketTypeMap.types[self.socket_type])
         self.socket = context_instance().socket(self.socket_type)
         return self.socket
     
@@ -107,7 +107,7 @@ class ZMQBaseEndPoint(EndPoint):
         Binds or connects to the created socket as indicated by the constructor param bind
         Must only be called after setup
         """
-        self.server.logger.debug('Start uuid: %s address: %s type: %s bind: %s', self.uuid, self.address, ZMQSocketTypeMap.types[self.socket_type], self.bind)
+        # self.server.logger.debug('Start uuid: %s address: %s type: %s bind: %s', self.uuid, self.address, ZMQSocketTypeMap.types[self.socket_type], self.bind)
         if self.bind: self.socket.bind(self.address)
         else: self.socket.connect(self.address)
         
@@ -117,7 +117,6 @@ class ZMQBaseEndPoint(EndPoint):
         
         :param data: A string format message to send
         """
-        # print 'sending', data, self.address
         if type(data) == str:
             data = [data]
         self.socket.send_multipart(data)

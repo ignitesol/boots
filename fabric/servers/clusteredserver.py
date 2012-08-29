@@ -8,13 +8,12 @@ Also each server has access to common datastore
 from __future__ import division
 import os
 from fabric import concurrency
-from fabric.datastore.datamodule import RedisBinding
+from fabric.datastore.datamodule import MySQLBinding
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.endpoints.cluster_ep import ClusteredPlugin
-from fabric.servers.helpers import clusterenum
-from fabric.servers.helpers.clusterenum import ClusterDictKeyEnum
 from fabric.servers.managedserver import ManagedServer
 import logging
+from collections import OrderedDict
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -23,6 +22,8 @@ elif concurrency == 'threading':
     from threading import RLock
     
 logging.getLogger().addHandler(logging.NullHandler())
+
+STICKY_VALUE_SEP = ":"
 
 class ClusteredEP(HTTPServerEndPoint):
     '''
@@ -33,56 +34,35 @@ class ClusteredEP(HTTPServerEndPoint):
     def __init__(self, name=None, mountpoint='/cluster', plugins=None, server=None, activate=False):
         super(ClusteredEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
         
-    
-    @methodroute()
-    def stop(self):
-        '''
-        This method route will stop this server
-        '''
-        pass
-    
-    
     @methodroute()
     def status(self, channel=None):
-        my_end_point = self.server.my_end_point
-        print "we are at the status process id " + str(os.getpid())
-        return "we are at the status process id " + str(os.getpid())  + " My end point is  : " + my_end_point + "\n" + \
-                "My load is : " + str(self.server.get_data(my_end_point))
+        server_adress = self.server.server_adress
+        return "we are at the status process id " + str(os.getpid())  + " My end point is  : " + server_adress + "\n" + \
+                "My load is : " + str(self.server.get_data(server_adress))
     
-    @methodroute()
-    def test(self):
-        print os.getpid()
-        return os.getpid()
-        #return self.server.redisclient.red.get(self.server.my_end_point)
-
         
-class ClusterServerException(Exception):
-    
-    def __init__(self, value="ClusterServerException"):
-        self.value = value
-    
-    def __str__(self):
-        return repr(self.value)
-
-
 class ClusteredServer(ManagedServer):
     '''
     ClusteredServer provides inbuilt capabilities over and above HTTPServer for clustering
     '''
 
-    def __init__(self, my_end_point, servertype, stickykey, endpoints=None, **kargs):
+    def __init__(self, server_adress, servertype, endpoints=None, **kargs):
         '''
-        :param type: defines the param type adapter MPEG, CODF etc
+        
+        :param server_adress: defines the the endpoint for the server, this is unique per server
+        :param servertype: this defines the server type 
+        :param stickykeys: It contains the list of sticky keys. The stikcy key is used to identify the stcikiness or the affinity for particular
+                           server when the request comes based on the sticky keys. The sticky value is stored by colon separated in persistent datastore
+        :param endpoints: Endpoint definition provided by cluster server by itself
         '''
-        self.datastore = RedisBinding()
+        self.datastore = MySQLBinding() # TODO : write a factory method to get the binding
         self.servertype = servertype
-        self.my_end_point = my_end_point
-        self.stickykey = stickykey or self.get_sticky_key()
+        self.server_adress = server_adress
         
         endpoints = endpoints or []
         endpoints = endpoints + [ ClusteredEP()]
         super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs)
-        self.create_data(my_end_point, servertype) # This will create data if doesn't exist else updates if update flag is passed 
+        self.create_data() # This will create data if doesn't exist else updates if update flag is passed 
         
     def get_standard_plugins(self, plugins):
         '''
@@ -92,74 +72,84 @@ class ClusteredServer(ManagedServer):
             par_plugins = super(ClusteredServer, self).get_standard_plugins(plugins)
         except AttributeError:
             par_plugins = []
-        print ( "Added the ClusteredPlugin to the server")
         return par_plugins + [ ClusteredPlugin() ] 
         
 
-    def create_data(self, my_end_point, servertype):
+    def create_data(self):
         '''
-        This create DataStructure in Redis
+        This create DataStructure in Persistent data store
         '''
-        data_dict = {ClusterDictKeyEnum.SERVER : my_end_point , 
-                     ClusterDictKeyEnum.LOAD : 0 , 
-                     ClusterDictKeyEnum.CHANNELS :[]}
-        self.datastore.setdata(my_end_point, data_dict , servertype )
+        self.datastore.setdata(self.server_adress, self.servertype )
         
-    def get_data(self, my_end_point):
-        return self.datastore.getdata(my_end_point)
+    def get_data(self):
+        return self.datastore.getdata(self.server_adress)
     
     
-    def update_data(self, my_end_point, load=None, channel=None):
-        # stciky key is same as the channel passed . Will not be the real-life case
-        self.datastore.update_server(my_end_point, channel, channel,  load)
+    def update_data(self, load, endpoint_key, endpoint_name, stickyvalues=None, data=None):
+        '''
+        This update the sticky value for the 
+        :param stickyvalues: list of stickyvalues
+        '''
+        #jsonify data
+        self.datastore.update_server(self.server_adress, endpoint_key, endpoint_name, stickyvalues, load, data)
+        
+    def get_current_load(self):
+        '''
+        This method defines how the load gets updated which each new request being served or completed
+        It returns new load percentage
+        '''
+        return 0
     
-    def get_existing_or_free(self, key , servertype, **kargs):
-        #TOBE OVERRIDDEN METHOD
+    
+    def cleanup(self):
+        '''
+        This method will cleanup the sticky mapping and update the new load.
+        This needs to be called by the application when it is done with processing and stickyness is removed
+        '''
         pass
             
-    def get_least_loaded(self, servertype):
-        pass
+    def get_least_loaded(self, servertype=None):
+        '''
+        This method gets the least loaded server of the given servertype 
+        :param servertype: this parameters contains the type of server
+        '''
+        servertype = servertype or self.servertype
+        server =  self.datastore.get_least_loaded(servertype)
+        return server.unique_key if server else None
         
     
-    def get_by_stickykey(self, stickykey,  **kargs):
+    def get_by_stickyvalue(self, stickyvalues, endpoint_key):
         '''
-        This method get the server who is serving the given channel
-            [ Channel for mpeg : <adapter-type>/<host:port:channel-id]
-            [ Channel for CODF : <adapter-type>/<tune-id> ]
+        This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
+        by the correct server. 
+        :param stickyvalues: stickyvalues which is handled by this server
         '''
-        key = self.datastore.get_server_by_stickykey (stickykey)
-        adapter = None
-        #Assumption we have only one key 
-        if key:
-            adapter = self.datastore.getdata(list(key)[0])
-        return adapter
+        if stickyvalues is None:
+            return None
+        server =  self.datastore.get_server_by_stickyvalue(stickyvalues, endpoint_key)
+        return server.unique_key if server else None
         
-    def get_by_key(self, key , **kargs):
+
+    def create_sticky_value(self, sticky_keys, kargs):
         '''
-        This method will get the server who is handling the request based on the key
+        Creates sticky value from the parameters passed
+        This method get the dict of all the parameters passed to the server.
+        It extracts the all the sticky key values as specified by the given server and
+        concatenates by a separator to form a unique key  
+        :param sticky_keys: Ordered dict of key and list of corresponding param-values for this end-point
+        :param kargs: is the map of the parameters those are passed to the server
         '''
-        return self.datastore.get_server_by_stickykey(key)
+        if type(sticky_keys) is not OrderedDict:
+            raise Exception("Sticky keys is OrderedDict with key and value to be list of params") 
+        rt = []
+        for k, v in sticky_keys.items():
+            try:
+                rt += [ STICKY_VALUE_SEP.join([ kargs[key] for key in v]) ]
+            except KeyError:
+                pass
+        return rt
         
-    def is_local(self, channel, **kwrags):
-        '''
-        This method checks if the request will be handled by this server or we need a redirect to the actual server.
-        If we need to find the 
-        '''
-        #Check in data store if this channel is handled already
-        #if its already handled we will redirect to that corresponding server
-        record = self.datastore.getdata(self.my_end_point)
-        return True if record and channel in record[ClusterDictKeyEnum.CHANNELS] else False
-        
-    
-    def get_load(self, **kargs):
-        '''
-        This method return the load % on this server
-        '''
-        record = self.datastore.getdata(self.my_end_point)
-        return record[ClusterDictKeyEnum.LOAD]
-    
-    
-    def get_sticky_keys(self):
-        return 'channel'
-        return None
-    
+#        try:
+#            return STICKY_VALUE_SEP.join([ kargs[key] for key in sticky_keys])
+#        except KeyError:
+#            return None
