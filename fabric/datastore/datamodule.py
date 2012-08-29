@@ -5,13 +5,15 @@ We will have either mysql / redis or any other type of persistent type of data b
 from dbengine import DatabaseEngine
 from fabric.datastore.dbengine import DBConfig
 from sqlalchemy import Column, schema as saschema, schema, types
+from sqlalchemy.dialects.mysql.base import LONGTEXT
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.schema import UniqueConstraint, ForeignKey, ForeignKeyConstraint
 from sqlalchemy.sql.expression import join, and_, func, outerjoin
 from sqlalchemy.types import String, Integer, Float
-from sqlalchemy.dialects.mysql.base import LONGTEXT
 
 class BaseDataBinding(object)  :
     
@@ -49,8 +51,159 @@ def dbsessionhandler(fn):
         retval = fn(self, *args, **kwargs)
         self.sess.close()
         return retval
-    return wrapped   
-   
+    return wrapped       
+    
+    
+class StickyMappingWrapperObject(object):
+    '''
+    This class is used to create and update the sticky relations per sticky keys 
+    This loads the sticky keys values that exist and then update the new sticky key values those are 
+    updated. These are then updated in db if the dirty flag is set(there has been change in the
+    sticky mapping)
+    '''    
+    
+    def __init__(self, datastore, autosave=True, stickymappinglist=[]):
+        
+        print "StickyMappingWrapperObject : datstore engine ", datastore.engine
+        
+        self.datastore = datastore
+        self.stickymappinglist = stickymappinglist
+
+        self._dirty = False
+        self._load = None
+        self._data = None
+        self._server_address = None
+        self._endpoint_key = None
+        self._endpoint_name = None
+        
+        self._autosave = autosave
+        
+    
+    @property
+    def dirty(self):
+        return self._dirty
+    
+    @dirty.setter
+    def dirty(self, value):
+        self._dirty = value
+    
+    
+    @property
+    def data(self):
+        return self._data
+    
+    @data.setter
+    def data(self, value):
+        self._data = value
+    
+    @property
+    def load(self):
+        return self._load
+    
+    @load.setter
+    def load(self, value):
+        self._load = value
+        
+    @property
+    def server_address(self):
+        return self._server_address
+    
+    @server_address.setter
+    def server_address(self, value):
+        self._server_address = value
+        
+    @property
+    def endpoint_key(self):
+        return self._endpoint_key
+    
+    @endpoint_key.setter
+    def endpoint_key(self, value):
+        self._endpoint_key = value
+    
+    @property
+    def endpoint_name(self):
+        return self._endpoint_name
+      
+    @endpoint_name.setter
+    def endpoint_name(self, value):
+        self._endpoint_name = value  
+      
+    #only getter for autosave, needs to be given value at initialization    
+#    @property
+#    def autosave(self):
+#        return self.autosave
+    
+    def get_session(self):
+        '''
+        This method get the session object for transaction start for this method
+        '''
+        self.datastore.get_session()
+        
+    def save(self):
+        '''
+        This method saves to datastore if _dirty flag is true and autosave is true.
+        This method will be always called if  
+        '''
+        print "Autosave flag : " , self._autosave 
+        print "dirty flag : " , self._dirty
+        
+        if self._autosave and self._dirty:
+            self.datastore.\
+                save_updated_data(self.server_address, self.data , self.load, self.endpoint_key, self.endpoint_name, self.stickymappinglist)
+
+    
+    def read_by_stickyvalue(self, stickyvalues):
+        '''
+        This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
+        by the correct server. 
+        :param list stickyvalues: stickyvalues which is handled by this server
+        :param str endpoint_key: uuid of the endpoint
+        
+        :rtype: returns the unique id or the server which is the sever address with port
+        '''
+        if stickyvalues is None:
+            raise Exception("Sticky values passed cannot be empty or None")
+        server =  self.datastore.get_server_by_stickyvalue(stickyvalues, self.endpoint_key)
+        if server is None:
+            raise Exception("No server is found sticked to this")
+        self.server_address = server.unique_key
+    
+    def update(self, stickyvalues=[], load=None, datablob=None):
+        '''
+        This method update the wrapped mapping
+        :param list stickyvalues: this is the list of stickyvalues
+        :param float load: this is the new/current load for this server
+        :param datablob: this is the blob that needs to be updated for recovery
+        '''
+        print "self.stickymappinglist ", self.stickymappinglist
+        print  "stickyvalues ", stickyvalues 
+        if stickyvalues is not None:
+            for stickyvalue in stickyvalues:
+                if stickyvalue not in self.stickymappinglist:
+                    self.stickymappinglist += [stickyvalue]
+                    self.dirty = True
+        
+        print "load " , self.load
+        if load is not None:
+            self.load = load
+            self.dirty = True
+        
+        if datablob is not None:
+            #TODO : this needs to be updated rather than 
+            self.data = datablob
+            self.dirty = True
+            
+
+    def add_sticky_value(self, stickyvalues):
+        '''
+        This will add the new sticky value to the existing list of params 
+        :param stickyvalues: newly formed sticky values
+        '''
+        if stickyvalues:
+            self._dirty = True
+            self._stickymappinglist += [stickyvalues] if type(stickyvalues) is str else stickyvalues
+        
+        
     
 class MySQLBinding(BaseDataBinding):
     
@@ -154,6 +307,31 @@ class MySQLBinding(BaseDataBinding):
         
         #Now add all the other stickymapping ( to make sure secondary keys also exist)
         return server
+    
+    
+    @dbsessionhandler
+    def save_updated_data(self, server_adress, data , load, endpoint_key, endpoint_name, stickyvalues):
+        '''
+        '''
+        #Complete transactional update
+        if data:
+            self.sess.query(Server).filter(Server.unique_key == server_adress)\
+                    .update({Server.load:load, Server.data:data}, synchronize_session=False)
+        else:
+            self.sess.query(Server).filter(Server.unique_key == server_adress)\
+                    .update({Server.load:load}, synchronize_session=False)
+                    
+        server = self.sess.query(Server).filter(Server.unique_key == server_adress).one()
+        try:
+            for stickyvalue in stickyvalues:
+                self.sess.add(StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue))    
+            self.sess.flush()  
+        except IntegrityError:
+            self.sess.rollback()
+            #mapping already exists
+            pass
+        
+        self.sess.commit()
         
 
     @dbsessionhandler
@@ -181,6 +359,11 @@ class Server(Base):
     unique_key = Column(String(200))
     data = Column(LONGTEXT)
     load =  Column(Float)
+    
+    stickymapings = relationship("StickyMapping",
+                collection_class=attribute_mapped_collection('sticky_mapping_key'),
+                backref="server",
+                cascade="all, delete-orphan")
    
     __table_args__  = ( saschema.UniqueConstraint("unique_key"), {} ) 
     
@@ -205,6 +388,10 @@ class StickyMapping(Base):
     sticky_value = Column(String(500))
     
     __table_args__  = ( saschema.UniqueConstraint("server_id", "endpoint_key", "sticky_value", ), {} ) 
+    
+    @property
+    def sticky_mapping_key(self):
+        return (self.endpoint_key, self.sticky_value)
     
     def __init__(self, server_id, endpoint_key, endpoint_name, sticky_value):
         self.server_id = server_id
@@ -257,6 +444,5 @@ if __name__ == '__main__':
     db = MySQLBinding().engine.engine
     db.echo = True
     metadata = schema.MetaData(db)
-    
     create_server(metadata)
     create_stickymapping(metadata)

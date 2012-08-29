@@ -23,15 +23,14 @@ host = "aurora.ignitelabs.local"
 my_server_address = host + ':' + str(opt.port)
 #stickykeys = ['channel']
 
-stickykeys = OrderedDict([("1" , ["channel"]), ("2", ["clientid"])])
+stickykeys = OrderedDict([("1" , ["host", "port"]), ("2", ["clientid"])])
 
 
 class ClusterTestEP(HTTPServerEndPoint):
     def __init__(self, *args, **kwargs):
         super(ClusterTestEP, self).__init__(*args, **kwargs)
-        #self.name = "Clusterendpoint"
 
-    @methodroute()
+    @methodroute(params=dict(channel=str))
     def register(self, channel=None):
         '''
         This is sample route to test the stickiness.
@@ -49,9 +48,6 @@ class ClusterTestEP(HTTPServerEndPoint):
     def test(self):
         return "this is test route"
     
-    def get_sticky_keys(self):
-        return stickykeys
-        
         
 print "My server adress : " , my_server_address
 
@@ -70,7 +66,7 @@ class MpegCluterServer(ClusteredServer):
         return 10
 
 
-application = MpegCluterServer(my_server_address , AdapterTagEnum.MPEG,  endpoints=[ClusterTestEP()], cache=False, logger=True)
+application = MpegCluterServer(my_server_address , AdapterTagEnum.MPEG,  stickykeys='channel',  endpoints=[ClusterTestEP()], cache=False, logger=True)
 
 
 if __name__ == '__main__':
