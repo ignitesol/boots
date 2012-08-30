@@ -32,6 +32,7 @@ class Stats(Hook):
                 _, start_time = request_context
                 end_time = time.time()
                 server.stats_collector(callback.__name__, url, end_time - start_time, start_time, end_time, **kargs)
+        return result
 
 class ManagedEP(HTTPServerEndPoint):
     '''

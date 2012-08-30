@@ -83,9 +83,13 @@ class Config(ConfigObj):
         @param attr: The name of the attribute being accessed
         @type attr: str
         '''
-        
-        with self.main.lock:
+        try:
+            self.main.lock
+        except AttributeError:          #Means we are not a Config.
             return self._orig_getitem(attr, *args, **kargs) # just invoke the original getitem
+        else:
+            with self.main.lock:
+                return self._orig_getitem(attr, *args, **kargs) # just invoke the original getitem
     
     def _new_setitem(self, attr, val, *args, **kargs):
         '''
@@ -99,14 +103,19 @@ class Config(ConfigObj):
         @param val: any
         '''
         #We are calling update_main here so that the .main of all sections in the hierarchy is set.
-        self._update_main(val)
-            
-        with self.main.lock:
-            self._orig_setitem(attr, val, *args, **kargs)    # 1st set the new value 
-            full_key, callbacks = self._get_callbacks(attr)
+        try:
+            self.main.lock
+        except AttributeError:          #Means we are not a Config.
+            self._orig_setitem(attr, val, *args, **kargs)    # 1st set the new value
+        else:
+            self._update_main(val)
+                
+            with self.main.lock:
+                self._orig_setitem(attr, val, *args, **kargs)    # 1st set the new value 
+                full_key, callbacks = self._get_callbacks(attr)
         
-        # invoke the callbacks. Note callbacks are called after releasing the lock
-        map(lambda cb_func: cb_func(Config.Action.onset, full_key, val, self.main), callbacks)
+            # invoke the callbacks. Note callbacks are called after releasing the lock
+            map(lambda cb_func: cb_func(Config.Action.onset, full_key, val, self.main), callbacks)
     
     def _update_main(self, vals):
         '''
@@ -129,13 +138,17 @@ class Config(ConfigObj):
         @param val: the value being assigned
         @param val: any
         '''
-
-        with self.main.lock:
-            self._orig_delitem(attr, *args, **kargs)    # 1st set the new value 
-            full_key, callbacks = self._get_callbacks(attr)
+        try:
+            self.main.lock
+        except AttributeError:          #Means we are not a Config.
+            self._orig_delitem(attr, *args, **kargs)    # 1st set the new valuee
+        else:
+            with self.main.lock:
+                self._orig_delitem(attr, *args, **kargs)    # 1st set the new value 
+                full_key, callbacks = self._get_callbacks(attr)
                      
-        # invoke the callbacks. Note callbacks are called after releasing the lock
-        map(lambda cb_func: cb_func(Config.Action.ondel, full_key, None, self.main), callbacks)
+            # invoke the callbacks. Note callbacks are called after releasing the lock
+            map(lambda cb_func: cb_func(Config.Action.ondel, full_key, None, self.main), callbacks)
 
     def _get_callbacks(self, attr):
         '''

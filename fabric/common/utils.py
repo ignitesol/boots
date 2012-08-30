@@ -37,9 +37,10 @@ def new_counter(seed=0):
         
     def _internal_counter(seed):
         while 1:
-            yield seed
             with lock:  # guarantee atomicity
+                retval = seed
                 seed += 1
+            yield retval
 
     if major >= 3:
         return _internal_counter(seed).__next__

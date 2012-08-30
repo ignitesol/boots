@@ -20,6 +20,13 @@ A typical scenario to create an HTTP Server is to define a subclass of the HTTPS
 Refer to :doc:`tutorial` for further examples.
 '''
 from fabric import concurrency
+
+if concurrency == 'gevent':
+    from gevent import monkey; monkey.patch_all()
+    from gevent.coros import RLock
+elif concurrency == 'threading':
+    from threading import RLock
+
 from fabric.common.utils import new_counter
 from fabric.endpoints.endpoint import EndPoint
 from functools import wraps
@@ -31,11 +38,9 @@ import re
 import sys
 import traceback
 
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
-    from gevent.coros import RLock
-elif concurrency == 'threading':
-    from threading import RLock
+try: from collections import MutableMapping as DictMixin
+except ImportError: # pragma: no cover
+    from UserDict import DictMixin
  
 
 # leverages bottle.
@@ -219,6 +224,7 @@ class Hook(BasePlugin):
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             request_context = self.create_request_context(callback=callback, url=bottle.request.url, **kargs)
             exception = None 
+            # ignore return value in before case
             self.handler(before_or_after='before', request_context=request_context, callback=callback, url=bottle.request.url, **kargs)
             try:
                 result = callback(*args, **kargs)
@@ -226,7 +232,7 @@ class Hook(BasePlugin):
                 exception = e
                 result=None
             finally:
-                self.handler(before_or_after='after', request_context=request_context, callback=callback, url=bottle.request.url, 
+                result = self.handler(before_or_after='after', request_context=request_context, callback=callback, url=bottle.request.url, 
                              result=result, exception=exception, **kargs)
                 if exception:
                     raise
@@ -256,6 +262,7 @@ class Tracer(Hook):
                 logging.getLogger().debug('Response: %s. Exception = %s. [ url = %s, %s ]', req_count, exception, url, kargs)
             else:
                 logging.getLogger().debug('Response: %s. Result = %s. [ url = %s, %s ]', req_count, result, url, kargs)
+        return result # just return what we got as result so it can be passed on
         
     def __init__(self, tracer_paths=['.*'], handler=None):
         '''
@@ -266,6 +273,27 @@ class Tracer(Hook):
             tracer_paths =  [ tracer_paths ]
         self.tracer_paths = map(re.compile, tracer_paths or [])
         super(Tracer, self).__init__(handler=handler)
+        
+class View(Hook):
+    def handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
+        if before_or_after == 'after' and isinstance(result, (dict, DictMixin)):
+            tplvars = self.defaults.copy()
+            tplvars.update(result)
+            logging.debug("tpl_name=%s, ", self.tpl_name)
+            endpoint = callback.im_self
+            tpl = os.path.join(endpoint.server.config["_proj_dir"], self.tpl_name)
+            logging.debug("tpl=%s",tpl)
+            result = bottle.template(tpl, result)
+        return result
+        
+    def __init__(self, tpl_name, **defaults):
+        '''
+        :param tracer_paths: a list of regular expressions that will be matched with the url. None or empty list indicates match nothing. defaults to match everything. 
+        :param handler: if required, a handler that will be invoked to trace the requests/responses
+        '''
+        self.defaults = defaults
+        self.tpl_name = tpl_name
+        super(View, self).__init__(handler=self.handler)
     
 class WrapException(BasePlugin):
     '''
