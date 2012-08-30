@@ -13,6 +13,7 @@ import traceback
 
 from fabric.endpoints.endpoint import EndPoint
 import logging
+from zmq.log.handlers import PUBHandler
 
 class Locker(object):
     loop_lock = RLock()

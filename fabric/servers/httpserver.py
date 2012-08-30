@@ -134,7 +134,7 @@ class HTTPServer(HTTPBaseServer):
 #        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
         if session: self.config_callbacks['Session'] = self.session_config_update
         if cache: self.config_callbacks['Caching'] = self.cache_config_update
-        if auth: self.config_callbacks['Auth'] = self.auth_config_update
+        if auth: self.config_callbacks['SPARXAuth'] = self.auth_config_update
         
         self.handle_exception = handle_exception
 #        self.handle_exception = kargs.get('handle_exception', False)
@@ -146,15 +146,16 @@ class HTTPServer(HTTPBaseServer):
         
         SPARXAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
         '''
-        logins = [('demo', 'demo')]     #TODO:Get it from a User DB.
+        print "Auth callback Called"
+        logins = [('demo', 'igniter0cks')]     #TODO:Get it from a User DB.
     
         self.app = SparxAuth(self.app, users=logins, 
-                             open_urls=config_obj['Auth']['open_urls'], 
-                             session_key=config_obj['Auth']['key'])
+                             open_urls=config_obj['SPARXAuth']['open_urls'], 
+                             session_key=config_obj['SPARXAuth']['key'])
         
         self.app = bkmw.SessionMiddleware(self.app, 
-                                          config_obj['Auth']['beaker'], 
-                                          environ_key=config_obj['Auth']['key'])
+                                          config_obj['SPARXAuth']['beaker'], 
+                                          environ_key=config_obj['SPARXAuth']['key'])
         
         logging.getLogger().debug('Auth config updated')
     
@@ -169,7 +170,6 @@ class HTTPServer(HTTPBaseServer):
         '''
         Called by Config to update the Cache Configuration.
         '''
-        print "cache_config_update"
         self.cache = bkcache.CacheManager(**bkutil.parse_cache_config_options(config_obj['Caching']))
         logging.getLogger().debug('Cache config updated')
         
