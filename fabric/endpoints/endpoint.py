@@ -11,10 +11,11 @@ from fabric.common.utils import generate_uuid
 
 class EndPoint(object):
     ''' A base class for all endpoints. '''
-    def __init__(self, server=None, name=None): 
+    def __init__(self, server=None, name=None, stickeykeys=None): 
         self.uuid = generate_uuid()
         self.server = server
         self.name = name
+        self.stickeykeys = stickeykeys
     
     def close(self):
         pass
