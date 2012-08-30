@@ -76,7 +76,7 @@ class ClusteredServer(ManagedServer):
             par_plugins = super(ClusteredServer, self).get_standard_plugins(plugins)
         except AttributeError:
             par_plugins = []
-        return par_plugins + [ ClusteredPlugin(datastore = self.datastore) ] 
+        return par_plugins + [ ClusteredPlugin(datastore=self.datastore, ds='ds') ] 
         
 
     def create_data(self):
@@ -131,12 +131,13 @@ class ClusteredServer(ManagedServer):
         :param list stickyvalues: stickyvalues which is handled by this server
         :param str endpoint_key: uuid of the endpoint
         
-        :rtype: returns the unique id or the server which is the sever adress with port
+        :rtype: returns the unique id or the server which is the sever address with port
         '''
         if stickyvalues is None:
             return None
-        server =  self.datastore.get_server_by_stickyvalue(stickyvalues, endpoint_key)
-        return server.unique_key if server else None
+        ret_val =  self.datastore.get_server_by_stickyvalue(stickyvalues, endpoint_key)
+        server , clustermapping_list = ret_val
+        return (server.unique_key, clustermapping_list) if ret_val else None
         
 
     def transform_stickyvalues(self, value_tuple):
