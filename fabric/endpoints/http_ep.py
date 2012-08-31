@@ -279,10 +279,8 @@ class View(Hook):
         if before_or_after == 'after' and isinstance(result, (dict, DictMixin)):
             tplvars = self.defaults.copy()
             tplvars.update(result)
-            logging.debug("tpl_name=%s, ", self.tpl_name)
             endpoint = callback.im_self
             tpl = os.path.join(endpoint.server.config["_proj_dir"], self.tpl_name)
-            logging.debug("tpl=%s",tpl)
             result = bottle.template(tpl, result)
         return result
         

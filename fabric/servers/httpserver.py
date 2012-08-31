@@ -146,7 +146,6 @@ class HTTPServer(HTTPBaseServer):
         
         SPARXAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
         '''
-        print "Auth callback Called"
         logins = [('demo', 'igniter0cks')]     #TODO:Get it from a User DB.
     
         self.app = SparxAuth(self.app, users=logins, 
