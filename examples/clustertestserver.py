@@ -27,12 +27,15 @@ class ClusterTestEP(HTTPServerEndPoint):
         super(ClusterTestEP, self).__init__(*args, **kwargs)
 
     @methodroute(params=dict(channel=str, host=str, port=int))
-    def register(self, channel=None, host=None, port=None):
+    def register(self, channel=None, host=None, port=None, ds = None):
         '''
         This is sample route to test the stickiness.
         Sticky key is defined as 'channel' param
         '''
         my_server_address = self.server.server_adress  
+        
+        #adds sticky value in the route
+        ds.add_sticky_value("client")
         return "Registered at : " + my_server_address
     
     @methodroute()
@@ -62,7 +65,7 @@ class MpegCluterServer(ClusteredServer):
         return 10
 
 
-application = MpegCluterServer(my_server_address , AdapterTagEnum.MPEG,  stickykeys=[ ('channel','host','port'), ('channel')], endpoints=[ClusterTestEP()], cache=False, logger=True)
+application = MpegCluterServer(my_server_address , AdapterTagEnum.MPEG,  stickykeys=[ ('channel','host','port'), ('client')], endpoints=[ClusterTestEP()], cache=False, logger=True)
 
 
 if __name__ == '__main__':

@@ -2,8 +2,7 @@
 This is base module for writing the data binding for cluster server
 We will have either mysql / redis or any other type of persistent type of data binding
 '''
-from dbengine import DatabaseEngine
-from fabric.datastore.dbengine import DBConfig
+from fabric.datastore.dbengine import DBConfig, DatabaseEngineFactory
 from sqlalchemy import Column, schema as saschema, schema, types
 from sqlalchemy.dialects.mysql.base import LONGTEXT
 from sqlalchemy.exc import IntegrityError
@@ -12,7 +11,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.schema import UniqueConstraint, ForeignKey, ForeignKeyConstraint
-from sqlalchemy.sql.expression import join, and_, func, outerjoin
+from sqlalchemy.sql.expression import and_, func
 from sqlalchemy.types import String, Integer, Float
 
 class BaseDataBinding(object)  :
@@ -133,13 +132,7 @@ class StickyMappingWrapperObject(object):
 #    def autosave(self):
 #        return self.autosave
     
-    def get_session(self):
-        '''
-        This method get the session object for transaction start for this method
-        '''
-        self.datastore.get_session()
-        
-    def save(self):
+    def _save(self):
         '''
         This method saves to datastore if _dirty flag is true and autosave is true.
         This method will be always called if  
@@ -152,7 +145,7 @@ class StickyMappingWrapperObject(object):
                 save_updated_data(self.server_address, self.data , self.load, self.endpoint_key, self.endpoint_name, self.stickymappinglist)
 
     
-    def read_by_stickyvalue(self, stickyvalues):
+    def _read_by_stickyvalue(self, stickyvalues):
         '''
         This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
         by the correct server. 
@@ -163,20 +156,30 @@ class StickyMappingWrapperObject(object):
         '''
         if stickyvalues is None:
             raise Exception("Sticky values passed cannot be empty or None")
-        server =  self.datastore.get_server_by_stickyvalue(stickyvalues, self.endpoint_key)
-        if server is None:
+        ret_val =  self.datastore.get_server_by_stickyvalue(stickyvalues, self.endpoint_key)
+        if ret_val is None:
             raise Exception("No server is found sticked to this")
+        server, cluster_mapping_list = ret_val
         self.server_address = server.unique_key
+        
+        print " _read_by_stickyvalue  | self.stickymappinglist ", self.stickymappinglist
+        
+        
+        for mapping in cluster_mapping_list:
+            print "mapping : ", mapping.sticky_value
+            self.stickymappinglist += [ mapping.sticky_value] if mapping.sticky_value not in self.stickymappinglist else []
+            
+        print "_read_by_stickyvalue ",  self.stickymappinglist
     
-    def update(self, stickyvalues=[], load=None, datablob=None):
+    def _update(self, stickyvalues=[], load=None, datablob=None):
         '''
         This method update the wrapped mapping
         :param list stickyvalues: this is the list of stickyvalues
         :param float load: this is the new/current load for this server
         :param datablob: this is the blob that needs to be updated for recovery
         '''
-        print "self.stickymappinglist ", self.stickymappinglist
-        print  "stickyvalues ", stickyvalues 
+        print "_update : self.stickymappinglist ", self.stickymappinglist
+        print  "_update : stickyvalues ", stickyvalues 
         if stickyvalues is not None:
             for stickyvalue in stickyvalues:
                 if stickyvalue not in self.stickymappinglist:
@@ -186,7 +189,7 @@ class StickyMappingWrapperObject(object):
         print "load " , self.load
         if load is not None:
             self.load = load
-            self.dirty = True
+            #self.dirty = True
         
         if datablob is not None:
             #TODO : this needs to be updated rather than 
@@ -199,9 +202,29 @@ class StickyMappingWrapperObject(object):
         This will add the new sticky value to the existing list of params 
         :param stickyvalues: newly formed sticky values
         '''
-        if stickyvalues:
-            self._dirty = True
-            self._stickymappinglist += [stickyvalues] if type(stickyvalues) is str else stickyvalues
+        
+        #TODO : clean this dirty code
+        if stickyvalues is not None:
+            if type(stickyvalues) is str:
+                if stickyvalues not in self.stickymappinglist:
+                    self.stickymappinglist += [stickyvalues]
+                    self.dirty = True
+            else:
+                for stickyvalue in stickyvalues:
+                    if stickyvalue not in self.stickymappinglist:
+                        self.stickymappinglist += [stickyvalue] if type(stickyvalue) is str else stickyvalue 
+                        self.dirty = True
+#        if stickyvalues:
+#            self._dirty = True
+#            self.stickymappinglist += [stickyvalues] if type(stickyvalues) is str else stickyvalues
+            
+            
+    def add_to_datablob(self, datablob):
+        '''
+        This will add the datablob to the existing datablob in this session.
+        :param datablob: datablob that we need to add
+        '''
+        pass
         
         
     
@@ -219,7 +242,7 @@ class MySQLBinding(BaseDataBinding):
         connection_timeout = 30
         if not dbconfig:
             dbconfig = DBConfig(dbtype, db_url, pool_size, max_overflow, connection_timeout)
-        self.engine = DatabaseEngine(dbconfig)
+        self.engine = DatabaseEngineFactory(dbconfig)
     
         
     @dbsessionhandler
@@ -293,20 +316,16 @@ class MySQLBinding(BaseDataBinding):
         '''
         # Server.server_id == StickyMapping.server_id
         stickymapping = None
-        for stickyvalue in stickyvalues:
-            try:
-                stickymapping = self.sess.query(StickyMapping).filter(and_(StickyMapping.sticky_value == stickyvalue, \
-                                                                           True)).one()
-                break # we break when first one is found
-            except NoResultFound:
-                pass
-        if stickymapping is None:
+        try:
+            existing_mapping_list = self.sess.query(StickyMapping).filter(and_(StickyMapping.sticky_value.in_(stickyvalues), \
+                                                                       True)).all()
+        except Exception:
+            pass
+        if not existing_mapping_list:
             return None
         #TODO : Join was screwing up for some reason so , dirty code . Must  fix
-        server = self.sess.query(Server).filter(Server.server_id == stickymapping.server_id).one()
-        
-        #Now add all the other stickymapping ( to make sure secondary keys also exist)
-        return server
+        server = self.sess.query(Server).filter(Server.server_id == existing_mapping_list[0].server_id).one()
+        return  (server, existing_mapping_list)
     
     
     @dbsessionhandler

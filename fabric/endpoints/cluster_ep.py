@@ -20,8 +20,9 @@ class ClusteredPlugin(BasePlugin):
     If not find out the correct server and redirects to that server
     '''
   
-    def __init__(self, datastore=None ):
+    def __init__(self, datastore=None, ds='ds' ):
         self.datastore = datastore
+        self.ds = ds # parameterr name of the data-wrapper-object thats passed to application
         
     def setup(self, app):
         for other in app.plugins:
@@ -38,16 +39,15 @@ class ClusteredPlugin(BasePlugin):
         If current server is destination server DO NOTHING . Request will be handled by this server
         '''
         server = self.get_callback_obj(callback).server
-        
-        self.sticky_mapping_wrapper = StickyMappingWrapperObject(self.datastore)
 
         @wraps(callback)
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             server_adress = None
             exception = None
             stickyvalues = None
-            self.sticky_mapping_wrapper.endpoint_key = callback.im_self.uuid
-            self.sticky_mapping_wrapper.endpoint_name = callback.im_self.name
+            ds_wrapper = StickyMappingWrapperObject(self.datastore)
+            ds_wrapper.endpoint_key = callback.im_self.uuid
+            ds_wrapper.endpoint_name = callback.im_self.name
             
             try:
                 # Gets the stickykeys provided from  route/ endpoint /server in that order
@@ -58,19 +58,22 @@ class ClusteredPlugin(BasePlugin):
                     print "stickyvalues : create from the params ", stickyvalues
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
-                        self.sticky_mapping_wrapper.read_by_stickyvalue(stickyvalues)
-                        server_adress = self.sticky_mapping_wrapper.server_address
+                        ds_wrapper._read_by_stickyvalue(stickyvalues)
+                        server_adress = ds_wrapper.server_address
                         # server_adress = server.get_by_stickyvalue(stickyvalues, callback.im_self.uuid)
                     except Exception:
                         with Atomic.lock: # Do we really need at this level
                             server_adress = server.get_least_loaded(server.servertype)
-                            self.sticky_mapping_wrapper.server_address = server_adress
+                            ds_wrapper.server_address = server_adress
                         
                     if server_adress != server.server_adress: 
                         destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
                                                 bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
                         print "Redirecting to : ", destination_url
                         redirect(destination_url, 301)
+                # If method-route expects the param then add the ds_wrapper with the param named defined in the plugin
+                if self.ds in callback._signature[0]:
+                    kargs[self.ds] = ds_wrapper
                 result = callback(*args, **kargs)
             except Exception as e:
                 exception = e
@@ -78,15 +81,18 @@ class ClusteredPlugin(BasePlugin):
             finally:
                 if exception:
                     raise
-            # TODO : Add the sticky values on the return path    
+            # Typically application needs to add the sticky key values to the "stickywrapper" object that gets passed to it 
             # Application needs to implement how load gets updated AND # Also need to determine how load is decremented
+            
             with Atomic.lock: #Do we really need at this level
                 if stickyvalues:
                     # We reach here when request is handled by this server
-                    self.sticky_mapping_wrapper.update(stickyvalues, server.get_current_load())
+                    ds_wrapper._update(stickyvalues, server.get_current_load())
+                    
+                    
                     #server.update_data(server.get_current_load(), callback.im_self.uuid, callback.im_self.name , stickyvalues=stickyvalues)    
             #Inside this method we check if autosave is true , dirty flag is true and then make save call 
-            self.sticky_mapping_wrapper.save()
+            ds_wrapper._save()
             return result
         self.plugin_post_apply(callback, wrapper)
         return wrapper

@@ -27,14 +27,11 @@ class DBConfig(object):
         self.max_overflow = max_overflow
         self.connection_timeout = connection_timeout
         
-            
-class DatabaseEngine :
+class _DatabaseEngine :
     '''
     This class contains all the configuration and connection to the database.
     This will contains all the setting like connection pooling etc
     '''
-    # maintain class level dict of db_url to DatabaseEngine. First check if this engine is created already
-    # if already created use this dbengine instance
     
     def __init__(self, dbconfig):
         self.engine = None
@@ -78,3 +75,28 @@ class DatabaseEngine :
         sess = self.Session()
         sess.expire_on_commit = False
         return sess
+    
+    
+class DatabaseEngineFactory(object):
+    '''
+    This is a factory method to use create the database engine.
+    It makes sure only one DabaseEngine is created per db_url.
+     
+    '''
+    # this dict keeps the mapping of the objects created per db_url (unique identofier for DB)
+    dbengine_dict = {}
+    
+    def __new__(self, dbconfig, *args, **kwargs):
+        '''
+        :param DBConfig dbconfig: the config object , that contains all the configuration parameters for database interaction
+        
+        '''
+        try:
+            # dbconfig.db_url is unique key for this object, so we create a dict with this as a key
+            database_engine = DatabaseEngineFactory.dbengine_dict[dbconfig.db_url]
+        except KeyError:
+            database_engine =  _DatabaseEngine(dbconfig, *args, **kwargs)
+            DatabaseEngineFactory.dbengine_dict[dbconfig.db_url] = database_engine
+        return database_engine
+    
+    
