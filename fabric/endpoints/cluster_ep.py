@@ -1,9 +1,10 @@
 from bottle import redirect
 from fabric import concurrency
-from fabric.datastore.datamodule import StickyMappingWrapperObject
+from fabric.datastore.datamodule import DSWrapperObject
 from fabric.endpoints.http_ep import BasePlugin
 from functools import wraps
 import bottle
+import urllib2
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -20,7 +21,7 @@ class ClusteredPlugin(BasePlugin):
     If not find out the correct server and redirects to that server
     '''
   
-    def __init__(self, datastore=None, ds='ds' ):
+    def __init__(self, datastore=None, ds='ds'):
         self.datastore = datastore
         self.ds = ds # parameterr name of the data-wrapper-object thats passed to application
         
@@ -28,7 +29,6 @@ class ClusteredPlugin(BasePlugin):
         for other in app.plugins:
             if isinstance(other, ClusteredPlugin):
                 raise bottle.PluginError("Found another ClusteredPlugin plugin")
-            
             
     def apply(self, callback, context):
         '''
@@ -45,22 +45,17 @@ class ClusteredPlugin(BasePlugin):
             server_adress = None
             exception = None
             stickyvalues = None
-            ds_wrapper = StickyMappingWrapperObject(self.datastore)
-            ds_wrapper.endpoint_key = callback.im_self.uuid
-            ds_wrapper.endpoint_name = callback.im_self.name
-            
+            ds_wrapper = DSWrapperObject(self.datastore, callback.im_self.uuid, callback.im_self.name)
             try:
                 # Gets the stickykeys provided from  route/ endpoint /server in that order
                 sticky_keys = kargs.get('stickykeys', None) or getattr(callback.im_self, 'stickykeys', None) or server.stickykeys
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
                     stickyvalues = self._get_stickyvalues(server, sticky_keys, kargs)
-                    print "stickyvalues : create from the params ", stickyvalues
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
                         ds_wrapper._read_by_stickyvalue(stickyvalues)
                         server_adress = ds_wrapper.server_address
-                        # server_adress = server.get_by_stickyvalue(stickyvalues, callback.im_self.uuid)
                     except Exception:
                         with Atomic.lock: # Do we really need at this level
                             server_adress = server.get_least_loaded(server.servertype)
@@ -69,8 +64,15 @@ class ClusteredPlugin(BasePlugin):
                     if server_adress != server.server_adress: 
                         destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
                                                 bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
-                        print "Redirecting to : ", destination_url
-                        redirect(destination_url, 301)
+                        print "Proxying to : ", destination_url
+                        headers = bottle.request.headers.environ
+                        cookies = bottle.request.COOKIES.dict
+                        getparams = bottle.request.GET.dict
+                        postparams = bottle.request.POST.dict
+                        res = self._make_proxy_call(server_adress, headers, cookies, getparams, postparams)
+                        print "response came back to Proxy server"
+                        return res
+                        
                 # If method-route expects the param then add the ds_wrapper with the param named defined in the plugin
                 if self.ds in callback._signature[0]:
                     kargs[self.ds] = ds_wrapper
@@ -83,14 +85,10 @@ class ClusteredPlugin(BasePlugin):
                     raise
             # Typically application needs to add the sticky key values to the "stickywrapper" object that gets passed to it 
             # Application needs to implement how load gets updated AND # Also need to determine how load is decremented
-            
             with Atomic.lock: #Do we really need at this level
                 if stickyvalues:
-                    # We reach here when request is handled by this server
+                    # We reach here when request is handled by this server ( there was NO redirect via stickiness or least-load)
                     ds_wrapper._update(stickyvalues, server.get_current_load())
-                    
-                    
-                    #server.update_data(server.get_current_load(), callback.im_self.uuid, callback.im_self.name , stickyvalues=stickyvalues)    
             #Inside this method we check if autosave is true , dirty flag is true and then make save call 
             ds_wrapper._save()
             return result
@@ -126,7 +124,6 @@ class ClusteredPlugin(BasePlugin):
             if val is not list:
                 val = [val]
             stickyvalues +=val
-        
         return stickyvalues
 
     
@@ -139,9 +136,6 @@ class ClusteredPlugin(BasePlugin):
         
         :rtype: return the tuple if all the values are present else return None
         '''
-        print "@_extract_values_from_keys: key_tuple " , key_tuple
-        print "paramdict : ", paramdict
-        
         try:
             return tuple([ paramdict[key] for key in key_tuple ])
         except KeyError:
@@ -150,3 +144,15 @@ class ClusteredPlugin(BasePlugin):
         
     def _update_stickyobj(self, *args, **kwargs):
         pass
+    
+    
+    def _make_proxy_call(self, server_adress , headers, cookies, getparams, postparams):
+        #server_adress = "localhost:8870"
+        
+        destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
+                                                    bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
+        
+        data = postparams if postparams else None
+        req = urllib2.Request(destination_url, data, headers)
+        res = urllib2.urlopen(req)
+        return res.read()

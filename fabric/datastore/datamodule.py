@@ -53,7 +53,7 @@ def dbsessionhandler(fn):
     return wrapped       
     
     
-class StickyMappingWrapperObject(object):
+class DSWrapperObject(object):
     '''
     This class is used to create and update the sticky relations per sticky keys 
     This loads the sticky keys values that exist and then update the new sticky key values those are 
@@ -61,20 +61,18 @@ class StickyMappingWrapperObject(object):
     sticky mapping)
     '''    
     
-    def __init__(self, datastore, autosave=True, stickymappinglist=[]):
-        
-        print "StickyMappingWrapperObject : datstore engine ", datastore.engine
+    def __init__(self, datastore, endpoint_key, endpoint_name, autosave=True, stickymappinglist=[]):
         
         self.datastore = datastore
+        self.endpoint_key = endpoint_key
+        self.endpoint_name = endpoint_name
         self.stickymappinglist = stickymappinglist
 
-        self._dirty = False
         self._load = None
         self._data = None
         self._server_address = None
-        self._endpoint_key = None
-        self._endpoint_name = None
         
+        self._dirty = False
         self._autosave = autosave
         
     
@@ -137,9 +135,6 @@ class StickyMappingWrapperObject(object):
         This method saves to datastore if _dirty flag is true and autosave is true.
         This method will be always called if  
         '''
-        print "Autosave flag : " , self._autosave 
-        print "dirty flag : " , self._dirty
-        
         if self._autosave and self._dirty:
             self.datastore.\
                 save_updated_data(self.server_address, self.data , self.load, self.endpoint_key, self.endpoint_name, self.stickymappinglist)
@@ -161,15 +156,12 @@ class StickyMappingWrapperObject(object):
             raise Exception("No server is found sticked to this")
         server, cluster_mapping_list = ret_val
         self.server_address = server.unique_key
-        
-        print " _read_by_stickyvalue  | self.stickymappinglist ", self.stickymappinglist
-        
-        
+
         for mapping in cluster_mapping_list:
-            print "mapping : ", mapping.sticky_value
+            self.endpoint_key = mapping.endpoint_key
+            self.endpoint_name = mapping.endpoint_name
             self.stickymappinglist += [ mapping.sticky_value] if mapping.sticky_value not in self.stickymappinglist else []
             
-        print "_read_by_stickyvalue ",  self.stickymappinglist
     
     def _update(self, stickyvalues=[], load=None, datablob=None):
         '''
@@ -178,18 +170,14 @@ class StickyMappingWrapperObject(object):
         :param float load: this is the new/current load for this server
         :param datablob: this is the blob that needs to be updated for recovery
         '''
-        print "_update : self.stickymappinglist ", self.stickymappinglist
-        print  "_update : stickyvalues ", stickyvalues 
-        if stickyvalues is not None:
-            for stickyvalue in stickyvalues:
-                if stickyvalue not in self.stickymappinglist:
-                    self.stickymappinglist += [stickyvalue]
-                    self.dirty = True
-        
-        print "load " , self.load
-        if load is not None:
+        new_sticky_values = (stickyvalue for stickyvalue in stickyvalues  if stickyvalue not in self.stickymappinglist) # generator expression 
+        for stickyvalue in new_sticky_values:
+            self.stickymappinglist += [stickyvalue]
+            self.dirty = True
+        #Load is update to new sent 
+        if load is not None and self.load != load:
             self.load = load
-            #self.dirty = True
+            self.dirty = True
         
         if datablob is not None:
             #TODO : this needs to be updated rather than 
@@ -199,25 +187,19 @@ class StickyMappingWrapperObject(object):
 
     def add_sticky_value(self, stickyvalues):
         '''
-        This will add the new sticky value to the existing list of params 
+        This will add the new sticky value to the existing list of params .
+                
         :param stickyvalues: newly formed sticky values
         '''
-        
-        #TODO : clean this dirty code
         if stickyvalues is not None:
-            if type(stickyvalues) is str:
-                if stickyvalues not in self.stickymappinglist:
-                    self.stickymappinglist += [stickyvalues]
-                    self.dirty = True
+            if type(stickyvalues) is str and stickyvalues not in self.stickymappinglist:
+                self.stickymappinglist += [stickyvalues]
+                self.dirty = True
             else:
-                for stickyvalue in stickyvalues:
-                    if stickyvalue not in self.stickymappinglist:
-                        self.stickymappinglist += [stickyvalue] if type(stickyvalue) is str else stickyvalue 
-                        self.dirty = True
-#        if stickyvalues:
-#            self._dirty = True
-#            self.stickymappinglist += [stickyvalues] if type(stickyvalues) is str else stickyvalues
-            
+                new_sticky_values = (stickyvalue for stickyvalue in stickyvalues if stickyvalue not in self.stickymappinglist) # generator expression 
+                for stickyvalue in new_sticky_values:
+                    self.stickymappinglist += [stickyvalue] if type(stickyvalue) is str else stickyvalue 
+                    self.dirty = True
             
     def add_to_datablob(self, datablob):
         '''
@@ -314,8 +296,8 @@ class MySQLBinding(BaseDataBinding):
         This method server which handles the stickyvalue passes
         :param stickyvalue: 
         '''
-        # Server.server_id == StickyMapping.server_id
-        stickymapping = None
+        if not stickyvalues:
+            return None
         try:
             existing_mapping_list = self.sess.query(StickyMapping).filter(and_(StickyMapping.sticky_value.in_(stickyvalues), \
                                                                        True)).all()
@@ -358,7 +340,6 @@ class MySQLBinding(BaseDataBinding):
         '''
         This method finds the least loaded server of the given type
         '''
-        print "get the least loaded : servertype : ", servertype
         min_loaded_server = None
         min_load = self.sess.query(func.min(Server.load)).filter(Server.server_type == servertype ).one()
         if(min_load[0] < 100):
@@ -456,6 +437,7 @@ def create_stickymapping(metadata):
                 ondelete="CASCADE"
             )
     stickymapping.append_constraint(UniqueConstraint("server_id", "sticky_value"))
+    stickymapping.append_constraint(UniqueConstraint("endpoint_name", "sticky_value"))
     stickymapping.create(checkfirst=True)
     
 if __name__ == '__main__':

@@ -13,7 +13,6 @@ from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.endpoints.cluster_ep import ClusteredPlugin
 from fabric.servers.managedserver import ManagedServer
 import logging
-from collections import OrderedDict
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -46,7 +45,7 @@ class ClusteredServer(ManagedServer):
     ClusteredServer provides inbuilt capabilities over and above HTTPServer for clustering
     '''
 
-    def __init__(self, server_adress, servertype, endpoints=None, stickykeys=None, **kargs):
+    def __init__(self, server_adress, servertype, endpoints=None, stickykeys=None, ds='ds', **kargs):
         '''
         
         :param server_adress: defines the the endpoint for the server, this is unique per server
@@ -56,12 +55,16 @@ class ClusteredServer(ManagedServer):
                            method that defines the creation of sticky value (the method will take all the parameters passed and will create the sticky 
                            value). If the list of tuple params are given, we form  the sticky value based on whicherver we find first and update based 
                            on all the sticky values created from the list of param-tuple
+        :param str ds: This is the name of the paramter , which will be used to refer the datastoe_wrapper object. This gives the handle to the application
+                        server to manipulate the data.
+                    
         
         '''
         self.datastore = MySQLBinding() # TODO : write a factory method to get the binding
         self.servertype = servertype
         self.server_adress = server_adress
         self.stickykeys = stickykeys
+        self.ds = ds
         
         endpoints = endpoints or []
         endpoints = endpoints + [ ClusteredEP()]
@@ -76,7 +79,7 @@ class ClusteredServer(ManagedServer):
             par_plugins = super(ClusteredServer, self).get_standard_plugins(plugins)
         except AttributeError:
             par_plugins = []
-        return par_plugins + [ ClusteredPlugin(datastore=self.datastore, ds='ds') ] 
+        return par_plugins + [ ClusteredPlugin(datastore=self.datastore, ds=self.ds) ] 
         
 
     def create_data(self):
@@ -150,32 +153,3 @@ class ClusteredServer(ManagedServer):
         :rtype: return the string of transformed stickyvalue
         '''
         return STICKY_VALUE_SEP.join(str(v) for v in value_tuple)
-
-    def create_sticky_value(self, sticky_keys, param_dict):
-        '''
-        Creates sticky value from the parameters passed
-        This method get the dict of all the parameters passed to the server.
-        It extracts the all the sticky key values as specified by the given server and
-        concatenates by a separator to form a unique key  
-        :param sticky_keys: Ordered dict of key and list of corresponding param-values for this end-point
-        :param param_dict: is the map of the parameters those are passed to the server
-        
-        :rtype: list of sticky values that can be generated from the param list for this endpoint
-        '''
-        if type(sticky_keys) is not OrderedDict:
-            raise Exception("Sticky keys is OrderedDict with key and value to be list of params") 
-        return_list = []
-        print "param_dict ", param_dict
-        print "sticky keys ",  sticky_keys
-        
-        for k, v in sticky_keys.items():
-            try:
-                return_list += [ STICKY_VALUE_SEP.join([ str(param_dict[key]) for key in v]) ]
-            except KeyError:
-                pass
-        return return_list
-        
-#        try:
-#            return STICKY_VALUE_SEP.join([ param_dict[key] for key in sticky_keys])
-#        except KeyError:
-#            return None

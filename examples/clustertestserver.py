@@ -21,6 +21,7 @@ if  not opt.port:
 
 host = "aurora.ignitelabs.local"
 my_server_address = host + ':' + str(opt.port)
+myport = opt.port
 
 class ClusterTestEP(HTTPServerEndPoint):
     def __init__(self, *args, **kwargs):
@@ -35,11 +36,13 @@ class ClusterTestEP(HTTPServerEndPoint):
         my_server_address = self.server.server_adress  
         
         #adds sticky value in the route
-        ds.add_sticky_value("client")
-        return "Registered at : " + my_server_address
+        #Application specific logic
+        if channel and host and port:
+            ds.add_sticky_value("client")
+        return "Registered at : " + my_server_address + " serving from :" + myport
     
     @methodroute()
-    def register1(self, channel=None):
+    def register1(self, clientid=None):
         my_server_address = self.server.server_adress  
         return "Registered - 1 at : " + my_server_address
     
@@ -64,8 +67,7 @@ class MpegCluterServer(ClusteredServer):
         '''
         return 10
 
-
-application = MpegCluterServer(my_server_address , AdapterTagEnum.MPEG,  stickykeys=[ ('channel','host','port'), ('client')], endpoints=[ClusterTestEP()], cache=False, logger=True)
+application = MpegCluterServer(my_server_address , AdapterTagEnum.MPEG,  stickykeys=[ ('channel','host','port'), ('clientid')], endpoints=[ClusterTestEP()], cache=False, logger=True)
 
 
 if __name__ == '__main__':
