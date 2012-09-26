@@ -133,7 +133,8 @@ class DSWrapperObject(object):
     def _save(self):
         '''
         This method saves to datastore if _dirty flag is true and autosave is true.
-        This method will be always called if  
+        This method will be always called whenever there are new sticky keys updated and/or there is change in load 
+        and/or there is some updates to data blob that we want to do.
         '''
         if self._autosave and self._dirty:
             self.datastore.\
@@ -302,6 +303,8 @@ class MySQLBinding(BaseDataBinding):
         :param endpoint_name: name of the endpoint
         :param stickyvalues: list of new sticky values
         :param load: load percentage for this server
+        :param data: jsonified data . This data blob needs to be updated to the existing datablob. This is the datablob that we keep so that
+                    server come back up the existing state when some failure occur
         '''
         #Two sub transactions .
         #first transaction updates the load and data
