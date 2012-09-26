@@ -1,6 +1,5 @@
 import os
 import sys
-from collections import OrderedDict
 try:
     import fabric
 except ImportError:
@@ -53,13 +52,13 @@ class ClusterTestEP(HTTPServerEndPoint):
         
 print "My server adress : " , my_server_address
 
-class MpegCluterServer(ClusteredServer):
+class MpegClusterServer(ClusteredServer):
     
     def __init__(self, *args, **kwargs ):
-        super(MpegCluterServer, self).__init__(*args, **kwargs)
+        super(MpegClusterServer, self).__init__(*args, **kwargs)
         
         
-    def get_current_load(self):
+    def get_new_load(self):
         '''
         This method defines how the load gets updated which each request being served or completed
         It returns new load 
@@ -67,7 +66,7 @@ class MpegCluterServer(ClusteredServer):
         '''
         return 10
 
-application = MpegCluterServer(my_server_address , AdapterTagEnum.MPEG,  stickykeys=[ ('channel','host','port'), ('clientid')], endpoints=[ClusterTestEP()], cache=False, logger=True)
+application = MpegClusterServer(my_server_address , AdapterTagEnum.MPEG,  clustered=True, stickykeys=[ ('channel','host','port'), ('clientid')], endpoints=[ClusterTestEP()], cache=False, logger=True)
 
 
 if __name__ == '__main__':

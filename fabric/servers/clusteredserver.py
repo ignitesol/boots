@@ -11,8 +11,8 @@ from fabric import concurrency
 from fabric.datastore.datamodule import MySQLBinding
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.endpoints.cluster_ep import ClusteredPlugin
-from fabric.servers.managedserver import ManagedServer
 import logging
+from fabric.servers.hybrid import HybridServer
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -40,16 +40,17 @@ class ClusteredEP(HTTPServerEndPoint):
                 "My load is : " + str(self.server.get_data(server_adress))
     
         
-class ClusteredServer(ManagedServer):
+class ClusteredServer(HybridServer):
     '''
     ClusteredServer provides inbuilt capabilities over and above HTTPServer for clustering
     '''
 
-    def __init__(self, server_adress, servertype, endpoints=None, stickykeys=None, ds='ds', **kargs):
+    def __init__(self, server_adress=None, servertype=None, clustered=False, endpoints=None, stickykeys=None, ds='ds', **kargs):
         '''
         
-        :param server_adress: defines the the endpoint for the server, this is unique per server
-        :param servertype: this defines the server type 
+        :param server_adress: defines the the endpoint for the server, this is unique per server #TODO : only needed when clustered
+        :param servertype: this defines the server type #TODO :HOWTO?? only needed when clustered
+        :param boolean clustered: this parameter defines whether we enable or disable the clustering
         :param endpoints: Endpoint definition provided by cluster server by itself
         :param stickykeys: It provides way to create the sticky value. This param can be a string param , or tuple of params or list of tuples or 
                            method that defines the creation of sticky value (the method will take all the parameters passed and will create the sticky 
@@ -57,19 +58,18 @@ class ClusteredServer(ManagedServer):
                            on all the sticky values created from the list of param-tuple
         :param str ds: This is the name of the paramter , which will be used to refer the datastoe_wrapper object. This gives the handle to the application
                         server to manipulate the data.
-                    
-        
         '''
-        self.datastore = MySQLBinding() # TODO : write a factory method to get the binding
-        self.servertype = servertype
-        self.server_adress = server_adress
-        self.stickykeys = stickykeys
-        self.ds = ds
-        
+        self.clustered = clustered
         endpoints = endpoints or []
-        endpoints = endpoints + [ ClusteredEP()]
+        if self.clustered:
+            self.servertype = servertype
+            self.server_adress = server_adress
+            self.stickykeys = stickykeys
+            self.ds = ds
+            endpoints = endpoints + [ ClusteredEP()]
+            self.datastore = MySQLBinding() # TODO : write a factory method to get the binding
+            self.create_data() # This will create data if doesn't exist else updates if update flag is passed 
         super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs)
-        self.create_data() # This will create data if doesn't exist else updates if update flag is passed 
         
     def get_standard_plugins(self, plugins):
         '''
@@ -79,7 +79,10 @@ class ClusteredServer(ManagedServer):
             par_plugins = super(ClusteredServer, self).get_standard_plugins(plugins)
         except AttributeError:
             par_plugins = []
-        return par_plugins + [ ClusteredPlugin(datastore=self.datastore, ds=self.ds) ] 
+        #Adds the clustered plugin only if this is clustered server
+        if self.clustered:
+            par_plugins += [ ClusteredPlugin(datastore=self.datastore, ds=self.ds) ] 
+        return par_plugins
         
 
     def create_data(self):
@@ -98,14 +101,20 @@ class ClusteredServer(ManagedServer):
         :param stickyvalues: list of stickyvalues
         '''
         #jsonify data
-        self.datastore.update_server(self.server_adress, endpoint_key, endpoint_name, stickyvalues, load, data)
+        self.datastore.save_updated_data(self.server_adress, endpoint_key, endpoint_name, stickyvalues, load, load )
         
-    def get_current_load(self):
+    def get_new_load(self):
         '''
         This method defines how the load gets updated which each new request being served or completed
         It returns new load percentage
         '''
         return 0
+    
+    def get_current_load(self):
+        '''
+        This method returns the existing load of this server as per it exists in the datastore
+        '''
+        return self.datastore.get_current_load(self.server_adress)
     
     
     def cleanup(self):
@@ -115,7 +124,7 @@ class ClusteredServer(ManagedServer):
         '''
         pass
             
-    def get_least_loaded(self, servertype=None):
+    def get_least_loaded(self, servertype=None, server_adress=None):
         '''
         This method gets the least loaded server of the given servertype 
         :param servertype: this parameters contains the type of server
@@ -124,7 +133,7 @@ class ClusteredServer(ManagedServer):
         '''
         servertype = servertype or self.servertype
         server =  self.datastore.get_least_loaded(servertype)
-        return server.unique_key if server else None
+        return server_adress if self.get_current_load() == server.load else server.unique_key if server else None
         
     
     def get_by_stickyvalue(self, stickyvalues, endpoint_key):

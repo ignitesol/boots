@@ -27,7 +27,7 @@ class BaseDataBinding(object)  :
     def getdata(self, server_adress):
         pass
     
-    def update_server(self, server_adress, stickyvalue, load, data=None):
+    def save_updated_data(self, server_adress, endpoint_key, endpoint_name, stickyvalues, load, data=None):
         pass
     
     def update_stickyvalue(self, server_adress, stickyvalue):
@@ -46,9 +46,9 @@ def dbsessionhandler(fn):
     This decorator handles the creation and closing of the session object.
     '''
     def wrapped(self, *args, **kwargs):
-        self.sess = self.get_session()
-        retval = fn(self, *args, **kwargs)
-        self.sess.close()
+        sess = self.get_session()
+        retval = fn(self, sess,  *args, **kwargs)
+        sess.close()
         return retval
     return wrapped       
     
@@ -137,7 +137,7 @@ class DSWrapperObject(object):
         '''
         if self._autosave and self._dirty:
             self.datastore.\
-                save_updated_data(self.server_address, self.data , self.load, self.endpoint_key, self.endpoint_name, self.stickymappinglist)
+                save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.stickymappinglist, self.load, self.data)
 
     
     def _read_by_stickyvalue(self, stickyvalues):
@@ -170,17 +170,18 @@ class DSWrapperObject(object):
         :param float load: this is the new/current load for this server
         :param datablob: this is the blob that needs to be updated for recovery
         '''
+        
         new_sticky_values = (stickyvalue for stickyvalue in stickyvalues  if stickyvalue not in self.stickymappinglist) # generator expression 
         for stickyvalue in new_sticky_values:
             self.stickymappinglist += [stickyvalue]
             self.dirty = True
         #Load is update to new sent 
-        if load is not None and self.load != load:
+        if load is not None:
             self.load = load
             self.dirty = True
         
         if datablob is not None:
-            #TODO : this needs to be updated rather than 
+            #TODO : this needs to be updated rather than insert . 
             self.data = datablob
             self.dirty = True
             
@@ -192,9 +193,10 @@ class DSWrapperObject(object):
         :param stickyvalues: newly formed sticky values
         '''
         if stickyvalues is not None:
-            if type(stickyvalues) is str and stickyvalues not in self.stickymappinglist:
-                self.stickymappinglist += [stickyvalues]
-                self.dirty = True
+            if type(stickyvalues) is str:
+                if stickyvalues not in self.stickymappinglist: # if condition separated on purpose ,# else depends only on first if
+                    self.stickymappinglist += [stickyvalues]
+                    self.dirty = True
             else:
                 new_sticky_values = (stickyvalue for stickyvalue in stickyvalues if stickyvalue not in self.stickymappinglist) # generator expression 
                 for stickyvalue in new_sticky_values:
@@ -228,7 +230,7 @@ class MySQLBinding(BaseDataBinding):
     
         
     @dbsessionhandler
-    def setdata(self, server_adress, servertype):
+    def setdata(self, sess, server_adress, servertype):
         '''
         This creates the entry for each server in the server table
         :param server_adress: address of the self/server itself, this will be unique entry 
@@ -236,25 +238,25 @@ class MySQLBinding(BaseDataBinding):
         '''
         try:
             server = Server(servertype, server_adress, '', 0)
-            self.sess.add(server)
-            self.sess.commit()
+            sess.add(server)
+            sess.commit()
         except IntegrityError as e:
             #Based on the type of mode : Start/Restart we might want to clear or update data
-            self.sess.rollback()
-            self.sess.query(Server).filter(Server.unique_key == server_adress)\
+            sess.rollback()
+            sess.query(Server).filter(Server.unique_key == server_adress)\
                     .update({Server.load:0, Server.server_type:servertype}, synchronize_session=False)
-            self.sess.commit()
+            sess.commit()
         
     
     @dbsessionhandler
-    def getdata(self, server_adress):
+    def getdata(self, sess, server_adress):
         '''
         This method get thge data for the given server based on its server_address , which is the unique key per server
         :param server_adress: server address 
         '''
         server = None
         try:
-            server = self.sess.query(Server).filter(Server.unique_key == server_adress).one()
+            server = sess.query(Server).filter(Server.unique_key == server_adress).one()
         except NoResultFound:
             pass
         except MultipleResultsFound:
@@ -263,7 +265,36 @@ class MySQLBinding(BaseDataBinding):
         return server.data
     
     @dbsessionhandler
-    def update_server(self, server_adress, endpoint_key, endpoint_name, stickyvalues, load, data=None):
+    def get_current_load(self, sess, server_address):
+        try:
+            server = sess.query(Server).filter(Server.unique_key == server_address).one()
+            return server.load
+        except NoResultFound:
+            pass
+    
+        
+    @dbsessionhandler
+    def get_server_by_stickyvalue(self, sess, stickyvalues, endpoint_key):
+        '''
+        This method server which handles the stickyvalue passes
+        :param stickyvalue: 
+        '''
+        if not stickyvalues:
+            return None
+        try:
+            existing_mapping_list = sess.query(StickyMapping).filter(and_(StickyMapping.sticky_value.in_(stickyvalues), \
+                                                                       True)).all()
+        except Exception:
+            pass
+        if not existing_mapping_list:
+            return None
+        #TODO : Join was screwing up for some reason so , dirty code . Must  fix
+        server = sess.query(Server).filter(Server.server_id == existing_mapping_list[0].server_id).one()
+        return  (server, existing_mapping_list)
+    
+    
+    @dbsessionhandler
+    def save_updated_data(self, sess, server_adress, endpoint_key, endpoint_name, stickyvalues, load, data):
         '''
         This method adds the stickyvalue mapping and the load for the server_address
         :param server_adress: the unique server_adress
@@ -272,78 +303,40 @@ class MySQLBinding(BaseDataBinding):
         :param stickyvalues: list of new sticky values
         :param load: load percentage for this server
         '''
-        #Complete transactional update
+        #Two sub transactions .
+        #first transaction updates the load and data
+        #other transaction is set of multiple individual db transactions that tries to add the sticky-key ONE-by-ONE if NOT already exist
+        server = sess.query(Server).filter(Server.unique_key == server_adress).one()
         if data:
-            self.sess.query(Server).filter(Server.unique_key == server_adress)\
+            sess.query(Server).filter(Server.unique_key == server_adress)\
                     .update({Server.load:load, Server.data:data}, synchronize_session=False)
         else:
-            self.sess.query(Server).filter(Server.unique_key == server_adress)\
+            sess.query(Server).filter(Server.unique_key == server_adress)\
                     .update({Server.load:load}, synchronize_session=False)
-                    
-        server = self.sess.query(Server).filter(Server.unique_key == server_adress).one()
-        try:
-            for stickyvalue in stickyvalues:
-                self.sess.add(StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue))    
-            self.sess.commit()  
-        except IntegrityError:
-            #Sticky mapping already exist. This condition should only if server is started and data was not cleared
-            self.sess.rollback()
-    
-        
-    @dbsessionhandler
-    def get_server_by_stickyvalue(self, stickyvalues, endpoint_key):
-        '''
-        This method server which handles the stickyvalue passes
-        :param stickyvalue: 
-        '''
-        if not stickyvalues:
-            return None
-        try:
-            existing_mapping_list = self.sess.query(StickyMapping).filter(and_(StickyMapping.sticky_value.in_(stickyvalues), \
-                                                                       True)).all()
-        except Exception:
-            pass
-        if not existing_mapping_list:
-            return None
-        #TODO : Join was screwing up for some reason so , dirty code . Must  fix
-        server = self.sess.query(Server).filter(Server.server_id == existing_mapping_list[0].server_id).one()
-        return  (server, existing_mapping_list)
-    
+        sess.commit()
+        for stickyvalue in stickyvalues:
+            self._add_sticky_record(server.server_id, endpoint_key, endpoint_name, stickyvalue)
     
     @dbsessionhandler
-    def save_updated_data(self, server_adress, data , load, endpoint_key, endpoint_name, stickyvalues):
-        '''
-        '''
-        #Complete transactional update
-        if data:
-            self.sess.query(Server).filter(Server.unique_key == server_adress)\
-                    .update({Server.load:load, Server.data:data}, synchronize_session=False)
-        else:
-            self.sess.query(Server).filter(Server.unique_key == server_adress)\
-                    .update({Server.load:load}, synchronize_session=False)
-                    
-        server = self.sess.query(Server).filter(Server.unique_key == server_adress).one()
+    def _add_sticky_record(self, sess, server_id, endpoint_key, endpoint_name, stickyvalue):
         try:
-            for stickyvalue in stickyvalues:
-                self.sess.add(StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue))    
-            self.sess.flush()  
-        except IntegrityError:
-            self.sess.rollback()
-            #mapping already exists
+            sticky_record = StickyMapping(server_id, endpoint_key, endpoint_name, stickyvalue)
+            sess.add(sticky_record)  
+            sess.commit()
+        except IntegrityError as e:
             pass
-        
-        self.sess.commit()
+            #print "Sticky mapping already exist with another server"
         
 
     @dbsessionhandler
-    def get_least_loaded(self, servertype):
+    def get_least_loaded(self, sess, servertype):
         '''
         This method finds the least loaded server of the given type
         '''
         min_loaded_server = None
-        min_load = self.sess.query(func.min(Server.load)).filter(Server.server_type == servertype ).one()
+        min_load = sess.query(func.min(Server.load)).filter(Server.server_type == servertype ).one()
         if(min_load[0] < 100):
-            min_loaded_server = self.sess.query(Server).filter(Server.load == min_load[0] ).first()
+            min_loaded_server = sess.query(Server).filter(Server.load == min_load[0] ).first()
         return min_loaded_server
     
     
@@ -387,7 +380,7 @@ class StickyMapping(Base):
     endpoint_name = Column(String(100))
     sticky_value = Column(String(500))
     
-    __table_args__  = ( saschema.UniqueConstraint("server_id", "endpoint_key", "sticky_value", ), {} ) 
+    __table_args__  = ( saschema.UniqueConstraint("server_id", "endpoint_name", "sticky_value", ), {} ) 
     
     @property
     def sticky_mapping_key(self):
