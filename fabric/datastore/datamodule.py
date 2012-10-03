@@ -13,6 +13,7 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.schema import UniqueConstraint, ForeignKey, ForeignKeyConstraint
 from sqlalchemy.sql.expression import and_, func
 from sqlalchemy.types import String, Integer, Float
+import json
 
 class BaseDataBinding(object)  :
     
@@ -20,14 +21,14 @@ class BaseDataBinding(object)  :
         pass
     
     
-    def setdata(self, server_adress, servertype):
+    def createdata(self, server_adress, servertype):
         pass
     
     
-    def getdata(self, server_adress):
+    def get_server_state(self, server_adress):
         pass
     
-    def save_updated_data(self, server_adress, endpoint_key, endpoint_name, stickyvalues, load, data=None):
+    def save_updated_data(self, server_adress, endpoint_key, endpoint_name, stickyvalues, load, server_state=None):
         pass
     
     def update_stickyvalue(self, server_adress, stickyvalue):
@@ -69,7 +70,7 @@ class DSWrapperObject(object):
         self.stickymappinglist = stickymappinglist
 
         self._load = None
-        self._data = None
+        self._server_state = None
         self._server_address = None
         
         self._dirty = False
@@ -86,12 +87,12 @@ class DSWrapperObject(object):
     
     
     @property
-    def data(self):
-        return self._data
+    def server_state(self):
+        return self._server_state
     
-    @data.setter
-    def data(self, value):
-        self._data = value
+    @server_state.setter
+    def server_state(self, value):
+        self._server_state = value
     
     @property
     def load(self):
@@ -138,7 +139,7 @@ class DSWrapperObject(object):
         '''
         if self._autosave and self._dirty:
             self.datastore.\
-                save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.stickymappinglist, self.load, self.data)
+                save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.stickymappinglist, self.load, self.server_state)
 
     
     def _read_by_stickyvalue(self, stickyvalues):
@@ -204,13 +205,6 @@ class DSWrapperObject(object):
                     self.stickymappinglist += [stickyvalue] if type(stickyvalue) is str else stickyvalue 
                     self.dirty = True
             
-    def add_to_datablob(self, datablob):
-        '''
-        This will add the datablob to the existing datablob in this session.
-        :param datablob: datablob that we need to add
-        '''
-        pass
-        
         
     
 class MySQLBinding(BaseDataBinding):
@@ -231,7 +225,7 @@ class MySQLBinding(BaseDataBinding):
     
         
     @dbsessionhandler
-    def setdata(self, sess, server_adress, servertype):
+    def createdata(self, sess, server_adress, servertype):
         '''
         This creates the entry for each server in the server table
         :param server_adress: address of the self/server itself, this will be unique entry 
@@ -250,9 +244,9 @@ class MySQLBinding(BaseDataBinding):
         
     
     @dbsessionhandler
-    def getdata(self, sess, server_adress):
+    def get_server_state(self, sess, server_adress):
         '''
-        This method get thge data for the given server based on its server_address , which is the unique key per server
+        This method get the data for the given server based on its server_address , which is the unique key per server
         :param server_adress: server address 
         '''
         server = None
@@ -262,8 +256,22 @@ class MySQLBinding(BaseDataBinding):
             pass
         except MultipleResultsFound:
             pass
-        #un jsonify
-        return server.data
+        return json.loads(server.server_state)
+    
+    @dbsessionhandler
+    def set_server_state(self, sess, server_adress, server_state):
+        '''
+        This method set the server state for the given server based on its server_address , which is the unique key per server
+        :param server_adress: server address 
+        :param server_state : dict containing the server state at the moment.
+        '''
+        if type(server_state) is dict:
+            server_state = json.dumps(server_state)
+            
+            sess.query(Server).filter(Server.unique_key == server_adress)\
+                    .update({ Server.server_state:server_state}, synchronize_session=False)
+            sess.commit()
+
     
     @dbsessionhandler
     def get_current_load(self, sess, server_address):
@@ -295,7 +303,7 @@ class MySQLBinding(BaseDataBinding):
     
     
     @dbsessionhandler
-    def save_updated_data(self, sess, server_adress, endpoint_key, endpoint_name, stickyvalues, load, data):
+    def save_updated_data(self, sess, server_adress, endpoint_key, endpoint_name, stickyvalues, load, server_state):
         '''
         This method adds the stickyvalue mapping and the load for the server_address
         :param server_adress: the unique server_adress
@@ -303,16 +311,16 @@ class MySQLBinding(BaseDataBinding):
         :param endpoint_name: name of the endpoint
         :param stickyvalues: list of new sticky values
         :param load: load percentage for this server
-        :param data: jsonified data . This data blob needs to be updated to the existing datablob. This is the datablob that we keep so that
+        :param server_state: jsonified server_state . This server_state blob needs to be updated to the existing datablob. This is the datablob that we keep so that
                     server come back up the existing state when some failure occur
         '''
         #Two sub transactions .
-        #first transaction updates the load and data
+        #first transaction updates the load and server_state
         #other transaction is set of multiple individual db transactions that tries to add the sticky-key ONE-by-ONE if NOT already exist
         server = sess.query(Server).filter(Server.unique_key == server_adress).one()
-        if data:
+        if server_state:
             sess.query(Server).filter(Server.unique_key == server_adress)\
-                    .update({Server.load:load, Server.data:data}, synchronize_session=False)
+                    .update({Server.load:load, Server.server_state:server_state}, synchronize_session=False)
         else:
             sess.query(Server).filter(Server.unique_key == server_adress)\
                     .update({Server.load:load}, synchronize_session=False)
@@ -353,7 +361,7 @@ class Server(Base):
     server_id = Column(Integer, primary_key=True)
     server_type = Column(String(200))
     unique_key = Column(String(200))
-    data = Column(LONGTEXT)
+    server_state = Column(LONGTEXT)
     load =  Column(Float)
     
     stickymapings = relationship("StickyMapping",
@@ -363,15 +371,15 @@ class Server(Base):
    
     __table_args__  = ( saschema.UniqueConstraint("unique_key"), {} ) 
     
-    def __init__(self, server_type, unique_key, data, load ):
+    def __init__(self, server_type, unique_key, server_state, load ):
         self.server_type = server_type
         self.unique_key = unique_key
-        self.data = data
+        self.server_state = server_state
         self.load = load
         
     def __repr__(self):
-        return "<Server (server_type, unique_key, data, load)('%s', '%s', '%s', '%s')>" % \
-            (self.server_type, str(self.unique_key), str(self.data), str(self.load))
+        return "<Server (server_type, unique_key, server_state, load)('%s', '%s', '%s', '%s')>" % \
+            (self.server_type, str(self.unique_key), str(self.server_state), str(self.load))
         
 class StickyMapping(Base):
     ''' mapping class for stickypaping table'''
@@ -406,7 +414,7 @@ def create_server(metadata):
         schema.Sequence('server_seq_id', optional=False), primary_key=True),
     schema.Column('server_type', types.VARCHAR(200), nullable=False),
     schema.Column('unique_key', types.VARCHAR(200), nullable=False),
-    schema.Column('data', LONGTEXT , nullable=True),
+    schema.Column('server_state', LONGTEXT , nullable=True),
     schema.Column('load', types.Float, nullable=True ), 
     mysql_engine='InnoDB'
     )

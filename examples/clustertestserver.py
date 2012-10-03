@@ -52,10 +52,10 @@ class ClusterTestEP(HTTPServerEndPoint):
         
 print "My server adress : " , my_server_address
 
-class MpegClusterServer(ClusteredServer):
+class TestClusterServer(ClusteredServer):
     
     def __init__(self, *args, **kwargs ):
-        super(MpegClusterServer, self).__init__(*args, **kwargs)
+        super(TestClusterServer, self).__init__(*args, **kwargs)
         
         
     def get_new_load(self):
@@ -65,9 +65,8 @@ class MpegClusterServer(ClusteredServer):
         :param load : percentage of load that exists at currently 
         '''
         return 10
-
-application = MpegClusterServer(my_server_address , AdapterTagEnum.MPEG,  clustered=True, stickykeys=[ ('channel','host','port'), ('clientid')], endpoints=[ClusterTestEP()], cache=False, logger=True)
-
+    
+application = TestClusterServer(my_server_address , AdapterTagEnum.MPEG,  clustered=True, stickykeys=[ ('channel','host','port'), ('clientid')], endpoints=[ClusterTestEP()], cache=False, logger=True)
 
 if __name__ == '__main__':
     application.start_server(defhost=host, defport=int(opt.port), standalone=True)

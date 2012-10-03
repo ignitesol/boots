@@ -6,13 +6,14 @@ Also each server has access to common datastore
 
 '''
 from __future__ import division
-import os
 from fabric import concurrency
 from fabric.datastore.datamodule import MySQLBinding
-from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
+from fabric.datastore.dbengine import DBConfig
 from fabric.endpoints.cluster_ep import ClusteredPlugin
-import logging
+from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.servers.hybrid import HybridServer
+import logging
+import os
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -56,20 +57,34 @@ class ClusteredServer(HybridServer):
                            method that defines the creation of sticky value (the method will take all the parameters passed and will create the sticky 
                            value). If the list of tuple params are given, we form  the sticky value based on whicherver we find first and update based 
                            on all the sticky values created from the list of param-tuple
-        :param str ds: This is the name of the paramter , which will be used to refer the datastoe_wrapper object. This gives the handle to the application
+        :param str ds: This is the name of the paramter , which will be used to refer the datastore_wrapper object. This gives the handle to the application
                         server to manipulate the data.
         '''
         self.clustered = clustered
         endpoints = endpoints or []
+        
         if self.clustered:
+            self.config_callbacks['Clusterdb'] = self._dbconfig_config_update
             self.servertype = servertype
             self.server_adress = server_adress
             self.stickykeys = stickykeys
             self.ds = ds
             endpoints = endpoints + [ ClusteredEP()]
-            self.datastore = MySQLBinding() # TODO : write a factory method to get the binding
-            self.create_data() # This will create data if doesn't exist else updates if update flag is passed 
-        super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs)
+        super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs) 
+        
+        
+    def _dbconfig_config_update(self, action, full_key, new_val, config_obj):
+        '''
+        Called by Config to update the database Configuration.
+        '''
+        clusterdb = config_obj['Clusterdb']
+        
+        dbtype = clusterdb['dbtype']
+        db_url = dbtype + '://'+ clusterdb['dbuser']+ ':' + clusterdb['dbpassword'] + '@' + clusterdb['dbhost'] + ':' + str(clusterdb['dbport']) + '/' + clusterdb['dbschema']
+        dbconfig =  DBConfig(dbtype, db_url, clusterdb['pool_size'], clusterdb['max_overflow'], clusterdb['connection_timeout'])
+        self.datastore = MySQLBinding(dbconfig) # TODO : write a factory method to get the binding
+        self.create_data() # This will create data if doesn't exist else updates if update flag is passed
+        logging.getLogger().debug('Cluster DataBase config updated')
         
     def get_standard_plugins(self, plugins):
         '''
@@ -89,24 +104,29 @@ class ClusteredServer(HybridServer):
         '''
         This create DataStructure in Persistent data store
         '''
-        self.datastore.setdata(self.server_adress, self.servertype )
+        self.datastore.createdata(self.server_adress, self.servertype )
         
-    def get_data(self):
-        return self.datastore.getdata(self.server_adress)
-    
-    
-    def update_data(self, load, endpoint_key, endpoint_name, stickyvalues=None, data=None):
+    def get_server_state(self):
         '''
-        This update the sticky value for the 
-        :param stickyvalues: list of stickyvalues
+        This returns the server state, which was stored in the Server record.
+        This is jsoned data. 
+        The server state is used for storing all the information that is used by the server to recover 
+        in case it crashed and came up and trying to regain its state.
+        The Server instance  should write its logic using this data , so as how it will recover
         '''
-        #jsonify data
-        self.datastore.save_updated_data(self.server_adress, endpoint_key, endpoint_name, stickyvalues, load, load )
-        
+        return self.datastore.get_server_state(self.server_adress)
+    
+    def set_server_state(self, server_state):
+        '''
+        This sets the server state as provided by the Server itself
+        '''
+        self.datastore.set_server_state(self.server_adress, server_state)
+    
+
     def get_new_load(self):
         '''
         This method defines how the load gets updated which each new request being served or completed
-        It returns new load percentage
+        It returns new load percentage, this is neeeded to be handled by the 
         '''
         return 0
     
@@ -120,7 +140,13 @@ class ClusteredServer(HybridServer):
     def cleanup(self):
         '''
         This method will cleanup the sticky mapping and update the new load.
-        This needs to be called by the application when it is done with processing and stickyness is removed
+        This needs to be called by the application when it is done with processing and stickyness needs to be removed
+        '''
+        pass
+    
+    def cleanupall(self):
+        '''
+        This method removes all the sticky-ness present for this server 
         '''
         pass
             
