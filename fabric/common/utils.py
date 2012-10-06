@@ -7,7 +7,6 @@ Created on Mar 21, 2012
 from fabric import concurrency
 import random
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock

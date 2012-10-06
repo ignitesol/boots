@@ -5,9 +5,18 @@ debug and compose servers.
 '''
 import sys
 import os
-
+import time
 __version__ = '0.2'
 __author__ = 'Ignite Solutions'
 
-#concurrency = 'gevent'
-concurrency = 'threading'
+class concurrency_meta(type):
+
+    def __eq__(self, x):
+        return self.state == x
+    
+    def __repr__(self):
+        return self.state
+    
+class concurrency(object):
+    __metaclass__ = concurrency_meta
+    state = 'threading'

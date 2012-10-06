@@ -4,8 +4,13 @@ Created on 19-Jun-2012
 @author: anand
 '''
 from threading import Thread, RLock
-import zmq
+from fabric import concurrency
 from zmq.eventloop import ioloop
+if concurrency == 'gevent':
+    import zmq.green as zmq
+    ioloop.Poller = zmq.Poller
+else:
+    import zmq
 import functools
 from multiprocessing.pool import ThreadPool
 import sys
@@ -22,6 +27,9 @@ class ZMQType:
     PUSH = zmq.PUSH
     PULL = zmq.PULL
     SUB = zmq.SUB
+    PUB = zmq.PUB
+    REP = zmq.REP
+    REQ = zmq.REQ
 
 # first, start a background ioloop thread and start ioloop
 def iolooper():
@@ -57,7 +65,14 @@ t.start()
 class ZMQSocketTypeMap(object):
     types = {}
     __required__ = ['PUB', 'SUB', 'PUSH', 'PULL', 'REQ', 'REP']
-    for k, v in vars(zmq.core.constants).iteritems():
+    
+    # The below two lines exist because incase of zmq.green
+    # the true zmq.core elements are wrapped within
+    # a fake zmq.core of zmq.green
+    try: constants = zmq.core.constants
+    except: constants = zmq.core.zmq.core.constants
+    
+    for k, v in vars(constants).iteritems():
         if type(v) is int and types.get(v) not in __required__: types[v] = k
 
 

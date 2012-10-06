@@ -6,7 +6,6 @@ from functools import wraps
 import bottle
 
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock
