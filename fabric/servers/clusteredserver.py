@@ -14,6 +14,7 @@ from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.servers.hybrid import HybridServer
 import logging
 import os
+from fabric.datastore import truncate_cluster_data
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
@@ -46,7 +47,7 @@ class ClusteredServer(HybridServer):
     ClusteredServer provides inbuilt capabilities over and above HTTPServer for clustering
     '''
 
-    def __init__(self, server_adress=None, servertype=None, clustered=False, endpoints=None, stickykeys=None, ds='ds', **kargs):
+    def __init__(self, server_adress=None, servertype=None, clustered=False, endpoints=None, stickykeys=None, ds='ds', restart=False, **kargs):
         '''
         
         :param server_adress: defines the the endpoint for the server, this is unique per server #TODO : only needed when clustered
@@ -64,7 +65,8 @@ class ClusteredServer(HybridServer):
         endpoints = endpoints or []
         
         if self.clustered:
-            self.config_callbacks['Clusterdb'] = self._dbconfig_config_update
+            self.restart = restart
+            self.config_callbacks['MySQLConfig'] = self._dbconfig_config_update
             self.servertype = servertype
             self.server_adress = server_adress
             self.stickykeys = stickykeys
@@ -76,15 +78,22 @@ class ClusteredServer(HybridServer):
     def _dbconfig_config_update(self, action, full_key, new_val, config_obj):
         '''
         Called by Config to update the database Configuration.
+        Once the DB Config is read , we create MySQL binding that allows to talk to MySQL
+        This also checks if this start of the server is a restart, if it is then reads the server_state from server record
+        This is set as server object. This state is used by the application to recover its original server state
         '''
-        clusterdb = config_obj['Clusterdb']
+        clusterdb = config_obj['MySQLConfig']
         
         dbtype = clusterdb['dbtype']
         db_url = dbtype + '://'+ clusterdb['dbuser']+ ':' + clusterdb['dbpassword'] + '@' + clusterdb['dbhost'] + ':' + str(clusterdb['dbport']) + '/' + clusterdb['dbschema']
         dbconfig =  DBConfig(dbtype, db_url, clusterdb['pool_size'], clusterdb['max_overflow'], clusterdb['connection_timeout'])
         self.datastore = MySQLBinding(dbconfig) # TODO : write a factory method to get the binding
-        self.create_data() # This will create data if doesn't exist else updates if update flag is passed
-        logging.getLogger().debug('Cluster DataBase config updated')
+        logging.getLogger().debug("Restart flag is : %s ", self.restart)
+        if self.restart:
+            logging.getLogger().debug("server restarted after crash. read blob from db and set it to server_state")
+            self.server_state = self.datastore.get_server_state(self.server_adress)
+        else:self.create_data() # This will create data if doesn't exist else updates if update flag is passed
+        logging.getLogger().debug('Cluster database config updated')
         
     def get_standard_plugins(self, plugins):
         '''
@@ -142,12 +151,14 @@ class ClusteredServer(HybridServer):
         This method will cleanup the sticky mapping and update the new load.
         This needs to be called by the application when it is done with processing and stickyness needs to be removed
         '''
+        truncate_cluster_data.ClearAllData.delete(self.datastore.get_session())
         pass
     
     def cleanupall(self):
         '''
         This method removes all the sticky-ness present for this server 
         '''
+        truncate_cluster_data.ClearAllData.delete(self.datastore.get_session())
         pass
             
     def get_least_loaded(self, servertype=None, server_adress=None):

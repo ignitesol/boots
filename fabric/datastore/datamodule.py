@@ -227,7 +227,9 @@ class MySQLBinding(BaseDataBinding):
     @dbsessionhandler
     def createdata(self, sess, server_adress, servertype):
         '''
-        This creates the entry for each server in the server table
+        This creates the entry for each server in the server table.
+        We will come at this method only in-case of start mode. 
+        Restarts should never reach here
         :param server_adress: address of the self/server itself, this will be unique entry 
         :param servertype: type of the server 
         '''
@@ -236,10 +238,10 @@ class MySQLBinding(BaseDataBinding):
             sess.add(server)
             sess.commit()
         except IntegrityError as e:
-            #Based on the type of mode : Start/Restart we might want to clear or update data
+            #This error will occur when we are in start mode. We will clear server_state by updating it to empty dict
             sess.rollback()
             sess.query(Server).filter(Server.unique_key == server_adress)\
-                    .update({Server.load:0, Server.server_type:servertype}, synchronize_session=False)
+                    .update({Server.load:0, Server.server_type:servertype, Server.server_state:json.dumps({})}, synchronize_session=False)
             sess.commit()
         
     

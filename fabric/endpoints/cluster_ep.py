@@ -75,7 +75,7 @@ class ClusteredPlugin(BasePlugin):
                         getparams = bottle.request.GET.dict
                         postparams = bottle.request.POST.dict
                         res = self._make_proxy_call(server_adress, headers, cookies, getparams, postparams)
-                        return res
+                    if res:return res # return if there is response 
                         
                 # If method-route expects the param then add the ds_wrapper with the param named defined in the plugin
                 if self.ds in callback._signature[0]:
@@ -161,6 +161,11 @@ class ClusteredPlugin(BasePlugin):
                                                     bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
         
         data = postparams if postparams else None
-        req = urllib2.Request(destination_url, data, headers)
-        res = urllib2.urlopen(req)
-        return res.read()
+        ret_val = None
+        try:
+            req = urllib2.Request(destination_url, data, headers)
+            res = urllib2.urlopen(req)
+            ret_val = res.read()
+        except Exception as e:
+            pass
+        return ret_val

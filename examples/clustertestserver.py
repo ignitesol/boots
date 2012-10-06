@@ -10,17 +10,23 @@ from fabric.servers.clusteredserver import ClusteredServer
 from fabric.servers.helpers.clusterenum import AdapterTagEnum
 from optparse import OptionParser
 
-usage="usage: %prog [options]"
+#usage="usage: %prog [options]"
+usage="usage"
 parser = OptionParser(usage=usage, version="0.1")
 parser.add_option("-p", "--port", dest="port", default="4000", help="port number of adapter")
+parser.add_option("-r", "--restart", dest="restart", default=None, help="server is restarting if value is not None")
 
 opt, args = parser.parse_args(sys.argv[1:])
 if  not opt.port:
     exit;
+    
 
 host = "aurora.ignitelabs.local"
 my_server_address = host + ':' + str(opt.port)
 myport = opt.port
+restartflag = True if opt.restart else False
+
+print "Restart flag :" , opt.restart
 
 class ClusterTestEP(HTTPServerEndPoint):
     def __init__(self, *args, **kwargs):
@@ -49,13 +55,24 @@ class ClusterTestEP(HTTPServerEndPoint):
     def test(self):
         return "this is test route"
     
-        
 print "My server adress : " , my_server_address
 
 class TestClusterServer(ClusteredServer):
     
     def __init__(self, *args, **kwargs ):
         super(TestClusterServer, self).__init__(*args, **kwargs)
+        
+        
+        
+    @classmethod
+    def get_arg_parser(cls, description='', add_help=False, parents=[], 
+                        conflict_handler='error', **kargs):
+        '''
+        Overridden to add the restart parameter
+        '''
+        _argparser = super(TestClusterServer, cls).get_arg_parser(*args, **kargs)
+        _argparser.add_argument('-r', '--restart', dest='restart', type=str, default=kargs.get('restart', None), help='restart'),                                 
+        return _argparser
         
         
     def get_new_load(self):
@@ -66,7 +83,11 @@ class TestClusterServer(ClusteredServer):
         '''
         return 10
     
-application = TestClusterServer(my_server_address , AdapterTagEnum.MPEG,  clustered=True, stickykeys=[ ('channel','host','port'), ('clientid')], endpoints=[ClusterTestEP()], cache=False, logger=True)
+application = TestClusterServer(
+                                my_server_address , AdapterTagEnum.MPEG,  clustered=True, \
+                                stickykeys=[ ('channel','host','port'), ('clientid')], \
+                                endpoints=[ClusterTestEP()], cache=False, logger=True, \
+                                restart=restartflag)
 
 if __name__ == '__main__':
     application.start_server(defhost=host, defport=int(opt.port), standalone=True)
