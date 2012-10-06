@@ -5,7 +5,6 @@ Created on 08-Jul-2011
 from __future__ import print_function
 from fabric import concurrency
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock

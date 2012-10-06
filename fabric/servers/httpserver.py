@@ -8,8 +8,6 @@ basic exception handling for requests, session, cache and authorization for the 
 from fabric import concurrency
 from fabric.endpoints.http_ep import Tracer, WrapException, RequestParams,\
     HTTPServerEndPoint
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
 
 import argparse
 import beaker.middleware as bkmw

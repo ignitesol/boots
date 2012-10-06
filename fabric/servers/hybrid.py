@@ -1,9 +1,3 @@
-
-from fabric import concurrency
-
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
-
 from fabric.servers.managedserver import ManagedServer
 from fabric.servers.zmqserver import ZMQServer
 

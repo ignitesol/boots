@@ -3,7 +3,11 @@ Custom ZMQ Endpoints and Plugins to be used within the ZMQ Servers
 
 '''
 import json
-import zmq
+from fabric import concurrency
+if concurrency == 'gevent':
+    import zmq.green as zmq
+else:
+    import zmq
 
 from fabric.endpoints.zmqendpoints.zmq_base import ZMQBasePlugin,\
     ZMQListenEndPoint, ioloop_instance

@@ -1,8 +1,4 @@
-from fabric import concurrency
 import warnings
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
-
 import logging
 from fabric.common.config import Config
 
