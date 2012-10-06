@@ -5,13 +5,6 @@ through which they communicate (receive and send).
 
  
 '''
-from fabric import concurrency
-
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
-elif concurrency == 'threading':
-    pass
-
 from warnings import warn
 import inspect
 import sys

@@ -6,7 +6,6 @@ import bottle
 import urllib2
 
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock
@@ -69,7 +68,6 @@ class ClusteredPlugin(BasePlugin):
                     if server_adress != server.server_adress: 
                         destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
                                                 bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
-                        print "proxying to destination server: ", destination_url
                         headers = bottle.request.headers.environ
                         cookies = bottle.request.COOKIES.dict
                         getparams = bottle.request.GET.dict

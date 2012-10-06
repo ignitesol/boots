@@ -3,10 +3,6 @@ Created on 18-Oct-2011
 
 @author: harsh
 '''
-
-from fabric import concurrency
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     
 from barrel.form import FormAuth
 import re

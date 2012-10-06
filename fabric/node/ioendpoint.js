@@ -187,9 +187,10 @@ function IORoomEndpoint(_io, _name) {
 	}
 	
 	function _clients() {
-		var clients_list = [];
-		utils.foreach(clients, function(k, v) { clients_list.push(k); });
-		return clients_list;
+		// var clients_list = [];
+		// utils.foreach(clients, function(k, v) { clients_list.push(k); });
+		// return clients_list;
+		return io.sockets.clients(name).map(function(c) { return c.id; });
 	}
 	
 	function _has_client(id) {

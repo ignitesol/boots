@@ -17,7 +17,6 @@ import os
 from fabric.datastore import truncate_cluster_data
 
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock

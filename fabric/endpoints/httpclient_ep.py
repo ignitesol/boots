@@ -4,11 +4,6 @@ HTTP calls. The classes and methods offer abstractions to callers of making simp
 marshalling of parameters and un-marshalling of results. Many methods exist to support direct get or post method calls or 
 JSON marshalling of input parameters and un-marshalling of output responses 
 '''
-from fabric import concurrency
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
-elif concurrency == 'threading':
-    pass
 
 from functools import wraps
 import json
