@@ -7,7 +7,7 @@ except ImportError:
 
 from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute
 from fabric.servers.clusteredserver import ClusteredServer
-from fabric.servers.helpers.clusterenum import AdapterTagEnum
+from fabric.servers.helpers.clusterenum import ClusterServerType
 from optparse import OptionParser
 
 #usage="usage: %prog [options]"
@@ -84,7 +84,7 @@ class TestClusterServer(ClusteredServer):
         return 10
     
 application = TestClusterServer(
-                                my_server_address , AdapterTagEnum.MPEG,  clustered=True, \
+                                my_server_address , ClusterServerType.MPEG,  clustered=True, \
                                 stickykeys=[ ('channel','host','port'), ('clientid')], \
                                 endpoints=[ClusterTestEP()], cache=False, logger=True, \
                                 restart=restartflag)
