@@ -64,7 +64,7 @@ class ClusteredPlugin(BasePlugin):
                         with Atomic.lock: # Do we really need at this level
                             server_adress = server.get_least_loaded(server.servertype, server.server_adress)
                             ds_wrapper.server_address = server_adress
-                        
+                    res = None    
                     if server_adress != server.server_adress: 
                         destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
                                                 bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]

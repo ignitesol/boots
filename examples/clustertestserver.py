@@ -10,10 +10,9 @@ from fabric.servers.clusteredserver import ClusteredServer
 from fabric.servers.helpers.clusterenum import ClusterServerType
 from optparse import OptionParser
 
-#usage="usage: %prog [options]"
-usage="usage"
+usage="usage: %prog [options]"
 parser = OptionParser(usage=usage, version="0.1")
-parser.add_option("-p", "--port", dest="port", default="4000", help="port number of adapter")
+parser.add_option("-p", "--port", dest="port", default="3000", help="port number of adapter")
 parser.add_option("-r", "--restart", dest="restart", default=None, help="server is restarting if value is not None")
 
 opt, args = parser.parse_args(sys.argv[1:])
