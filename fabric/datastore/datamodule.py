@@ -251,14 +251,16 @@ class MySQLBinding(BaseDataBinding):
         This method get the data for the given server based on its server_address , which is the unique key per server
         :param server_adress: server address 
         '''
-        server = None
+        state = '{}'
         try:
             server = sess.query(Server).filter(Server.unique_key == server_adress).one()
+            state = server.server_state
+            state = state or '{}'
         except NoResultFound:
             pass
         except MultipleResultsFound:
             pass
-        return json.loads(server.server_state)
+        return json.loads(state)
     
     @dbsessionhandler
     def set_server_state(self, sess, server_adress, server_state):

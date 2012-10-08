@@ -7,14 +7,15 @@ Also each server has access to common datastore
 '''
 from __future__ import division
 from fabric import concurrency
+from fabric.datastore import truncate_cluster_data
 from fabric.datastore.datamodule import MySQLBinding
 from fabric.datastore.dbengine import DBConfig
 from fabric.endpoints.cluster_ep import ClusteredPlugin
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.servers.hybrid import HybridServer
+import argparse
 import logging
 import os
-from fabric.datastore import truncate_cluster_data
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -46,7 +47,7 @@ class ClusteredServer(HybridServer):
     ClusteredServer provides inbuilt capabilities over and above HTTPServer for clustering
     '''
 
-    def __init__(self, server_adress=None, servertype=None, clustered=False, endpoints=None, stickykeys=None, ds='ds', restart=False, **kargs):
+    def __init__(self, servertype=None, clustered=False, endpoints=None, stickykeys=None, ds='ds', **kargs):
         '''
         
         :param server_adress: defines the the endpoint for the server, this is unique per server #TODO : only needed when clustered
@@ -62,17 +63,63 @@ class ClusteredServer(HybridServer):
         '''
         self.clustered = clustered
         endpoints = endpoints or []
-        
         if self.clustered:
-            self.restart = restart
+            self.restart = False
             self.config_callbacks['MySQLConfig'] = self._dbconfig_config_update
             self.servertype = servertype
-            self.server_adress = server_adress
             self.stickykeys = stickykeys
             self.ds = ds
             endpoints = endpoints + [ ClusteredEP()]
         super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs) 
-        
+   
+    
+    @classmethod
+    def get_arg_parser(cls, description='', add_help=False, parents=[], 
+                        conflict_handler='error', **kargs):
+        '''
+        get_arg_parser is a classmethod that can be defined by any server. All such methods are called
+        when command line argument processing takes place (see :py:meth:`parse_cmmd_line`)
+
+        :param description: A description of the command line argument
+        :param add_help: (internal) 
+        :param parents: (internal)
+        :param conflict_handler: (internal)
+        '''
+        _argparser = argparse.ArgumentParser(description=description, add_help=add_help, parents=parents, conflict_handler=conflict_handler) 
+        _argparser.add_argument('-r', '--restart', dest='restart',  action="store_true", default=kargs.get('restart', False), help='restart'), 
+        return _argparser
+    
+    
+    def prepare_to_restart(self, server_state):
+        '''
+        The application needs to override this to make use of jsonified server_state.
+        This will be called before the server is restarted
+        '''
+        pass
+    
+    def process_restart(self, server_state):
+        '''
+        The application needs to override this to make use of jsonified server_state
+        This will be called after the server is restarted.
+        '''
+        pass
+    
+    def pre_activate_hook(self):
+        super(ClusteredServer, self).pre_activate_hook()
+        self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port'])
+        if self.cmmd_line_args['restart']:
+            self.restart = True
+            logging.getLogger().debug("server restarted after crash. read blob from db and set it to server_state")
+            print "server address : ", self.server_adress
+            self.server_state = self.datastore.get_server_state(self.server_adress)
+            self.prepare_to_restart(self.server_state)
+        else:
+            self.create_data() # This will create data if doesn't exist else updates if update flag is passed
+            
+    def post_activate_hook(self):
+        super(ClusteredServer, self).post_activate_hook()
+        if self.restart:
+            self.process_restart(self.server_state)
         
     def _dbconfig_config_update(self, action, full_key, new_val, config_obj):
         '''
@@ -82,16 +129,10 @@ class ClusteredServer(HybridServer):
         This is set as server object. This state is used by the application to recover its original server state
         '''
         clusterdb = config_obj['MySQLConfig']
-        
         dbtype = clusterdb['dbtype']
         db_url = dbtype + '://'+ clusterdb['dbuser']+ ':' + clusterdb['dbpassword'] + '@' + clusterdb['dbhost'] + ':' + str(clusterdb['dbport']) + '/' + clusterdb['dbschema']
         dbconfig =  DBConfig(dbtype, db_url, clusterdb['pool_size'], clusterdb['max_overflow'], clusterdb['connection_timeout'])
-        self.datastore = MySQLBinding(dbconfig) # TODO : write a factory method to get the binding
-        logging.getLogger().debug("Restart flag is : %s ", self.restart)
-        if self.restart:
-            logging.getLogger().debug("server restarted after crash. read blob from db and set it to server_state")
-            self.server_state = self.datastore.get_server_state(self.server_adress)
-        else:self.create_data() # This will create data if doesn't exist else updates if update flag is passed
+        self.datastore = MySQLBinding(dbconfig)
         logging.getLogger().debug('Cluster database config updated')
         
     def get_standard_plugins(self, plugins):

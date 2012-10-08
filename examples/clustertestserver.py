@@ -8,24 +8,8 @@ except ImportError:
 from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute
 from fabric.servers.clusteredserver import ClusteredServer
 from fabric.servers.helpers.clusterenum import ClusterServerType
-from optparse import OptionParser
-
-usage="usage: %prog [options]"
-parser = OptionParser(usage=usage, version="0.1")
-parser.add_option("-p", "--port", dest="port", default="3000", help="port number of adapter")
-parser.add_option("-r", "--restart", dest="restart", default=None, help="server is restarting if value is not None")
-
-opt, args = parser.parse_args(sys.argv[1:])
-if  not opt.port:
-    exit;
-    
 
 host = "aurora.ignitelabs.local"
-my_server_address = host + ':' + str(opt.port)
-myport = opt.port
-restartflag = True if opt.restart else False
-
-print "Restart flag :" , opt.restart
 
 class ClusterTestEP(HTTPServerEndPoint):
     def __init__(self, *args, **kwargs):
@@ -43,7 +27,7 @@ class ClusterTestEP(HTTPServerEndPoint):
         #Application specific logic
         if channel and host and port:
             ds.add_sticky_value("client")
-        return "Registered at : " + my_server_address + " serving from :" + myport
+        return "Registered at : " + my_server_address #+ " serving from :" + myport
     
     @methodroute()
     def register1(self, clientid=None):
@@ -54,25 +38,10 @@ class ClusterTestEP(HTTPServerEndPoint):
     def test(self):
         return "this is test route"
     
-print "My server adress : " , my_server_address
-
 class TestClusterServer(ClusteredServer):
     
     def __init__(self, *args, **kwargs ):
         super(TestClusterServer, self).__init__(*args, **kwargs)
-        
-        
-        
-    @classmethod
-    def get_arg_parser(cls, description='', add_help=False, parents=[], 
-                        conflict_handler='error', **kargs):
-        '''
-        Overridden to add the restart parameter
-        '''
-        _argparser = super(TestClusterServer, cls).get_arg_parser(*args, **kargs)
-        _argparser.add_argument('-r', '--restart', dest='restart', type=str, default=kargs.get('restart', None), help='restart'),                                 
-        return _argparser
-        
         
     def get_new_load(self):
         '''
@@ -83,10 +52,9 @@ class TestClusterServer(ClusteredServer):
         return 10
     
 application = TestClusterServer(
-                                my_server_address , ClusterServerType.MPEG,  clustered=True, \
+                                ClusterServerType.MPEG,  clustered=True, \
                                 stickykeys=[ ('channel','host','port'), ('clientid')], \
-                                endpoints=[ClusterTestEP()], cache=False, logger=True, \
-                                restart=restartflag)
+                                endpoints=[ClusterTestEP()], cache=False, logger=True)
 
 if __name__ == '__main__':
-    application.start_server(defhost=host, defport=int(opt.port), standalone=True)
+    application.start_server(standalone=True)

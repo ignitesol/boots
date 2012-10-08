@@ -129,16 +129,18 @@ class Server(object):
         
         if self.is_master:
             self.cmmd_line_args = self.parse_cmmd_line(description, **kargs)
-                
+            
         if self.is_master:
             self.configure(proj_dir=proj_dir, conf_subdir=conf_subdir, config_files=config_files)
         
+        self.pre_activate_hook()        
         self.activate_endpoints()
         self.start_all_sub_servers()
         
         if self.is_master:
             Server.main_server = self
             self.start_main_server()
+        self.post_activate_hook() 
             
     # these can be overridden defined by the subclasses
     def activate_endpoints(self):
@@ -146,10 +148,22 @@ class Server(object):
         Activate this server's endpoints. This is typically overridden in subclasses
         '''
         pass
+    
+    def pre_activate_hook(self):
+        '''
+        This is hook to do pre-start processing
+        '''
+        pass
+    
+    def post_activate_hook(self):
+        '''
+        This is hook to do post-start processing
+        '''
+        pass
 
-    def start_all_sub_servers(self):
+    def start_all_sub_servers(self, **kargs):
         ''' starts all added sub_servers. This is **experimental** '''
-        [ server.start_server(parent_server=self) for server in self.sub_servers ]
+        [ server.start_server(parent_server=self, **kargs) for server in self.sub_servers ]
             
     def start_main_server(self, **kargs):
         ''' Typically run after all endpoints of the master and sub_server are activated. This actually
