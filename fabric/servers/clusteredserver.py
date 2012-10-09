@@ -106,7 +106,7 @@ class ClusteredServer(HybridServer):
     
     def pre_activate_hook(self):
         super(ClusteredServer, self).pre_activate_hook()
-        self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port'])
+        self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port']) + getattr(self, 'mount_prefix', '') 
         if self.cmmd_line_args['restart']:
             self.restart = True
             logging.getLogger().debug("server restarted after crash. read blob from db and set it to server_state")
@@ -186,20 +186,21 @@ class ClusteredServer(HybridServer):
         return self.datastore.get_current_load(self.server_adress)
     
     
-    def cleanup(self):
+    def cleanup(self, stickyvalues, load = None):
         '''
         This method will cleanup the sticky mapping and update the new load.
         This needs to be called by the application when it is done with processing and stickyness needs to be removed
+        :param stickyvalues : List of sticky values that we want to untag from this server
+        :param load : pass the new load , so that it can be updated. 
         '''
-        #truncate_cluster_data.ClearAllData.delete(self.datastore.get_session())
-        pass
+        self.datastore.remove_stickykeys(self.server_adress, stickyvalues, load)
     
-    def cleanupall(self):
+    def cleanupall(self, load = None):
         '''
         This method removes all the sticky-ness present for this server 
+        :param load: Optionally load is passed so it can be updated
         '''
-        #truncate_cluster_data.ClearAllData.delete(self.datastore.get_session())
-        pass
+        self.datastore.remove_all_stickykeys(self.server_adress, load)
             
     def get_least_loaded(self, servertype=None, server_adress=None):
         '''

@@ -18,9 +18,7 @@ class DBConfig(object):
     This contains the configurable elements for database
     '''
     
-    def __init__(self,\
-                  dbtype='mysql', db_url="mysql://cluster:cluster@localhost:3306/cluster" , \
-                  pool_size=100, max_overflow=0, connection_timeout=100):
+    def __init__(self, dbtype, db_url , pool_size=100, max_overflow=0, connection_timeout=100):
         self.dbtype = dbtype
         self.db_url = db_url
         self.pool_size = pool_size

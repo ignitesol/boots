@@ -11,7 +11,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.schema import UniqueConstraint, ForeignKey, ForeignKeyConstraint
-from sqlalchemy.sql.expression import and_, func
+from sqlalchemy.sql.expression import and_, func, join
 from sqlalchemy.types import String, Integer, Float
 import json
 
@@ -351,6 +351,25 @@ class MySQLBinding(BaseDataBinding):
         except IntegrityError as e:
             pass
             #print "Sticky mapping already exist with another server"
+            
+            
+    @dbsessionhandler
+    def remove_stickykeys(self, sess, server_adress, stickyvalues, load = None):
+        pass
+        
+#        try:
+#            sess.query(StickyMapping).select_from(join(Server, StickyMapping))\
+#                        .filter(Server.unique_key == server_adress).all() #.delete(synchronize_session='fetch')
+#            if load:
+#                sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
+#            sess.commit()
+#        except Exception as e:
+#            print "Exception occured ", e
+    
+    
+    @dbsessionhandler
+    def remove_all_stickykeys(self, sess, server_adress, load = None):
+        pass
         
 
     @dbsessionhandler

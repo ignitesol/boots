@@ -1,4 +1,8 @@
 from fabric.datastore.datamodule import Server, MySQLBinding, StickyMapping
+from fabric.datastore.dbengine import DBConfig
+
+INI_FILE = '../conf/clustertestserver.ini'
+
 class ClearAllData:
 
     @classmethod
@@ -14,7 +18,15 @@ class ClearAllData:
         
 if __name__ == '__main__':
     try:
-        db = MySQLBinding()
+        dbtype = "mysql"
+        db_url = "mysql://cluster:cluster@localhost:3306/cluster"
+        pool_size = 100
+        max_overflow = 0
+        connection_timeout = 30
+        dbconfig = DBConfig(dbtype, db_url, pool_size, max_overflow, connection_timeout)
+            
+        
+        db = MySQLBinding(dbconfig)
         session = db.get_session()
         ClearAllData.delete(session)
         print "All data cleaned"
