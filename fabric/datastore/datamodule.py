@@ -42,13 +42,16 @@ class BaseDataBinding(object)  :
         pass
     
     
-def dbsessionhandler(fn):
+def dbsessionhandler(wrapped_fn):
     '''
     This decorator handles the creation and closing of the session object.
+    The parameter sess is passed in by default as the second parameter after self.
+    We dont need to pass it explicitly to the method while making call to the decorated
+    method.
     '''
     def wrapped(self, *args, **kwargs):
         sess = self.get_session()
-        retval = fn(self, sess,  *args, **kwargs)
+        retval = wrapped_fn(self, sess,  *args, **kwargs)
         sess.close()
         return retval
     return wrapped       
@@ -149,7 +152,7 @@ class DSWrapperObject(object):
         :param list stickyvalues: stickyvalues which is handled by this server
         :param str endpoint_key: uuid of the endpoint
         
-        :rtype: returns the unique id or the server which is the sever address with port
+        :returns: returns the unique id or the server which is the sever address with port
         '''
         if stickyvalues is None:
             raise Exception("Sticky values passed cannot be empty or None")
@@ -214,13 +217,8 @@ class MySQLBinding(BaseDataBinding):
     
     def __init__(self, dbconfig=None):
         super(MySQLBinding, self).__init__()
-        dbtype = "mysql"
-        db_url = "mysql://cluster:cluster@localhost:3306/cluster"
-        pool_size = 100
-        max_overflow = 0
-        connection_timeout = 30
         if not dbconfig:
-            dbconfig = DBConfig(dbtype, db_url, pool_size, max_overflow, connection_timeout)
+            raise Exception("Mysql not configured properly . Config parameters from the mysql are not provided in ini")
         self.engine = DatabaseEngineFactory(dbconfig)
     
         
@@ -250,6 +248,7 @@ class MySQLBinding(BaseDataBinding):
         '''
         This method get the data for the given server based on its server_address , which is the unique key per server
         :param server_adress: server address 
+        :returns the jsoned value of the current server state in the blob
         '''
         state = '{}'
         try:
@@ -279,6 +278,10 @@ class MySQLBinding(BaseDataBinding):
     
     @dbsessionhandler
     def get_current_load(self, sess, server_address):
+        '''
+        This method returns the current load of the server as it exist in the datastore
+        :param server_address:the address of the server which is the unique key
+        '''
         try:
             server = sess.query(Server).filter(Server.unique_key == server_address).one()
             return server.load
@@ -289,8 +292,9 @@ class MySQLBinding(BaseDataBinding):
     @dbsessionhandler
     def get_server_by_stickyvalue(self, sess, stickyvalues, endpoint_key):
         '''
-        This method server which handles the stickyvalue passes
-        :param stickyvalue: 
+        This method returns the server which handles the stickyvalue and 
+        :param stickyvalue: the sticky value string.
+        :param endpoint_key: unique value of the endpoint key
         '''
         if not stickyvalues:
             return None
@@ -347,6 +351,7 @@ class MySQLBinding(BaseDataBinding):
     def get_least_loaded(self, sess, servertype):
         '''
         This method finds the least loaded server of the given type
+        :param servertype: the server type for which we want to find the least loaded server. 
         '''
         min_loaded_server = None
         min_load = sess.query(func.min(Server.load)).filter(Server.server_type == servertype ).one()
