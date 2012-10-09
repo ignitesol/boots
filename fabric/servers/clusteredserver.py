@@ -7,7 +7,7 @@ Also each server has access to common datastore
 '''
 from __future__ import division
 from fabric import concurrency
-from fabric.datastore import truncate_cluster_data
+#from fabric.datastore import truncate_cluster_data
 from fabric.datastore.datamodule import MySQLBinding
 from fabric.datastore.dbengine import DBConfig
 from fabric.endpoints.cluster_ep import ClusteredPlugin
@@ -191,14 +191,14 @@ class ClusteredServer(HybridServer):
         This method will cleanup the sticky mapping and update the new load.
         This needs to be called by the application when it is done with processing and stickyness needs to be removed
         '''
-        truncate_cluster_data.ClearAllData.delete(self.datastore.get_session())
+        #truncate_cluster_data.ClearAllData.delete(self.datastore.get_session())
         pass
     
     def cleanupall(self):
         '''
         This method removes all the sticky-ness present for this server 
         '''
-        truncate_cluster_data.ClearAllData.delete(self.datastore.get_session())
+        #truncate_cluster_data.ClearAllData.delete(self.datastore.get_session())
         pass
             
     def get_least_loaded(self, servertype=None, server_adress=None):

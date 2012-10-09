@@ -41,8 +41,7 @@ class _DatabaseEngine :
     def create_engine(self, dbconfig):
         '''
         This method creates the dbengine and Configured "Session" class
-        @param dbconfig :dbconfig object , which cotains all the configuration 
-        @type dbconfig : DBConfig  
+        :param dbconfig :dbconfig object , which cotains all the configuration 
         '''
         dbtype = dbconfig.dbtype
         db_url = dbconfig.db_url

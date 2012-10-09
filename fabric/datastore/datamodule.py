@@ -218,7 +218,13 @@ class MySQLBinding(BaseDataBinding):
     def __init__(self, dbconfig=None):
         super(MySQLBinding, self).__init__()
         if not dbconfig:
-            raise Exception("Mysql not configured properly . Config parameters from the mysql are not provided in ini")
+            dbtype = "mysql"
+            db_url = "mysql://aaaa:bbbbb@cccccc:3306/dddddd"
+            pool_size = 100
+            max_overflow = 0
+            connection_timeout = 30
+            dbconfig = DBConfig(dbtype, db_url, pool_size, max_overflow, connection_timeout)
+            #raise Exception("Mysql not configured properly . Config parameters from the mysql are not provided in ini")
         self.engine = DatabaseEngineFactory(dbconfig)
     
         
