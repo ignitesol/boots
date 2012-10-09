@@ -44,7 +44,7 @@ class ClusteredEP(HTTPServerEndPoint):
         
 class ClusteredServer(HybridServer):
     '''
-    ClusteredServer provides inbuilt capabilities over and above HTTPServer for clustering
+    ClusteredServer provides inbuilt capabilities over and above HybridServer for clustering
     '''
 
     def __init__(self, servertype=None, clustered=False, endpoints=None, stickykeys=None, ds='ds', **kargs):
@@ -56,9 +56,9 @@ class ClusteredServer(HybridServer):
         :param endpoints: Endpoint definition provided by cluster server by itself
         :param stickykeys: It provides way to create the sticky value. This param can be a string param , or tuple of params or list of tuples or 
                            method that defines the creation of sticky value (the method will take all the parameters passed and will create the sticky 
-                           value). If the list of tuple params are given, we form  the sticky value based on whicherver we find first and update based 
+                           value). If the list of tuple params are given, we form  the sticky value based on whichever we find first and update based 
                            on all the sticky values created from the list of param-tuple
-        :param str ds: This is the name of the paramter , which will be used to refer the datastore_wrapper object. This gives the handle to the application
+        :param ds: This is the name of the parameter , which will be used to refer the datastore_wrapper object. This gives the handle to the application
                         server to manipulate the data.
         '''
         self.clustered = clustered
@@ -206,7 +206,7 @@ class ClusteredServer(HybridServer):
         This method gets the least loaded server of the given servertype 
         :param servertype: this parameters contains the type of server
         
-        :rtype: returns the unique id or the server which is the sever adress with ports
+        :returns: the unique id or the server which is the sever address with ports
         '''
         servertype = servertype or self.servertype
         server =  self.datastore.get_least_loaded(servertype)
@@ -218,9 +218,9 @@ class ClusteredServer(HybridServer):
         This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
         by the correct server. 
         :param list stickyvalues: stickyvalues which is handled by this server
-        :param str endpoint_key: uuid of the endpoint
+        :param endpoint_key: uuid of the endpoint
         
-        :rtype: returns the unique id or the server which is the sever address with port
+        :returns: the unique id or the server which is the sever address with port
         '''
         if stickyvalues is None:
             return None
@@ -236,6 +236,6 @@ class ClusteredServer(HybridServer):
         this method to transform the stickyvalues in a way it needs
         :param value_tuple: the tuple of values to be converted
         
-        :rtype: return the string of transformed stickyvalue
+        :returns: the string of transformed stickyvalue
         '''
         return STICKY_VALUE_SEP.join(str(v) for v in value_tuple)
