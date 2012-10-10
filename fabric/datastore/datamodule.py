@@ -3,39 +3,49 @@ This is base module for writing the data binding for cluster server
 We will have either mysql / redis or any other type of persistent type of data binding
 '''
 from fabric.datastore.dbengine import DBConfig, DatabaseEngineFactory
-from sqlalchemy import Column, schema as saschema, schema, types
+from sqlalchemy import Column, schema as saschema
 from sqlalchemy.dialects.mysql.base import LONGTEXT
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
-from sqlalchemy.schema import UniqueConstraint, ForeignKey, ForeignKeyConstraint
+from sqlalchemy.schema import  ForeignKey
 from sqlalchemy.sql.expression import and_, func, join
 from sqlalchemy.types import String, Integer, Float
 import json
 
 class BaseDataBinding(object)  :
+	
+    '''
+	These are the methods that any data store should define and do the exact logic
+	in-order to be able to be used 
+	'''
     
     def __init__(self, **kwargs):
         pass
-    
-    
+        
     def createdata(self, server_adress, servertype):
         pass
     
-    
     def get_server_state(self, server_adress):
         pass
-    
-    def save_updated_data(self, server_adress, endpoint_key, endpoint_name, stickyvalues, load, server_state=None):
+       
+    def set_server_state(self, server_adress, server_state):
         pass
-    
-    def update_stickyvalue(self, server_adress, stickyvalue):
+       
+    def get_current_load(self, server_address):
         pass
-    
-    
-    def get_server_by_stickyvalue(self, stickyvalue):
+       
+    def get_server_by_stickyvalue(self, stickyvalues, endpoint_key):
+        pass
+     
+    def save_updated_data(self, server_adress, endpoint_key, endpoint_name, stickyvalues, load, server_state):
+        pass
+       
+    def remove_stickykeys(self, server_adress, stickyvalues, load):
+        pass
+       
+    def remove_all_stickykeys(self, server_adress, load):
         pass
     
     def get_least_loaded(self, servertype):
@@ -208,7 +218,6 @@ class DSWrapperObject(object):
                     self.stickymappinglist += [stickyvalue] if type(stickyvalue) is str else stickyvalue 
                     self.dirty = True
             
-        
     
 class MySQLBinding(BaseDataBinding):
     
@@ -218,8 +227,9 @@ class MySQLBinding(BaseDataBinding):
     def __init__(self, dbconfig=None):
         super(MySQLBinding, self).__init__()
         if not dbconfig:
+        	#Read from ini files
             dbtype = "mysql"
-            db_url = "mysql://aaaa:bbbbb@cccccc:3306/dddddd"
+            db_url = "mysql://cluster:cluster@localhost:3306/cluster"
             pool_size = 100
             max_overflow = 0
             connection_timeout = 30
@@ -355,16 +365,14 @@ class MySQLBinding(BaseDataBinding):
             
     @dbsessionhandler
     def remove_stickykeys(self, sess, server_adress, stickyvalues, load = None):
-        pass
-        
-#        try:
-#            sess.query(StickyMapping).select_from(join(Server, StickyMapping))\
-#                        .filter(Server.unique_key == server_adress).all() #.delete(synchronize_session='fetch')
-#            if load:
-#                sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
-#            sess.commit()
-#        except Exception as e:
-#            print "Exception occured ", e
+
+        try:
+            sess.query(StickyMapping).select_from(join(Server, StickyMapping).onclause(Server.server_id == StickyMapping.server_id)).filter(Server.unique_key == 'aurora.ignitelabs.local:4000', StickyMapping.sticky_value == 'abcd:localhost:123').all() #.delete(synchronize_session='fetch')
+            if load:
+                sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
+            sess.commit()
+        except Exception as e:
+            print "Exception occured ", e
     
     
     @dbsessionhandler
@@ -384,10 +392,15 @@ class MySQLBinding(BaseDataBinding):
             min_loaded_server = sess.query(Server).filter(Server.load == min_load[0] ).first()
         return min_loaded_server
     
-    
+
+
+# Following defined ORM mapping with the relational database
+
 #logging.basicConfig()
 #logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+
 Base = declarative_base(bind = MySQLBinding().engine.engine)
+
 
 class Server(Base):
     ''' mapping class for server table'''
@@ -398,12 +411,12 @@ class Server(Base):
     server_state = Column(LONGTEXT)
     load =  Column(Float)
     
-    stickymapings = relationship("StickyMapping",
-                collection_class=attribute_mapped_collection('sticky_mapping_key'),
-                backref="server",
-                cascade="all, delete-orphan")
-   
     __table_args__  = ( saschema.UniqueConstraint("unique_key"), {} ) 
+    stickymapping = relationship("StickyMapping",
+                cascade="all, delete-orphan",
+                passive_deletes=True,
+                backref="server"
+                )
     
     def __init__(self, server_type, unique_key, server_state, load ):
         self.server_type = server_type
@@ -416,7 +429,7 @@ class Server(Base):
             (self.server_type, str(self.unique_key), str(self.server_state), str(self.load))
         
 class StickyMapping(Base):
-    ''' mapping class for stickypaping table'''
+    ''' mapping class for stickypping table'''
     __tablename__ = 'stickymapping'
     
     mapping_id = Column(Integer, primary_key=True)
@@ -426,6 +439,7 @@ class StickyMapping(Base):
     sticky_value = Column(String(500))
     
     __table_args__  = ( saschema.UniqueConstraint("server_id", "endpoint_name", "sticky_value", ), {} ) 
+
     
     @property
     def sticky_mapping_key(self):
@@ -441,47 +455,11 @@ class StickyMapping(Base):
         return "<StickyMapping (server_id, endpoint_key, endpoint_name, sticky_value)('%s', '%s', '%s', '%s')>" % \
             (self.server_id, str(self.endpoint_key), str(self.endpoint_name), str(self.sticky_value))
 
-    
-def create_server(metadata):
-    server = schema.Table('server', metadata,
-    schema.Column('server_id', types.Integer,
-        schema.Sequence('server_seq_id', optional=False), primary_key=True),
-    schema.Column('server_type', types.VARCHAR(200), nullable=False),
-    schema.Column('unique_key', types.VARCHAR(200), nullable=False),
-    schema.Column('server_state', LONGTEXT , nullable=True),
-    schema.Column('load', types.Float, nullable=True ), 
-    mysql_engine='InnoDB'
-    )
-    server.append_constraint(UniqueConstraint("unique_key"))
-    server.create(checkfirst=True)
-    
-def create_stickymapping(metadata):
-    stickymapping = schema.Table('stickymapping', metadata,
-    schema.Column('mapping_id', types.Integer,
-                    schema.Sequence('stickymapping_seq_id', optional=False), primary_key=True),
-    schema.Column('server_id', types.Integer, ForeignKey("server.server_id", ondelete="CASCADE"), onupdate="CASCADE"),
-    schema.Column('endpoint_key', types.VARCHAR(100), nullable=True),
-    schema.Column('endpoint_name', types.VARCHAR(100), nullable=True),
-    schema.Column('sticky_value', types.VARCHAR(500), nullable=True),
-    mysql_engine='InnoDB'
-    )
-    
-    ForeignKeyConstraint(
-                ['server_id'],
-                ['server.server_id'],
-                use_alter=True,
-                name='fk_server_id',
-                onupdate="CASCADE",
-                ondelete="CASCADE"
-            )
-    stickymapping.append_constraint(UniqueConstraint("server_id", "sticky_value"))
-    stickymapping.append_constraint(UniqueConstraint("endpoint_name", "sticky_value"))
-    stickymapping.create(checkfirst=True)
-    
+   
 if __name__ == '__main__':
-    
-    db = MySQLBinding().engine.engine
-    db.echo = True
-    metadata = schema.MetaData(db)
-    create_server(metadata)
-    create_stickymapping(metadata)
+    try:
+        Base.metadata.create_all(checkfirst=False)
+    except OperationalError:
+        print 'Cluster: Dropping Tables and Re-Creating'
+        Base.metadata.drop_all(checkfirst=True)
+        Base.metadata.create_all(checkfirst=True)
