@@ -7,15 +7,14 @@ from sqlalchemy import Column, schema as saschema
 from sqlalchemy.dialects.mysql.base import LONGTEXT
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, join
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.schema import  ForeignKey
-from sqlalchemy.sql.expression import and_, func, join
+from sqlalchemy.sql.expression import and_, func
 from sqlalchemy.types import String, Integer, Float
 import json
 
 class BaseDataBinding(object)  :
-	
     '''
 	These are the methods that any data store should define and do the exact logic
 	in-order to be able to be used 
@@ -227,7 +226,7 @@ class MySQLBinding(BaseDataBinding):
     def __init__(self, dbconfig=None):
         super(MySQLBinding, self).__init__()
         if not dbconfig:
-        	#Read from ini files
+            #Read from ini files
             dbtype = "mysql"
             db_url = "mysql://cluster:cluster@localhost:3306/cluster"
             pool_size = 100
@@ -251,7 +250,7 @@ class MySQLBinding(BaseDataBinding):
             server = Server(servertype, server_adress, '', 0)
             sess.add(server)
             sess.commit()
-        except IntegrityError as e:
+        except IntegrityError:
             #This error will occur when we are in start mode. We will clear server_state by updating it to empty dict
             sess.rollback()
             sess.query(Server).filter(Server.unique_key == server_adress)\
@@ -354,30 +353,60 @@ class MySQLBinding(BaseDataBinding):
     
     @dbsessionhandler
     def _add_sticky_record(self, sess, server_id, endpoint_key, endpoint_name, stickyvalue):
+        '''
+    	This methods add the single sticky record in the database.
+    	:param server_id: the unique server id
+		:param endpoint_key: unique key of the endpoint
+		:param endpoint_name: name of the endpoint
+		:param stickyvalue: new sticky value, that we are trying to add
+    	'''
         try:
             sticky_record = StickyMapping(server_id, endpoint_key, endpoint_name, stickyvalue)
             sess.add(sticky_record)  
             sess.commit()
-        except IntegrityError as e:
+        except IntegrityError:
             pass
             #print "Sticky mapping already exist with another server"
             
             
     @dbsessionhandler
     def remove_stickykeys(self, sess, server_adress, stickyvalues, load = None):
+        '''
+    	This method removes the list of the sticky keys for the given server 
+    	:param server_adress: the unique server_adress
+		:param stickyvalues: list of new sticky values
+		:param load: load value that we want to update in datastore for this server
+    	'''
 
         try:
-            sess.query(StickyMapping).select_from(join(Server, StickyMapping).onclause(Server.server_id == StickyMapping.server_id)).filter(Server.unique_key == 'aurora.ignitelabs.local:4000', StickyMapping.sticky_value == 'abcd:localhost:123').all() #.delete(synchronize_session='fetch')
+            sticky_mappings = sess.query(StickyMapping).select_from(join(Server, StickyMapping))\
+            					.filter(Server.unique_key == server_adress, StickyMapping.sticky_value.in_(stickyvalues)).all()
+            sess.query(StickyMapping).filter(StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
+            					.delete(synchronize_session='fetch')
+            
             if load:
                 sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
             sess.commit()
-        except Exception as e:
-            print "Exception occured ", e
+        except Exception:
+            pass
     
     
     @dbsessionhandler
     def remove_all_stickykeys(self, sess, server_adress, load = None):
-        pass
+        '''
+    	This method removes all the sticky keys for this server and optionally update the load for this server
+    	:param server_adress: the unique server_adress
+		:param load: load value that we want to update in datastore for this server
+    	'''
+        try:
+            sticky_mappings = sess.query(StickyMapping).select_from(join(Server, StickyMapping)).all()
+            sess.query(StickyMapping).filter(StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
+            					.delete(synchronize_session='fetch')
+            if load:
+                sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
+            sess.commit()
+        except Exception:
+            pass
         
 
     @dbsessionhandler
@@ -438,7 +467,9 @@ class StickyMapping(Base):
     endpoint_name = Column(String(100))
     sticky_value = Column(String(500))
     
-    __table_args__  = ( saschema.UniqueConstraint("server_id", "endpoint_name", "sticky_value", ), {} ) 
+
+    __table_args__  = ( saschema.UniqueConstraint("server_id", "sticky_value" ),
+					    saschema.UniqueConstraint("endpoint_name", "sticky_value" ), {} ) 
 
     
     @property
@@ -451,9 +482,10 @@ class StickyMapping(Base):
         self.endpoint_name = endpoint_name
         self.sticky_value = sticky_value   
         
+        
     def __repr__(self):
-        return "<StickyMapping (server_id, endpoint_key, endpoint_name, sticky_value)('%s', '%s', '%s', '%s')>" % \
-            (self.server_id, str(self.endpoint_key), str(self.endpoint_name), str(self.sticky_value))
+        return "<StickyMapping (mapping_id, server_id, endpoint_key, endpoint_name, sticky_value)('%s', '%s', '%s', '%s')>" % \
+            (self.mapping_id , self.server_id, str(self.endpoint_key), str(self.endpoint_name), str(self.sticky_value))
 
    
 if __name__ == '__main__':
