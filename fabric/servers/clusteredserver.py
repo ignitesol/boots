@@ -7,15 +7,14 @@ Also each server has access to common datastore
 '''
 from __future__ import division
 from fabric import concurrency
-#from fabric.datastore import truncate_cluster_data
-from fabric.datastore.mysql_datastore import MySQLBinding
-from fabric.datastore.dbengine import DBConfig
+from fabric.datastore.datastore_manager import get_datastore
 from fabric.endpoints.cluster_ep import ClusteredPlugin
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.servers.hybrid import HybridServer
 import argparse
 import logging
 import os
+#from fabric.datastore import truncate_cluster_data
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -107,14 +106,18 @@ class ClusteredServer(HybridServer):
     def pre_activate_hook(self):
         super(ClusteredServer, self).pre_activate_hook()
         self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port']) + getattr(self, 'mount_prefix', '') 
-        if self.cmmd_line_args['restart']:
-            self.restart = True
-            logging.getLogger().debug("server restarted after crash. read blob from db and set it to server_state")
-            print "server address : ", self.server_adress
-            self.server_state = self.datastore.get_server_state(self.server_adress)
-            self.prepare_to_restart(self.server_state)
-        else:
-            self.create_data() # This will create data if doesn't exist else updates if update flag is passed
+        #check if datastore is properly configured via init (in-case it is now , we default to  non-clustered module)
+        if self.datastore:
+            if self.cmmd_line_args['restart']:
+                self.restart = True
+                logging.getLogger().debug("Server restarted after crash. read blob from db and set it to server_state")
+                print "server address : ", self.server_adress
+                self.server_state = self.datastore.get_server_state(self.server_adress)
+                self.prepare_to_restart(self.server_state)
+            else:
+                self.create_data() # This will create data if doesn't exist else updates if update flag is passed
+            
+            
             
     def post_activate_hook(self):
         super(ClusteredServer, self).post_activate_hook()
@@ -128,11 +131,12 @@ class ClusteredServer(HybridServer):
         This also checks if this start of the server is a restart, if it is then reads the server_state from server record
         This is set as server object. This state is used by the application to recover its original server state
         '''
-        clusterdb = config_obj['MySQLConfig']
-        dbtype = clusterdb['dbtype']
-        db_url = dbtype + '://'+ clusterdb['dbuser']+ ':' + clusterdb['dbpassword'] + '@' + clusterdb['dbhost'] + ':' + str(clusterdb['dbport']) + '/' + clusterdb['dbschema']
-        dbconfig =  DBConfig(dbtype, db_url, clusterdb['pool_size'], clusterdb['max_overflow'], clusterdb['connection_timeout'])
-        self.datastore = MySQLBinding(dbconfig)
+        self.datastore = get_datastore( config_obj['Datastore']['datastore'] , config_obj)
+        if not self.datastore:
+            #the server won't be clustered in-case the datastore configuration is messed
+            self.clustered = False
+            logging.getLogger().debug('Misconfigured datastore . Fallback to non-cluster mode.')
+            print 'Misconfigured datastore  . Fallback to non-cluster mode.'
         logging.getLogger().debug('Cluster database config updated')
         
     def get_standard_plugins(self, plugins):
