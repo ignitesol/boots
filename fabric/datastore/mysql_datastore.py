@@ -196,8 +196,9 @@ class MySQLBinding(BaseDatastore):
         try:
             sticky_mappings = sess.query(StickyMapping).select_from(join(Server, StickyMapping))\
             					.filter(Server.unique_key == server_adress, StickyMapping.sticky_value.in_(stickyvalues)).all()
-            sess.query(StickyMapping).filter(StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
-            					.delete(synchronize_session='fetch')
+            if sticky_mappings:
+                sess.query(StickyMapping).filter(StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
+                					.delete(synchronize_session='fetch')
             
             if load:
                 sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
