@@ -1,4 +1,4 @@
-from fabric.datastore.datamodule import Server, MySQLBinding, StickyMapping
+from fabric.datastore.mysql_datastore import Server, MySQLBinding, StickyMapping
 from fabric.datastore.dbengine import DBConfig
 
 INI_FILE = '../conf/clustertestserver.ini'

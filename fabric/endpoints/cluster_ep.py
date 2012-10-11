@@ -1,5 +1,5 @@
 from fabric import concurrency
-from fabric.datastore.datamodule import DSWrapperObject
+from fabric.datastore.datawrapper import DSWrapperObject
 from fabric.endpoints.http_ep import BasePlugin
 from functools import wraps
 import bottle

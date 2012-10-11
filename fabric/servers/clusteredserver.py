@@ -8,7 +8,7 @@ Also each server has access to common datastore
 from __future__ import division
 from fabric import concurrency
 #from fabric.datastore import truncate_cluster_data
-from fabric.datastore.datamodule import MySQLBinding
+from fabric.datastore.mysql_datastore import MySQLBinding
 from fabric.datastore.dbengine import DBConfig
 from fabric.endpoints.cluster_ep import ClusteredPlugin
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
