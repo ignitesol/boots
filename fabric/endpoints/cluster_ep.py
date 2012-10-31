@@ -1,5 +1,5 @@
 from fabric import concurrency
-from fabric.datastore.datamodule import DSWrapperObject
+from fabric.datastore.datawrapper import DSWrapperObject
 from fabric.endpoints.http_ep import BasePlugin
 from functools import wraps
 import bottle
@@ -15,13 +15,15 @@ class Atomic(object):
 
 class ClusteredPlugin(BasePlugin):
     '''
-    A ClusteredPlugin is a  plugin to execute check if request is handled by this server 
-    If not find out the correct server and redirects to that server
+    A ClusteredPlugin is a  plugin to execute check if request can be handled by this server.
+    The stickiness by a virtue of sticky-keys in the request , determines whether the request can be handled by 
+    this server. If there are no sticky keys we find the server with minimum load and proxy it to the corresponding server, which 
+    will handle this request. At the end of request the stickiness is injected into the system by cluster module for subsequent request
     '''
   
     def __init__(self, datastore=None, ds='ds'):
         '''
-        :param datastore: The datastore object 
+        :param datastore: The datastore object that is used to communicate with datastore
         :param ds: parameter name of the data-wrapper-object thats passed to application. 
                     This object can be used by application to update the sticky value for this request
         '''
@@ -64,17 +66,16 @@ class ClusteredPlugin(BasePlugin):
                         with Atomic.lock: # Do we really need at this level
                             server_adress = server.get_least_loaded(server.servertype, server.server_adress)
                             ds_wrapper.server_address = server_adress
-                        
+                    res = None    
                     if server_adress != server.server_adress: 
                         destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
                                                 bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
-                        print "proxying to destination server: ", destination_url
                         headers = bottle.request.headers.environ
                         cookies = bottle.request.COOKIES.dict
                         getparams = bottle.request.GET.dict
                         postparams = bottle.request.POST.dict
                         res = self._make_proxy_call(server_adress, headers, cookies, getparams, postparams)
-                        return res
+                    if res:return res # return if there is response 
                         
                 # If method-route expects the param then add the ds_wrapper with the param named defined in the plugin
                 if self.ds in callback._signature[0]:
@@ -103,10 +104,14 @@ class ClusteredPlugin(BasePlugin):
     
     def  _get_stickyvalues(self, server, sticky_keys,  paramdict):
         '''
-        This method creates the stickyvalues based on the paramaters provided
+        This method creates the stickyvalues based on the paramaters provided in the paramdict and the type of
+        combination which defines the stciky keys as given in sticky_keys
+        :param server: server object reference, it defines how sticky values are combined together to get a sticky_value string
+        :param sticky_keys: list of sticky keys which are used to make the sticky_key_values . 
+                            This can be string, list, tuple or a callable
         :param dict paramdict: this is the dict of all the parameters provided for this route
         
-        :rtype: returns the list of sticky values that needs to be updated to the 
+        :returns: returns the list of sticky values that needs to be updated to the datastore
         '''
         stickyvalues = [] # this is list of stickyvalues
         if type(sticky_keys) is str:
@@ -138,28 +143,36 @@ class ClusteredPlugin(BasePlugin):
         :param tuple key_tuple: the tuple of keys which are used for the extracting the corresponding values
         :param dict paramdict: the dict of param which contains the values if they exist
         
-        :rtype: return the tuple if all the values are present else return None
+        :returns: return the tuple if all the values are present else return None
         '''
         try:
             return tuple([ paramdict[key] for key in key_tuple ])
         except KeyError:
             return None 
-        
-        
-    def _update_stickyobj(self, *args, **kwargs):
-        pass
-    
+
     
     def _make_proxy_call(self, server_adress , headers, cookies, getparams, postparams):
         #server_adress = "localhost:8870"
         '''
         This method makes the proxy call to the destination serever
+        :param server_adress: the server address to which we want to proxy the request
+        :param headers: the server header from the request
+        :param cookies: the cookies from the current request
+        :param getparams : all the get parameters
+        :param postparams : all the post params
+        
+        :returns: the response that is returned from the proxied server 
         '''
         
         destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
                                                     bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
         
         data = postparams if postparams else None
-        req = urllib2.Request(destination_url, data, headers)
-        res = urllib2.urlopen(req)
-        return res.read()
+        ret_val = None
+        try:
+            req = urllib2.Request(destination_url, data, headers)
+            res = urllib2.urlopen(req)
+            ret_val = res.read()
+        except Exception as e:
+            pass
+        return ret_val

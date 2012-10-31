@@ -18,9 +18,7 @@ class DBConfig(object):
     This contains the configurable elements for database
     '''
     
-    def __init__(self,\
-                  dbtype='mysql', db_url="mysql://cluster:cluster@localhost:3306/cluster" , \
-                  pool_size=100, max_overflow=0, connection_timeout=100):
+    def __init__(self, dbtype, db_url , pool_size=100, max_overflow=0, connection_timeout=100):
         self.dbtype = dbtype
         self.db_url = db_url
         self.pool_size = pool_size
@@ -41,8 +39,7 @@ class _DatabaseEngine :
     def create_engine(self, dbconfig):
         '''
         This method creates the dbengine and Configured "Session" class
-        @param dbconfig :dbconfig object , which cotains all the configuration 
-        @type dbconfig : DBConfig  
+        :param dbconfig :dbconfig object , which cotains all the configuration 
         '''
         dbtype = dbconfig.dbtype
         db_url = dbconfig.db_url
