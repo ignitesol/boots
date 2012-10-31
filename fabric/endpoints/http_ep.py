@@ -22,21 +22,25 @@ Refer to :doc:`tutorial` for further examples.
 from fabric import concurrency
 
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock
- 
-import logging
-import bottle
-import re
-import inspect
-from functools import wraps
-from fabric.endpoints.endpoint import EndPoint
+
 from fabric.common.utils import new_counter
-import traceback
-import sys
+from fabric.endpoints.endpoint import EndPoint
+from functools import wraps
+import bottle
+import inspect
+import logging
 import os
+import re
+import sys
+import traceback
+
+try: from collections import MutableMapping as DictMixin
+except ImportError: # pragma: no cover
+    from UserDict import DictMixin
+ 
 
 # leverages bottle.
 
@@ -64,8 +68,9 @@ class BasePlugin(object):
         :param callback: the callback passed to the decorator (i.e. the actual method/function that will be decorated)
         :param wrapper: the wrapper function that wraps callback (in plugins this is typically called *wrapper*)
         '''
-        wrapper._signature = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
-        wrapper._callback_obj = callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+#        wrapper._signature = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
+#        wrapper._callback_obj = callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        pass
         
     def get_callback_obj(self, callback):
         '''
@@ -218,6 +223,7 @@ class Hook(BasePlugin):
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             request_context = self.create_request_context(callback=callback, url=bottle.request.url, **kargs)
             exception = None 
+            # ignore return value in before case
             self.handler(before_or_after='before', request_context=request_context, callback=callback, url=bottle.request.url, **kargs)
             try:
                 result = callback(*args, **kargs)
@@ -225,7 +231,7 @@ class Hook(BasePlugin):
                 exception = e
                 result=None
             finally:
-                self.handler(before_or_after='after', request_context=request_context, callback=callback, url=bottle.request.url, 
+                result = self.handler(before_or_after='after', request_context=request_context, callback=callback, url=bottle.request.url, 
                              result=result, exception=exception, **kargs)
                 if exception:
                     raise
@@ -255,6 +261,7 @@ class Tracer(Hook):
                 logging.getLogger().debug('Response: %s. Exception = %s. [ url = %s, %s ]', req_count, exception, url, kargs)
             else:
                 logging.getLogger().debug('Response: %s. Result = %s. [ url = %s, %s ]', req_count, result, url, kargs)
+        return result # just return what we got as result so it can be passed on
         
     def __init__(self, tracer_paths=['.*'], handler=None):
         '''
@@ -265,6 +272,25 @@ class Tracer(Hook):
             tracer_paths =  [ tracer_paths ]
         self.tracer_paths = map(re.compile, tracer_paths or [])
         super(Tracer, self).__init__(handler=handler)
+        
+class View(Hook):
+    def handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
+        if before_or_after == 'after' and isinstance(result, (dict, DictMixin)):
+            tplvars = self.defaults.copy()
+            tplvars.update(result)
+            endpoint = callback.im_self
+            tpl = os.path.join(endpoint.server.config["_proj_dir"], self.tpl_name)
+            result = bottle.template(tpl, result)
+        return result
+        
+    def __init__(self, tpl_name, **defaults):
+        '''
+        :param tracer_paths: a list of regular expressions that will be matched with the url. None or empty list indicates match nothing. defaults to match everything. 
+        :param handler: if required, a handler that will be invoked to trace the requests/responses
+        '''
+        self.defaults = defaults
+        self.tpl_name = tpl_name
+        super(View, self).__init__(handler=self.handler)
     
 class WrapException(BasePlugin):
     '''
@@ -317,7 +343,7 @@ class WrapException(BasePlugin):
                     errstr += "{}:{} in {}: {}<br/>".format(file, line, f, text)
     
                 if handler:
-                    err_ret=handler(errstr, qstr, *args, **kargs)
+                    err_ret = handler(errstr, qstr, exception=err, *args, **kargs)
                 for f in cleanup_funcs:
                     try:
                         f(qstr, *args, **kargs)
@@ -330,8 +356,6 @@ class WrapException(BasePlugin):
 
         self.plugin_post_apply(callback, wrapper)
         return wrapper
-       
-
 
 # decorators for allowing routes to be setup and handled by instance methods
 # credit to http://stackoverflow.com/users/296069/skirmantas
@@ -454,7 +478,7 @@ class HTTPServerEndPoint(EndPoint):
         :param bool activate: whether to activate this endpoint on creation or later through an explicit 
             :py:meth:`activate` call
         '''
-
+        super(HTTPServerEndPoint, self).__init__(server=server)
         self.name = name = name or self._name_prefix + str(HTTPServerEndPoint._counter())
         self.mountpoint = mountpoint
         self.plugins = getattr(self, 'plugins', []) + (plugins or []) # in case plugins have already been set up
@@ -527,6 +551,19 @@ class HTTPServerEndPoint(EndPoint):
         return bottle.request.POST if bottle.request.method == 'POST' or bottle.request.method == 'ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
     
     @property
+    def request_params_as_dict(self):
+        '''
+        returns request params as a dict instead of multidict. Multi-valued items will be returned as a list
+        '''
+        params = self.request_params
+        d = {}
+        for k in params.keys():
+            d[k] = params.getall(k)
+            if len(d[k]) == 1:
+                d[k] = d[k][0] # drop the list of single valued params
+        return d
+    
+    @property
     def session(self):
         '''
         returns a session related to this request if one is configured. Else, returns None
@@ -560,3 +597,33 @@ class HTTPServerEndPoint(EndPoint):
         '''
         return bottle.request.COOKIES
     
+    @property
+    def host(self):
+        '''
+        returns the scheme :// actual-host of the request. Note - this returns the host that was part of the original  
+        query from the client (before load balancing and proxy manipulation if any)
+        If you get confusing results, ensure X-Forwarded-Hosts is set properly
+        '''
+        scheme, host, _, _, _ = bottle.request.urlparts
+        return '://'.join([scheme, host])  
+        
+    @property
+    def server_name(self):
+        '''
+        returns the scheme :// original host of the request. 
+        If you get confusing results, ensure X-Forwarded-Hosts
+        is set properly
+        '''
+        scheme = bottle.request.urlparts()[0] 
+        return '://'.join([scheme, self.environ['SERVER_NAME']])
+    
+    def selected_cookies(self, keys=None):
+        '''
+        returns a dict of selected cookies that match keys. keys can be a string, a regular expression, a list of strings or regular expressions
+        if keys is None, returns all cookies
+        
+        :param keys: (default None which implies all cookies). A string/re or a list of string/re to match the cookie keys
+        '''
+        if not keys: keys = [ '.*' ] # match all
+        if not hasattr(keys, '__iter__'): keys = [ keys ] # make a list if one does not exist
+        return dict([ (ck, cv) for k in keys for (ck, cv) in self.cookies.iteritems() if re.match(k, ck, flags=re.IGNORECASE)])

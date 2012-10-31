@@ -5,13 +5,6 @@ through which they communicate (receive and send).
 
  
 '''
-from fabric import concurrency
-
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
-elif concurrency == 'threading':
-    pass
-
 from warnings import warn
 import inspect
 import sys
@@ -19,8 +12,9 @@ import os
 import functools
 from fabric.servers.helpers.serverconfig import ServerConfig
 from logging.config import dictConfig
+import logging
 
-from fabric.common.utils import new_counter
+from fabric.common.utils import new_counter, generate_uuid
 
 class Server(object):
     '''
@@ -80,6 +74,20 @@ class Server(object):
         self._proj_dir = None
         logger = kargs.get('logger', False)
         if logger: self.__class__.config_callbacks['Logging'] = Server._logger_config_update # defined in this class
+        self.uuid = generate_uuid()
+        
+    def add_endpoint(self, endpoint):
+        '''
+        Simply add to the list of endpoints if it does not already exist. assumes an activated endpoint is being added if the server has already been activated
+        '''
+        if endpoint.uuid not in [ e.uuid for e in self.endpoints ]:
+            self.endpoints += [ endpoint ]
+    
+    def remove_endpoint(self, endpoint):
+        '''
+        Remove an endpoint from the list
+        '''
+        self.endpoints = list(filter(lambda e: endpoint.uuid != e.uuid, self.endpoints))
         
     def add_sub_server(self, server, mount_prefix=None):
         '''
@@ -121,15 +129,18 @@ class Server(object):
         
         if self.is_master:
             self.cmmd_line_args = self.parse_cmmd_line(description, **kargs)
-                
+            
         if self.is_master:
             self.configure(proj_dir=proj_dir, conf_subdir=conf_subdir, config_files=config_files)
         
+        self.pre_activate_hook()        
         self.activate_endpoints()
         self.start_all_sub_servers()
         
         if self.is_master:
+            Server.main_server = self
             self.start_main_server()
+        self.post_activate_hook() 
             
     # these can be overridden defined by the subclasses
     def activate_endpoints(self):
@@ -137,12 +148,24 @@ class Server(object):
         Activate this server's endpoints. This is typically overridden in subclasses
         '''
         pass
+    
+    def pre_activate_hook(self):
+        '''
+        This is hook to do pre-start processing
+        '''
+        pass
+    
+    def post_activate_hook(self):
+        '''
+        This is hook to do post-start processing
+        '''
+        pass
 
-    def start_all_sub_servers(self):
+    def start_all_sub_servers(self, **kargs):
         ''' starts all added sub_servers. This is **experimental** '''
-        [ server.start_server(parent_server=self) for server in self.sub_servers ]
+        [ server.start_server(parent_server=self, **kargs) for server in self.sub_servers ]
             
-    def start_main_server(self):
+    def start_main_server(self, **kargs):
         ''' Typically run after all endpoints of the master and sub_server are activated. This actually
             runs the main event loop (if any) for the servers. Typically overridden in subclasses '''
         pass
@@ -178,7 +201,10 @@ class Server(object):
             return self._proj_dir
 
         subdir = subdir or 'conf'        
-        root_module = inspect.stack()[-1][1]
+        root_module = getattr(self, "root_module", None)
+        if not root_module:
+            root_module = inspect.stack()[-1][1]
+            warn('Did not find Server.root_module. Using %s' % (root_module,))
         root_module = os.path.abspath(root_module)
         path_subset = [ os.path.abspath(s) for s in sys.path if root_module.startswith(os.path.abspath(s)) and os.path.exists(os.path.join(os.path.abspath(s), '..', subdir)) ]
         try:
@@ -189,7 +215,10 @@ class Server(object):
         
     def _get_config_files(self, conf_dir, config_file='<auto>'):
         if config_file == '<auto>':
-            root_module = inspect.stack()[-1][1]
+            root_module = getattr(self, "root_module", None)
+            if not root_module:
+                root_module = inspect.stack()[-1][1]
+                warn('Did not find Server.root_module. Using %s' % (root_module,))
             stem = os.path.splitext(os.path.basename(root_module))[0]
             config_file_stem = stem.replace('meta_', '')
             ext = '.ini'
@@ -309,5 +338,6 @@ class Server(object):
             warn('Cannot instantiate logging: %s' % (e,))
         except ValueError as e:
             warn('Incomplete logging configuration: %s' % (e,))
+        self.logger = logging.getLogger()
 
 

@@ -6,9 +6,8 @@ including basic argument processing, activating all endpoints and starting up th
 basic exception handling for requests, session, cache and authorization for the server.
 '''
 from fabric import concurrency
-from fabric.endpoints.http_ep import Tracer, WrapException, RequestParams
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
+from fabric.endpoints.http_ep import Tracer, WrapException, RequestParams,\
+    HTTPServerEndPoint
 
 import argparse
 import beaker.middleware as bkmw
@@ -87,15 +86,17 @@ class HTTPBaseServer(Server):
             host = kargs.get('default_host', None) or self.cmmd_line_args['host'] or '127.0.0.1'
             port = kargs.get('default_port', None) or self.cmmd_line_args['port'] or '9000'
             server = kargs.get('server', 'wsgiref')
+            quiet = kargs.get('quiet', True)
             if concurrency == 'gevent': server = 'gevent'
-    #        bottle.debug(True)
-            bottle.run(app=self, host=host, port=port, server=server)
+#            bottle.debug(True)
+            bottle.run(app=self, host=host, port=port, server=server, quiet=True)
 
     def activate_endpoints(self):
         '''
         Activate this server's endpoints
         '''
-        [ endpoint.activate(server=self, mount_prefix=self.mount_prefix) for endpoint in self.endpoints ]
+        [ endpoint.activate(server=self, mount_prefix=self.mount_prefix) for endpoint in self.endpoints if isinstance(endpoint, HTTPServerEndPoint)]
+        super(HTTPBaseServer, self).activate_endpoints()
 
 
 class HTTPServer(HTTPBaseServer):
@@ -114,6 +115,7 @@ class HTTPServer(HTTPBaseServer):
     config_callbacks = { }  # we can set these directly out of the class body or in __init__
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
+                 session=False, cache=False, auth=False, handle_exception=False,
                  **kargs):
         '''
         :params bool session: controls whether sessions based on configuration ini should be instantiated. sessions
@@ -128,12 +130,13 @@ class HTTPServer(HTTPBaseServer):
         self.mount_prefix = mount_prefix or ''
         
         # setup the callbacks for configuration
-        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
+#        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
         if session: self.config_callbacks['Session'] = self.session_config_update
         if cache: self.config_callbacks['Caching'] = self.cache_config_update
-        if auth: self.config_callbacks['Auth'] = self.auth_config_update
+        if auth: self.config_callbacks['SPARXAuth'] = self.auth_config_update
         
-        self.handle_exception = kargs.get('handle_exception', False)
+        self.handle_exception = handle_exception
+#        self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
     
     def auth_config_update(self, action, full_key, new_val, config_obj):
@@ -142,15 +145,15 @@ class HTTPServer(HTTPBaseServer):
         
         SPARXAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
         '''
-        logins = [('demo', 'demo')]     #TODO:Get it from a User DB.
+        logins = [('demo', 'igniter0cks')]     #TODO:Get it from a User DB.
     
         self.app = SparxAuth(self.app, users=logins, 
-                             open_urls=config_obj['Auth']['open_urls'], 
-                             session_key=config_obj['Auth']['key'])
+                             open_urls=config_obj['SPARXAuth']['open_urls'], 
+                             session_key=config_obj['SPARXAuth']['key'])
         
         self.app = bkmw.SessionMiddleware(self.app, 
-                                          config_obj['Auth']['beaker'], 
-                                          environ_key=config_obj['Auth']['key'])
+                                          config_obj['SPARXAuth']['beaker'], 
+                                          environ_key=config_obj['SPARXAuth']['key'])
         
         logging.getLogger().debug('Auth config updated')
     

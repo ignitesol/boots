@@ -5,7 +5,6 @@ Created on 08-Jul-2011
 from __future__ import print_function
 from fabric import concurrency
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock
@@ -64,8 +63,6 @@ class Config(ConfigObj):
         @param complete: if complete is True, gives the whole chain. If complete is False, just provides immediate parent's key
         @type complete: bool
         '''
-        if not isinstance(self, Config):
-            return []
         
         with self.main.lock:
             try:
@@ -74,7 +71,7 @@ class Config(ConfigObj):
                 # if no parent found (i.e. root level), an exception is thrown
                 [(par_key, _)] = list(filter(lambda x: x[1] is self, self.parent.items()))  # note: 'is' is used instead of '=='
                 return self.parent._find_parent_keys(complete=complete) + [par_key] if complete else [par_key]  # recursively call parent's find_parent_key
-            except ValueError:
+            except (ValueError, KeyError):
                 return []
     
     def _new_getitem(self, attr, *args, **kargs):
@@ -85,12 +82,13 @@ class Config(ConfigObj):
         @param attr: The name of the attribute being accessed
         @type attr: str
         '''
-        
-        if not isinstance(self, Config):
+        try:
+            self.main.lock
+        except AttributeError:          #Means we are not a Config.
             return self._orig_getitem(attr, *args, **kargs) # just invoke the original getitem
-
-        with self.main.lock:
-            return self._orig_getitem(attr, *args, **kargs) # just invoke the original getitem
+        else:
+            with self.main.lock:
+                return self._orig_getitem(attr, *args, **kargs) # just invoke the original getitem
     
     def _new_setitem(self, attr, val, *args, **kargs):
         '''
@@ -103,16 +101,31 @@ class Config(ConfigObj):
         @param val: the value being assigned
         @param val: any
         '''
-        if not isinstance(self, Config):
-            return self._orig_setitem(attr, val, *args, **kargs) # just invoke the original getitem
-
-        with self.main.lock:
-            self._orig_setitem(attr, val, *args, **kargs)    # 1st set the new value 
-            full_key, callbacks = self._get_callbacks(attr)
-
-        # invoke the callbacks. Note callbacks are called after releasing the lock
-        map(lambda cb_func: cb_func(Config.Action.onset, full_key, val, self.main), callbacks)
-
+        #We are calling update_main here so that the .main of all sections in the hierarchy is set.
+        try:
+            self.main.lock
+        except AttributeError:          #Means we are not a Config.
+            self._orig_setitem(attr, val, *args, **kargs)    # 1st set the new value
+        else:
+            self._update_main(val)
+                
+            with self.main.lock:
+                self._orig_setitem(attr, val, *args, **kargs)    # 1st set the new value 
+                full_key, callbacks = self._get_callbacks(attr)
+        
+            # invoke the callbacks. Note callbacks are called after releasing the lock
+            map(lambda cb_func: cb_func(Config.Action.onset, full_key, val, self.main), callbacks)
+    
+    def _update_main(self, vals):
+        '''
+        Sets the .main of all sections in the hierarchy recursively.
+        '''
+        if isinstance(vals, Section):
+            vals.main = self.main
+            for _, val in vals.items():
+                if isinstance(val, Section): 
+                    self._update_main(val)
+                    
     def _new_delitem(self, attr, *args, **kargs):
         '''
         A wrapper to the __delitem__ of configobj.Section. We use this to make attribute access thread safe
@@ -124,15 +137,17 @@ class Config(ConfigObj):
         @param val: the value being assigned
         @param val: any
         '''
-        if not isinstance(self, Config):
-            return self._orig_delitem(attr, *args, **kargs) # just invoke the original getitem
-
-        with self.main.lock:
-            self._orig_delitem(attr, *args, **kargs)    # 1st set the new value 
-            full_key, callbacks = self._get_callbacks(attr)
+        try:
+            self.main.lock
+        except AttributeError:          #Means we are not a Config.
+            self._orig_delitem(attr, *args, **kargs)    # 1st set the new valuee
+        else:
+            with self.main.lock:
+                self._orig_delitem(attr, *args, **kargs)    # 1st set the new value 
+                full_key, callbacks = self._get_callbacks(attr)
                      
-        # invoke the callbacks. Note callbacks are called after releasing the lock
-        map(lambda cb_func: cb_func(Config.Action.ondel, full_key, None, self.main), callbacks)
+            # invoke the callbacks. Note callbacks are called after releasing the lock
+            map(lambda cb_func: cb_func(Config.Action.ondel, full_key, None, self.main), callbacks)
 
     def _get_callbacks(self, attr):
         '''
@@ -143,10 +158,9 @@ class Config(ConfigObj):
         '''
         with self.main.lock:
             full_key = self._find_parent_keys() + [attr]     # obtain the full key from outermost section to current attr as a list
-            try:
-                callbacks = self.main.callbacks[tuple(full_key)]    # find out all the callback functions registered for this key
-            except KeyError:
-                callbacks = []
+            callbacks = []
+            for i in range(len(full_key),0,-1):
+                callbacks += self.main.callbacks.get(tuple(full_key[:i]), [])
         return full_key, callbacks
             
 
@@ -164,7 +178,7 @@ class Config(ConfigObj):
         # we may need to modify to only affect our code
         Section._orig_getitem, Section._orig_setitem, Section._orig_delitem = Section.__getitem__, Section.__setitem__, Section.__delitem__
         Section.__getitem__, Section.__setitem__, Section.__delitem__ = _new_getitem, _new_setitem, _new_delitem
-        Section._find_parent_keys, Section._get_callbacks = _find_parent_keys, _get_callbacks
+        Section._find_parent_keys, Section._get_callbacks, Section._update_main = _find_parent_keys, _get_callbacks, _update_main
     
     def __init__(self, *args, **kargs):
         self.callbacks = {}   # initialize the callback hash
@@ -262,20 +276,23 @@ if __name__ == '__main__':
     cfg.add_callback([ 'Section1' ], callback)
     cfg.add_callback([ 'Section2' ], callback)
     cfg.add_callback([ 'toplevel 1' ], callback)
-    cfg.add_callback([ 'Section2' 'sec2_var2'], callback)
-    cfg2 = Config('config.test.ini', configspec='config.test.spec.ini')
-    validator = validate.Validator()
-    result = cfg2.validate(validator)
-    if not result:
-        print('validate failed')
+    cfg.add_callback([ 'Section2', 'sec2_var2'], callback)
+    cfg2 = Config('config.test.ini')
+#    validator = validate.Validator()
+#    result = cfg2.validate(validator)
+#    if not result:
+#        print('validate failed')
+
+    print ("-----------------READY TO MERGE------------------------")
     cfg.merge(cfg2)
     
     cfg['Section1']['sec1_var_1'] = 10
     
-    cfg['Section2'] = { 'sec2_var1' : 'new_30', 'sec2_var2': 'new_40' }
+    cfg['Section2'].merge({ 'sec2_var1' : 'new_30', 'sec2_var2': 'new_40' })
+    cfg['Section2']['sec2_var2'] = '1000'
     print('[Section2][sec2_var1]', cfg['Section2']['sec2_var1'])
-    cfg.filename = 'config.test2.ini'
-    cfg.write()
+#    cfg.filename = 'config.test2.ini'
+#    cfg.write()
     
     print('[Section3][sec3_var1]', cfg['Section3']['sec3_var1'], type(cfg['Section3']['sec3_var1']))
     print('[Section3][sec3_var2]', cfg['Section3']['sec3_var2'], type(cfg['Section3']['sec3_var2']))

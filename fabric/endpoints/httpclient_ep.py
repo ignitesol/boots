@@ -4,11 +4,6 @@ HTTP calls. The classes and methods offer abstractions to callers of making simp
 marshalling of parameters and un-marshalling of results. Many methods exist to support direct get or post method calls or 
 JSON marshalling of input parameters and un-marshalling of output responses 
 '''
-from fabric import concurrency
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
-elif concurrency == 'threading':
-    pass
 
 from functools import wraps
 import json
@@ -17,6 +12,8 @@ import sys
 import urlparse
 import urllib2
 from contextlib import closing
+import StringIO
+import re
 
     
 import logging
@@ -55,7 +52,19 @@ class Header(dict):
     def setdefault(self, key, value=None):
         if key not in self:
             self[key] = value
-        return self[key]  
+        return self[key]
+    
+    def set_cookie(self, keyval):
+        '''
+        Adds cookie to be forward to the HTTP request. Note - this typically takes a cookie
+        obtained from one request and forwards to another
+        
+        :param keyval: is a dict or a list of tuples in the form [ (key, val)... ]
+        '''
+        if type(keyval) == dict:
+            keyval = keyval.iteritems()
+        for k, v in keyval:
+            self['Cookie'] = '='.join([k, v])
     
 class HTTPUtils(object):
     
@@ -75,15 +84,16 @@ class HTTPUtils(object):
         headers = header or Header()
         if keys:
             for key in keys:
-                headers['Cookie'] = key+'='+cookies.get(key,'')
+                headers['Cookie'] = key + '=' + cookies.get(key,'')
         return headers
   
         
 
 class Response(object):
     '''
-    HTTP Responses are wrapped and returned using this object. This object provides two attributes
-    *data* and *headers*
+    HTTP Responses are wrapped and returned using this object. This object provides attributes
+    *data* and *headers* (this is a Headers object) and *raw_headers* which provides headers as returned
+    by the request
     '''
     def __init__(self, data, headers):
         '''
@@ -96,10 +106,55 @@ class Response(object):
         self.data = data
         
         #: self.headers: contain the headers of the response
-        self.headers = headers
+        self.raw_headers = headers
+        self._headers = None
     
     def __repr__(self, *args, **kwargs):
         return "Data:{}, Headers:{}".format(self.data, self.headers)
+    
+    @property
+    def headers(self):
+        '''
+        returns a :py:class:`Header` object with all the headers returned as part of this response
+        trailing \r and \n are removed from each header
+        '''
+        if self._headers == None:
+            head = StringIO.StringIO(self.raw_headers)
+            self._headers = Header()
+            
+            for s in head:
+                key, val = s.split(':', 1) # split at the 1st :
+                val = val.rstrip('\r\n')
+                self._headers[key] = val
+
+        return self._headers
+        
+    
+    def extract_headers(self, keys=None, header=None):
+        '''
+        this returns a :py:class:`Header object populated with any header values returned from the request
+        :param keys: an optional list of keys (defaults to None which implies all keys present in the response header). Keys are strings that take the regular expressions syntax. keys
+        can also be a single key, i.e not a list
+        :param header: the header object to append the extracted headers to. If None, a new Header object is created and returned. Header can be used as a dict 
+        '''
+        header = header or Header()
+        if not keys:
+            header.update(self.headers)
+        else:
+            if not hasattr(keys, '__iter__'): keys = [ keys ]  # if single key specified, make it a list
+            for k in keys:
+                regexp = re.compile(k, flags=re.IGNORECASE)
+                header.update(filter(lambda item: regexp.match(item[0]), self.headers.iteritems()))
+        return header
+    
+    def extract_cookies(self, keys=None):
+        '''
+        this returns a dict object populated with any cookies present in the response object
+        :param keys: an optional list of keys (defaults to None which implies all keys present in the response header). Keys are strings that take the regular expressions syntax. keys
+        can also be a single key, i.e not a list
+        '''
+        cookies = self.extract_headers('Set-Cookie')
+        # TODO: obtain the cookies by splitting, extract the correct keys
             
 def dejsonify_response(func):
     '''
@@ -129,13 +184,13 @@ def jsonify_request(func):
         return func(*args, headers=headers, **dict([ (k, json.dumps(v)) for k,v in kargs.iteritems() ]))
     return wrapper
 
-class HTTPClient(EndPoint):
+class HTTPClientEndPoint(EndPoint):
     '''
     A (currently) unmanaged endpoint that provides simple abstractions to marshall, unmarshall and perform the http
     protocol in making requests.
     '''
     
-    def __init__(self, url=None, data=None, headers=None, origin_req_host=None, method='POST'):
+    def __init__(self, url=None, data=None, headers=None, origin_req_host=None, method='POST', server=None):
         '''
         :param str url: the url that this request object should bind to. This is optional and the url provided with
             :py:meth:`request` supercedes this value. The url will be urlquoted before sending
@@ -143,8 +198,10 @@ class HTTPClient(EndPoint):
         :param headers: optional headers to include with the request. headers is a dict or a :py:class:`Header` object
         :param origin_req_host: refer urllib2.Request
         :param str method: one of 'GET' or 'POST'
+        :param Server server: (defaults None). A reference to the server object to which this endpoint belongs to
         '''
         
+        super(HTTPClientEndPoint, self).__init__(server=server)
         self.url = url
         self.data = data
         self.headers = Header(headers or {})
@@ -174,11 +231,13 @@ class HTTPClient(EndPoint):
                 rv = Response(data=req.read(), headers=req.info())
                 return rv
         except urllib2.HTTPError as err:
+            logging.getLogger().exception('HTTPError for url:%s', url)
             logging.getLogger().exception('HTTPError: %d', err.code)
             # FIXME: change logging to warning.warn
             raise
         except urllib2.URLError as err:
-            logging.getLogger().exception('URLError: %d', err.reason)
+            logging.getLogger().exception('URLError for url:%s', url)
+            logging.getLogger().exception('URLError: %s', err.reason)
             # FIXME: change logging to warning.warn
             raise
 
@@ -192,7 +251,7 @@ class HTTPClient(EndPoint):
         
         **Example**::
         
-            HTTPClient().get_request('http://www.google.com', q="ignite solutions", method='GET')
+            HTTPClientEndPoint().get_request('http://www.google.com', q="ignite solutions", method='GET')
 
         '''
         method = kargs.get('method', 'POST')
@@ -201,6 +260,8 @@ class HTTPClient(EndPoint):
         except KeyError:
             pass
         return self._request(url, data=kargs, headers=headers, method=method)
+    
+    
     
     @dejsonify_response
     def json_out_request(self, url, headers=None, **kargs):
@@ -238,6 +299,12 @@ class HTTPClient(EndPoint):
         a combination of :py:meth:`json_in_request` and :py:meth:`json_out_request`
         '''
         return self.request(url, headers=headers, **kargs)
+         
+        
+        
+    #####
+    # helpers
+    #####
 
     try:
             unicode
@@ -317,13 +384,13 @@ class HTTPClient(EndPoint):
                             l.append(k + '=' + urllib2.quote(str(elt)))
         return '&'.join(l)
     
-class HTTPAsyncClient(HTTPClient, threading.Thread):
+class HTTPAsyncClient(HTTPClientEndPoint, threading.Thread):
     '''
     A class that supports asynchronous HTTP requests. Currently, this does not use thread pooling so the user should be careful with 
-    runaway creation of long-lived requests. Supports all the methods of :py:class:`HTTPClient`
+    runaway creation of long-lived requests. Supports all the methods of :py:class:`HTTPClientEndPoint`
     '''
     
-    def __init__(self, url=None, headers=None, origin_req_host=None, method='POST', onsuccess=None, onerror=None, sync=False, timeout=None):
+    def __init__(self, url=None, headers=None, origin_req_host=None, method='POST', onsuccess=None, onerror=None, sync=False, timeout=None, server=None):
         '''
         
         :param str url: the url that this request object should bind to. This is optional and the url provided with
@@ -335,13 +402,14 @@ class HTTPAsyncClient(HTTPClient, threading.Thread):
         :param onerror: a function to be invoked on failure of the request. Invoked with the exception that got raised.
         :param bool sync: whether this request should be synchronous (True) or async (default) 
         :param timeout: (currently not implemented). Whether to timeout if no response is received in a specified time.
+        :param Server server: (defaults None). A reference to the server object to which this endpoint belongs to
         '''
         do_nothing = lambda x: None
         self.onsuccess = onsuccess or do_nothing
         self.onerror = onerror or do_nothing
         self.sync = sync
         self.timeout = timeout
-        super(HTTPAsyncClient, self).__init__(url=None, headers=None, origin_req_host=None, method=method)
+        super(HTTPAsyncClient, self).__init__(url=None, headers=None, origin_req_host=None, method=method, server=server)
         threading.Thread.__init__(self)
         self.daemon = True
 
@@ -380,11 +448,11 @@ if __name__ == '__main__':
     headers = Header()
     headers['Cookie'] = 'helloworld=123'
     headers['Cookie'] = 'shakesphere=123456'
-#    print 'get_request', HTTPClient(method='GET').request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
-#    print 'post_request', HTTPClient().request('http://localhost:9000/poster', headers=headers, a=10, b='hello', c=1.2)
-#    print 'json_in_request', HTTPClient().json_in_request('http://localhost:9000/jsonin', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
-#    print 'json_out_request', HTTPClient().json_out_request('http://localhost:9000/jsonout', headers=headers, a=10, b='hello', c=1.2)
-#    print 'json_inout_request', HTTPClient().json_inout_request('http://localhost:9000/jsoninout', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
+#    print 'get_request', HTTPClientEndPoint(method='GET').request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
+#    print 'post_request', HTTPClientEndPoint().request('http://localhost:9000/poster', headers=headers, a=10, b='hello', c=1.2)
+#    print 'json_in_request', HTTPClientEndPoint().json_in_request('http://localhost:9000/jsonin', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
+#    print 'json_out_request', HTTPClientEndPoint().json_out_request('http://localhost:9000/jsonout', headers=headers, a=10, b='hello', c=1.2)
+#    print 'json_inout_request', HTTPClientEndPoint().json_inout_request('http://localhost:9000/jsoninout', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
 #    
     for i in range(5):
         HTTPAsyncClient(method='GET', onsuccess=success, onerror=error).request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)

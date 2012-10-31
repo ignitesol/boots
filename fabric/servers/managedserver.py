@@ -4,7 +4,6 @@ ManagedServer provides an abstraction for managing a servers configuration, perf
 from __future__ import division
 from fabric import concurrency
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock
@@ -32,6 +31,7 @@ class Stats(Hook):
                 _, start_time = request_context
                 end_time = time.time()
                 server.stats_collector(callback.__name__, url, end_time - start_time, start_time, end_time, **kargs)
+        return result
 
 class ManagedEP(HTTPServerEndPoint):
     '''
@@ -42,15 +42,20 @@ class ManagedEP(HTTPServerEndPoint):
     def __init__(self, name=None, mountpoint='/admin', plugins=None, server=None, activate=False):
         super(ManagedEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
 
-    @methodroute(params=dict(configuration=json.loads), skip_by_type=[Stats, Tracer])
+    @methodroute(params=dict(configuration=str), skip_by_type=[Stats, Tracer], method="POST")
     def config(self, configuration=None):
         '''
         if no configuration is specified, returns the current configuration else updates the current configuration
         and returns the new configuration. All callbacks that get affected should be called
         '''
+            
         if configuration is not None:
-            self.config.update_config(configuration)
-        return self.config
+            try:
+                configuration = json.loads(configuration)
+                self.server.config.update_config(configuration)
+            except Exception as e:
+                logging.exception("Exception in update:%s",e)
+        return self.server.config
         
     @methodroute(skip_by_type=[Stats, Tracer])
     def stats(self):
@@ -136,12 +141,12 @@ class ManagedServer(HTTPServer):
         '''
         self._stats.add(handler_name, time_taken, url, **kargs)
     
-    def __init__(self,  endpoints=None, *args, **kargs):
+    def __init__(self,  endpoints=None, **kargs):
         endpoints = endpoints or []
         endpoints = [ endpoints ] if type(endpoints) not in [list, tuple] else endpoints
         endpoints = endpoints + [ ManagedEP()]
         self._stats = StatsCollection()
-        super(ManagedServer, self).__init__(*args, endpoints=endpoints, **kargs)
+        super(ManagedServer, self).__init__(endpoints=endpoints, **kargs)
 
     def get_standard_plugins(self, plugins):
         '''
