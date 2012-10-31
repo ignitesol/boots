@@ -86,9 +86,10 @@ class HTTPBaseServer(Server):
             host = kargs.get('default_host', None) or self.cmmd_line_args['host'] or '127.0.0.1'
             port = kargs.get('default_port', None) or self.cmmd_line_args['port'] or '9000'
             server = kargs.get('server', 'wsgiref')
+            quiet = kargs.get('quiet', True)
             if concurrency == 'gevent': server = 'gevent'
 #            bottle.debug(True)
-            bottle.run(app=self, host=host, port=port, server=server)
+            bottle.run(app=self, host=host, port=port, server=server, quiet=True)
 
     def activate_endpoints(self):
         '''

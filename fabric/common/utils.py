@@ -36,16 +36,23 @@ def new_counter(seed=0):
         
     def _internal_counter(seed):
         while 1:
-            with lock:  # guarantee atomicity
-                retval = seed
-                seed += 1
+            retval = seed
+            seed += 1
             yield retval
-
+            
     if major >= 3:
-        return _internal_counter(seed).__next__
+        nexter = _internal_counter(seed).__next__
     else:
         # python 2
-        return _internal_counter(seed).next
+        nexter = _internal_counter(seed).next
+    
+    class __dummy:
+        @classmethod
+        def _generator_wrapper(cls):
+            with lock:  # guarantee atomicity
+                return nexter()
+        
+    return __dummy._generator_wrapper
     
 def generate_uuid(frames=3):
     return '-'.join(['%X'%random.Random().randint(0, pow(10,16)) for _ in range(0, frames)])

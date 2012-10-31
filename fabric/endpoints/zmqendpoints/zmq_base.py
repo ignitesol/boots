@@ -58,7 +58,7 @@ def cleanup_zmq():
 # This eliminates the race condition within ioloops instance() method
 # incase of threads
 ioloop_instance() 
-t = Thread(target=iolooper)
+t = Thread(target=iolooper, name="ZMQ_IOLOOP")
 t.daemon = True
 t.start()
 
