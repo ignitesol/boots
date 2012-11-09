@@ -110,11 +110,23 @@ class Config(ConfigObj):
             self._update_main(val)
                 
             with self.main.lock:
+                self.main.recursive_depth += 1
                 self._orig_setitem(attr, val, *args, **kargs)    # 1st set the new value 
-                full_key, callbacks = self._get_callbacks(attr)
+                callbacks = self._get_callbacks(attr)
+                self.main.pending_callbacks += callbacks
+                self.main.recursive_depth -= 1
+                depth = self.main.recursive_depth
+                callbacks = self.main.pending_callbacks
+                if depth == 0:
+                    self.main.pending_callbacks = []  
+
+        
+        # calling callbacks outside the lock
+        if self == self.main and depth == 0:
+            self.process_callbacks(Config.Action.onset, depth, callbacks)
         
             # invoke the callbacks. Note callbacks are called after releasing the lock
-            map(lambda cb_func: cb_func(Config.Action.onset, full_key, val, self.main), callbacks)
+#            map(lambda cb_func: cb_func(Config.Action.onset, full_key, val, self.main), callbacks)
     
     def _update_main(self, vals):
         '''
@@ -144,15 +156,24 @@ class Config(ConfigObj):
         else:
             with self.main.lock:
                 self._orig_delitem(attr, *args, **kargs)    # 1st set the new value 
-                full_key, callbacks = self._get_callbacks(attr)
+                callbacks = self._get_callbacks(attr)
+                self.main.pending_callbacks += callbacks
+                depth = self.main.recursive_depth
+                callbacks = self.main.pending_callbacks
+                if depth == 0:
+                    self.main.pending_callbacks = []  
+
+        
+        # calling callbacks outside the lock
+        if self == self.main and depth == 0:
+            self.process_callbacks(Config.Action.ondel, depth, callbacks)
                      
             # invoke the callbacks. Note callbacks are called after releasing the lock
-            map(lambda cb_func: cb_func(Config.Action.ondel, full_key, None, self.main), callbacks)
+#            map(lambda cb_func: cb_func(Config.Action.ondel, full_key, None, self.main), callbacks)
 
     def _get_callbacks(self, attr):
         '''
-        returns a tuple - the full_key of this object as a list starting from the outermost section and including the attribute and the list of callbacks
-        associated with that key 
+        returns a list of tuples - each tuple is the key starting from the outermost and the list of callbacks affected by a particular update associated with that key or its subkey 
         @param attr: the attribute of the current section object
         @type attr: str
         '''
@@ -160,9 +181,53 @@ class Config(ConfigObj):
             full_key = self._find_parent_keys() + [attr]     # obtain the full key from outermost section to current attr as a list
             callbacks = []
             for i in range(len(full_key),0,-1):
-                callbacks += self.main.callbacks.get(tuple(full_key[:i]), [])
-        return full_key, callbacks
+                key, callback = tuple(full_key[:i]), self.main.callbacks.get(tuple(full_key[:i]), [])
+                callbacks += [ (key, callback) ] if callback != [] else []
+#                print("###", 'key', tuple(full_key[:i]), 'callbacks', self.main.callbacks.get(tuple(full_key[:i]), []))
+        return callbacks
+    
+    def merge(self, indict):
+        depth = -1
+        try:
+            self.main.lock
+        except AttributeError:          #Means we are not a Config.
+            super(Config, self).merge(indict)
+        else:
+            self._update_main(indict)
+            with self.main.lock:
+                self.main.recursive_depth += 1
+                
+                super(Config, self).merge(indict)
+                
+                self.main.recursive_depth -= 1
+                depth = self.main.recursive_depth
+                callbacks = self.main.pending_callbacks
+                if depth == 0:
+                    self.main.pending_callbacks = []  
+        
+        # calling callbacks outside the lock
+        if self == self.main and depth == 0:
+            self.process_callbacks(Config.Action.onset, depth, callbacks)
+
+    def process_callbacks(self, action, depth, callbacks):
+        called = {}
+        if depth == 0: # we only call when depth is 0
+            for key, callback_list in callbacks:
+                called.setdefault(key, [])
+                val = self.main
+                for k in key:
+                    if val and isinstance(val, dict):
+                        val = val.get(k)
+                    
+                for f in callback_list:
+                    if f not in called[key]:
+                        f(action, key, val, self.main)
+                called[key] += callback_list
+
             
+        
+        
+        
 
     # this is class-level code (i.e. gets executed on import). This code does the magic that allows us
     # to intercept and mediate calls to get, set, del
@@ -182,7 +247,9 @@ class Config(ConfigObj):
     
     def __init__(self, *args, **kargs):
         self.callbacks = {}   # initialize the callback hash
-        self.lock = RLock()   # create a reentrant lock that is per Config object.  
+        self.lock = RLock()   # create a reentrant lock that is per Config object.
+        self.recursive_depth = 0 # when calling merge or set items this determines the current recursive depth. Callbacks are called at top-depth (i.e. 0)  
+        self.pending_callbacks = []
         super(Config, self).__init__(*args, **kargs) # invoke the ConfigObj __init__
         
     def add_callback(self, key, callback_func):
@@ -283,20 +350,42 @@ if __name__ == '__main__':
 #    if not result:
 #        print('validate failed')
 
+    cfg3 = {}
+    cfg3['Section1'] = temp['Section1']
+    cfg3['Section1']['SubSection1.1']['subsec1.1_var1'] = 'new hello world'
+    cfg3['Section1']['SubSection1.2']['subsec1.2_var1'] = {}
+    cfg3['Section1']['SubSection1.2']['subsec1.2_var1']['subsec1.2.1'] = 'sub sub sec'
+    cfg3 = Config(cfg3)
+    
+    cfg4 = cfg3.dict()
+    cfg4['Section1']['SubSection1.1']['subsec1.1_var2'] = 'new new hello world'
+    cfg4 = Config(cfg4)
+
+
     print ("-----------------READY TO MERGE------------------------")
     cfg.merge(cfg2)
+    print ("-----------------DONE MERGE------------------------")
+    
+    print ("-----------------READY TO MERGE CFG3------------------------")
+    cfg.merge(cfg3)
+    print ("-----------------DONE MERGE CfG3------------------------")
+    
+    print ("-----------------READY TO MERGE CFG4------------------------")
+    cfg.merge(cfg4)
+    print ("-----------------DONE MERGE CfG4------------------------")
     
     cfg['Section1']['sec1_var_1'] = 10
     
     cfg['Section2'].merge({ 'sec2_var1' : 'new_30', 'sec2_var2': 'new_40' })
+    
     cfg['Section2']['sec2_var2'] = '1000'
     print('[Section2][sec2_var1]', cfg['Section2']['sec2_var1'])
 #    cfg.filename = 'config.test2.ini'
 #    cfg.write()
-    
-    print('[Section3][sec3_var1]', cfg['Section3']['sec3_var1'], type(cfg['Section3']['sec3_var1']))
-    print('[Section3][sec3_var2]', cfg['Section3']['sec3_var2'], type(cfg['Section3']['sec3_var2']))
-    print('[Section3][sec3_var3]', cfg['Section3']['sec3_var3'], type(cfg['Section3']['sec3_var3']))
+#    
+#    print('[Section3][sec3_var1]', cfg['Section3']['sec3_var1'], type(cfg['Section3']['sec3_var1']))
+#    print('[Section3][sec3_var2]', cfg['Section3']['sec3_var2'], type(cfg['Section3']['sec3_var2']))
+#    print('[Section3][sec3_var3]', cfg['Section3']['sec3_var3'], type(cfg['Section3']['sec3_var3']))
     
 
     
