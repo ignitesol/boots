@@ -1,4 +1,9 @@
-from multiprocessing.pool import ThreadPool as t
+from fabric import concurrency
+if concurrency == concurrency.GEVENT:
+    from gevent.threadpool import ThreadPool as t
+else:
+    from multiprocessing.pool import ThreadPool as t
+    
 from fabric.common.singleton import Singleton
 import threading
 import Queue
@@ -8,12 +13,20 @@ import functools
 from heapq import heappop, heappush
 import logging
 
-class InstancedThreadPool(Singleton, t):
+class ThreadPool(t):
+    
+    def __init__(self, processes=5):
+        if concurrency == concurrency.GEVENT:
+            super(ThreadPool, self).__init__(maxsize=processes)
+        else:
+            super(ThreadPool, self).__init__(processes=processes)
+
+class InstancedThreadPool(Singleton, ThreadPool):
     
     def __init__(self, num_workers=10):
         super(InstancedThreadPool, self).__init__(processes=num_workers)
 
-class InstancedScheduler(Singleton, threading.Thread):
+class InstancedScheduler(Singleton, threading.Thread):    
     
     def __init__(self, *args, **kargs):
         super(InstancedScheduler, self).__init__(*args, **kargs)
@@ -53,6 +66,7 @@ class InstancedScheduler(Singleton, threading.Thread):
             except Queue.Empty: # timeout ran
                 _, callback, idn = heappop(self._task_heap)
                 if idn in self._cancelled:
+                    logging.getLogger.debug("cancelled %s", idn)
                     self._cancelled.pop(idn)
                 else:
                     try: callback()
