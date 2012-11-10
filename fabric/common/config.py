@@ -388,8 +388,3 @@ if __name__ == '__main__':
 #    print('[Section3][sec3_var1]', cfg['Section3']['sec3_var1'], type(cfg['Section3']['sec3_var1']))
 #    print('[Section3][sec3_var2]', cfg['Section3']['sec3_var2'], type(cfg['Section3']['sec3_var2']))
 #    print('[Section3][sec3_var3]', cfg['Section3']['sec3_var3'], type(cfg['Section3']['sec3_var3']))
-    
-
-    
-
-        
