@@ -78,7 +78,7 @@ SPARX.Manage.Logging = function(){
 					curr_logger_available_handlers = temp;
 					logger_properties_html = logger_properties_html + "<option value='"+curr_logger_handlers[i]+"'>"+curr_logger_handlers[i]+"</option>";
 				}
-				logger_properties_html = logger_properties_html + "</select></td><td><div style='width:32px;'><img src='/images/back.png'  onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"logger_"+logger_name+"_handlers\",\"available_handlers\"));'/><img src='/images/next.png' onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"available_handlers\",\"logger_"+logger_name+"_handlers\"));'/></div></td>";
+				logger_properties_html = logger_properties_html + "</select></td><td><div style='width:32px;'><img src='/fabric/images/back.png'  onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"logger_"+logger_name+"_handlers\",\"available_handlers\"));'/><img src='/fabric/images/next.png' onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"available_handlers\",\"logger_"+logger_name+"_handlers\"));'/></div></td>";
 				logger_properties_html = logger_properties_html + "<td><select name='Available Handlers' id='available_handlers' size='5' style='width:100%;'>";
 				for(var handler_name in curr_logger_available_handlers){
 					logger_properties_html = logger_properties_html + "<option value='" + handler_name + "'>" + handler_name + "</option>";
@@ -94,7 +94,7 @@ SPARX.Manage.Logging = function(){
 					curr_logger_available_filters = temp;
 					logger_properties_html = logger_properties_html + "<option value='"+curr_logger_filters[i]+"'>"+curr_logger_filters[i]+"</option>";
 				}
-				logger_properties_html = logger_properties_html + "</select></td><td><div style='width:32px;'><img src='/images/back.png'  onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"logger_"+logger_name+"_filters\",\"available_filters\"));'/><img src='/images/next.png' onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"available_filters\",\"logger_"+logger_name+"_filters\"));'/></div></td>";
+				logger_properties_html = logger_properties_html + "</select></td><td><div style='width:32px;'><img src='/fabric/images/back.png'  onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"logger_"+logger_name+"_filters\",\"available_filters\"));'/><img src='/fabric/images/next.png' onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"available_filters\",\"logger_"+logger_name+"_filters\"));'/></div></td>";
 				logger_properties_html = logger_properties_html + "<td><select name='Available Handlers' id='available_filters' size='5' style='width:100%;'>";
 				for(var filter_name in curr_logger_available_filters){
 					logger_properties_html = logger_properties_html + "<option value='" + filter_name + "'>" + filter_name + "</option>";
@@ -141,7 +141,7 @@ SPARX.Manage.Logging = function(){
 					curr_handler_available_filters = temp;
 					handler_properties_html = handler_properties_html + "<option value='"+curr_handler_filters[i]+"'>"+curr_handler_filters[i]+"</option>";
 				}
-				handler_properties_html = handler_properties_html + "</select></td><td><div style='width:32px;'><img src='/images/back.png'  onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"handler_"+handler_name+"_filter\",\"available_filters\"));'/><img src='/images/next.png' onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"available_filters\",\"handler_"+handler_name+"_filter\"));'/></div></td>";
+				handler_properties_html = handler_properties_html + "</select></td><td><div style='width:32px;'><img src='/fabric/images/back.png'  onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"handler_"+handler_name+"_filter\",\"available_filters\"));'/><img src='/fabric/images/next.png' onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"available_filters\",\"handler_"+handler_name+"_filter\"));'/></div></td>";
 				handler_properties_html = handler_properties_html + "<td><select name='Available Filters' id='available_filters' size='5' style='width:100%;'>";
 				for(var filter_name in curr_handler_available_filters){
 					handler_properties_html = handler_properties_html + "<option value='" + filter_name + "'>" + filter_name + "</option>";
