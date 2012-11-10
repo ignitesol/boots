@@ -66,6 +66,7 @@ function WebSocketServer(name, endpoints, port) {
 		// socket_server.logger.info('expiring', id);
 		if (client_eps[id]) {
 			client_eps[id].close();
+			client_eps[id] = null;
 			delete client_eps[id];
 		}
 	}

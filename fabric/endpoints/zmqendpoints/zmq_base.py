@@ -12,7 +12,7 @@ if concurrency == 'gevent':
 else:
     import zmq
 import functools
-from multiprocessing.pool import ThreadPool
+from fabric.common.threadpool import ThreadPool
 import sys
 import traceback
 
@@ -258,8 +258,15 @@ class ZMQListenEndPoint(ZMQEndPoint):
         '''
         assert event == zmq.POLLIN
         
-        msg = socket.recv_multipart()
-        self._thread_pool.apply_async(self._recv_thread, args=(msg, self.receive_plugins))
+        try:
+            n = self._threads
+            while n:
+                msg = socket.recv_multipart(flags=zmq.NOBLOCK)
+                self._thread_pool.apply_async(self._recv_thread, args=(msg, self.receive_plugins))
+                n -= 1
+        except zmq.ZMQError as e: 
+            if e.errno is not zmq.EAGAIN: 
+                raise
     
     def _recv_thread(self, msg, plugins):
         for p in plugins:

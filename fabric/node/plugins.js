@@ -56,7 +56,11 @@ function MessageRoute(routes) {
 	function _apply(msg) {
 		utils.foreach(_routes, function(k, v) {
 			var path = msg[v.key];
-			if (typeof(path) === 'string' && path.indexOf(k) === 0) {
+			/* Do not make this a substring search
+			 * Otherwise it sends duplicate messages to tuneids that have subset names
+			 * eg: tuneid-2 and tuneid-20 shall both be called for tuneid-2
+			 */
+			if (typeof(path) === 'string' && path === k) {
 				v.callback(msg);
 			}
 		});

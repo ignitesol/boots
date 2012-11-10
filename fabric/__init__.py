@@ -19,4 +19,6 @@ class concurrency_meta(type):
     
 class concurrency(object):
     __metaclass__ = concurrency_meta
-    state = 'threading'
+    GEVENT, THREADING = "gevent", "threading"
+    state = THREADING
+    
