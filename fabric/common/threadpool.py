@@ -1,5 +1,5 @@
 from fabric import concurrency
-if concurrency == concurrency.GEVENT:
+if concurrency == concurrency.GEVENT and False:
     from gevent.threadpool import ThreadPool as t
 else:
     from multiprocessing.pool import ThreadPool as t
@@ -16,7 +16,7 @@ import logging
 class ThreadPool(t):
     
     def __init__(self, processes=5):
-        if concurrency == concurrency.GEVENT:
+        if concurrency == concurrency.GEVENT and False:
             super(ThreadPool, self).__init__(maxsize=processes)
         else:
             super(ThreadPool, self).__init__(processes=processes)
