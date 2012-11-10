@@ -1,0 +1,88 @@
+body{
+	overflow: hidden;
+	margin: 0px;
+}
+.active_tab{
+	cursor:pointer;
+	float:left;
+	position:relative;
+	height:100%;
+	width:200px;
+	border-color: #990000;
+	border-style: solid;
+	border-width:thin;
+	color:maroon;
+	background-image: -ms-linear-gradient(top, #FF9D47 0%, #FFEE52 100%);
+	background-image: -moz-linear-gradient(top, #FF9D47 0%, #FFEE52 100%);
+	background-image: -o-linear-gradient(top, #FF9D47 0%, #FFEE52 100%);
+	background-image: -webkit-gradient(linear, left top, left bottom, color-stop(0, #FF9D47), color-stop(1, #FFEE52));
+	background-image: -webkit-linear-gradient(top, #FF9D47 0%, #FFEE52 100%);
+	background-image: linear-gradient(to bottom, #FF9D47 0%, #FFEE52 100%);
+	-moz-border-radius: 5px 5px 0px 0px;
+	-webkit-border-radius: 5px 5px 0px 0px;
+	border-radius: 5px 5px 0px 0px;
+	border-bottom-style: none;
+	border-bottom-width: 0px;
+	/*IE 7 AND 8 DO NOT SUPPORT BORDER RADIUS*/
+	-moz-box-shadow: 3px 3px 6px #000000;
+	-webkit-box-shadow: 3px 3px 6px #000000;
+	box-shadow: 3px 3px 6px #000000;
+	filter: progid:DXImageTransform.Microsoft.Shadow(strength = 3, direction = 135, color = '#000000');
+	-ms-filter: "progid:DXImageTransform.Microsoft.Shadow(strength = 3, Direction = 135, Color = '#000000')";
+	/*Shadows look very different in IE (Only cardinal directions supported)*/
+	/*INNER ELEMENTS MUST NOT BREAK THIS ELEMENTS BOUNDARIES*/
+	/*Element should have a background-color*/
+	/*All filters must be placed together*/
+	/*IE 7 AND 8 DO NOT SUPPORT BLUR PROPERTY OF SHADOWS*/
+}
+
+.inactive_tab{
+	cursor:pointer;
+	float:left;
+	position:relative;
+	height:100%;
+	width:100px;
+	border-color: #990000;
+	border-style: solid;
+	border-width:thin;
+	color:#495677;
+	background-image: -ms-linear-gradient(top, #B56F32 0%, #C9BC41 100%);
+	background-image: -moz-linear-gradient(top, #B56F32 0%, #C9BC41 100%);
+	background-image: -o-linear-gradient(top, #B56F32 0%, #C9BC41 100%);
+	background-image: -webkit-gradient(linear, left top, left bottom, color-stop(0, #B56F32), color-stop(1, #C9BC41));
+	background-image: -webkit-linear-gradient(top, #B56F32 0%, #C9BC41 100%);
+	background-image: linear-gradient(to bottom, #B56F32 0%, #C9BC41 100%);
+	-moz-border-radius: 5px 5px 0px 0px;
+	-webkit-border-radius: 5px 5px 0px 0px;
+	border-radius: 5px 5px 0px 0px;
+	/*IE 7 AND 8 DO NOT SUPPORT BORDER RADIUS*/
+	-moz-box-shadow: inset 0px 0px 6px #000000;
+	-webkit-box-shadow: inset 0px 0px 6px #000000;
+	box-shadow: inset 0px 0px 6px #000000;
+/*Inner elements should not cover inner shadows*/
+/*Chrome renders inset shadows incorrectly with border-radius*/
+/*IE 7 AND 8 DO NOT SUPPORT INSET SHADOWS*/
+
+}
+.active_page{
+	height:100%;
+	width:100%;
+	background-image: -ms-linear-gradient(bottom, #FF9D47 0%, #FFEE52 100%);
+	background-image: -moz-linear-gradient(bottom, #FF9D47 0%, #FFEE52 100%);
+	background-image: -o-linear-gradient(bottom, #FF9D47 0%, #FFEE52 100%);
+	background-image: -webkit-gradient(linear, left bottom, left top, color-stop(0, #FF9D47), color-stop(1, #FFEE52));
+	background-image: -webkit-linear-gradient(bottom, #FF9D47 0%, #FFEE52 100%);
+	background-image: linear-gradient(to top, #FF9D47 0%, #FFEE52 100%);
+}
+
+.inactive_page{
+	height:100%;
+	width:100%;
+	display: none;
+	background-image: -ms-linear-gradient(bottom, #FF9D47 0%, #FFEE52 100%);
+	background-image: -moz-linear-gradient(bottom, #FF9D47 0%, #FFEE52 100%);
+	background-image: -o-linear-gradient(bottom, #FF9D47 0%, #FFEE52 100%);
+	background-image: -webkit-gradient(linear, left bottom, left top, color-stop(0, #FF9D47), color-stop(1, #FFEE52));
+	background-image: -webkit-linear-gradient(bottom, #FF9D47 0%, #FFEE52 100%);
+	background-image: linear-gradient(to top, #FF9D47 0%, #FFEE52 100%);
+}

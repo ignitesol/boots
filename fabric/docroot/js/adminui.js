@@ -57,16 +57,13 @@ SPARX.Manage = function(){
 		},
 		get_config : function(name){
 			// console.log("Making XHR to "+prefix+'/admin/config/'+name);
-			doXHR(prefix+'/admin/config/'+name, 
+			request(prefix+'/admin/config/'+name, 
 				function(response) {
 					var curr_page_ele = document.getElementById(name+"_page");
 					curr_page_ele.innerHTML = response;
 					var curr_page_reset_ele = document.getElementById(name+"_reset");
 					curr_page_reset_ele.click();
-				}, 
-				function() {},
-				console.log
-				);
+				},function() {});
 		},
 		default_handler : function(name, config){
 			document.getElementById(name+"_content").innerHTML = syntaxHighlight(name, config);

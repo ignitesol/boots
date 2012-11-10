@@ -6,21 +6,16 @@
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black" />
 		<link rel="apple-touch-icon-precomposed" href="/images/appicon12.gif"/>
-		<link href="/css/styles.css" rel="stylesheet" type="text/css" />
-		<link href="/css/admin.css" rel="stylesheet" type="text/css" />
-		<script src="/secure/js/jquery-1.7.1.min.js"></script>
-		<script src="/lib/dojo.minified/dojo.min.js" type="text/javascript" djConfig="parseOnLoad:true"></script>
-		<script src="/secure/js/utils.js" type="text/javascript"></script>
-		<script src="/secure/js/logger.js" type="text/javascript"></script>
-		<script src="/secure/js/ajax.js" type="text/javascript"></script>
-		<script src="/secure/js/uicommon.js" type="text/javascript"></script>
+		<link href="/fabric/css/admin.css" rel="stylesheet" type="text/css" />
+		<script src="/fabric/lib/dojo.minified/dojo.min.js" type="text/javascript" djConfig="parseOnLoad:true"></script>
+		<script src="/fabric/js/ajax.js" type="text/javascript"></script>
 		<script src="/fabric/js/adminui.js" type="text/javascript"></script>
 		<title>{{name}} | SPARX Manager</title>
 	</head>
 	%try:
 		<label>{{error}}</label>
 	%except:
-		<body id="manage" onload="SPARX.Manage.initialize('{{prefix}}',{{tabs}});" style="background-image: url('/images/main_bg.png');">
+		<body id="manage" onload="SPARX.Manage.initialize('{{prefix}}',{{tabs}});">
 			<div id="tabs" style="height:30px;width:100%;">
 			</div>
 			<div id="pages" style="position:absolute;top:30px;bottom:0px;right:0px;left:0px;border-color: #990000;border-style: solid;border-width: 0px thin;padding:0px 1px;">

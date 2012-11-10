@@ -1,7 +1,7 @@
 %try:
 	<label>{{error}}</label>
 %except:
-	<img id="{{section}}_reset" src="/images/icon_tunein_wt.png" onclick='SPARX.Manage.add_script("loggingui.js");SPARX.Manage.{{section}}.setup("{{section}}");SPARX.Manage.run_handler("{{section}}",{{config}});' style="position:absolute;top:10px;right:10px;" />
+	<img id="{{section}}_reset" src="/fabric/images/reset.png" onclick='SPARX.Manage.add_script("loggingui.js");SPARX.Manage.{{section}}.setup("{{section}}");SPARX.Manage.run_handler("{{section}}",{{config}});' style="position:absolute;top:10px;right:10px;" />
 	<div id="top_portion" style="width:100%;height:50%;">
 		<div id="top_right_portion" style="width:50%;height:100%;float:right;">
 			<center><h2>Filters</h2></center>
@@ -22,7 +22,7 @@
 		</div>
 	</div>
 	<div id="popup_page" style="position:fixed;width:50%;height:70%;top:15%;left:25%;z-index:1001;background-color: rgba(255, 255, 255, 0.5);border-radius: 10px;padding: 1%;display:none;">
-		<img src="/images/close.png" style="right: 0px;position: absolute;margin: -50px;cursor:pointer;" onclick="SPARX.Manage.UI.hide('popup_page')"/>
+		<img src="/fabric/images/close.png" style="right: 0px;position: absolute;margin: -50px;cursor:pointer;" onclick="SPARX.Manage.UI.hide('popup_page')"/>
 		<div id="popup_content" style="float:left;width:50%;height:100%;background-color:white;border-radius: 8px;border-bottom-right-radius: 0px;border-top-right-radius: 0px;overflow:auto;">
 		</div>
 		<div id="filters" style="float:right;width:50%;height:100%;background-color:white;border-radius: 8px;border-bottom-left-radius: 0px;border-top-left-radius: 0px;">
