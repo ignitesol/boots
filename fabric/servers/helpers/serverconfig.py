@@ -1,3 +1,15 @@
+if __name__ == "__main__":
+    
+    import sys
+    import os
+
+    try:
+        import fabric
+    except ImportError:
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))) # Since fabric is not as yet installed into the site-packages
+
+
+
 import warnings
 import logging
 from fabric.common.config import Config
@@ -114,4 +126,37 @@ class ServerConfig(Config):
                 new_conf = new_conf[k]
             new_conf[key_list[-1]] = val
         return conf
+    
+    
+if __name__ == "__main__":
+    import argparse
+    
+    def logcallback(action, fullkey, val, c):
+        print 'In logcallback', fullkey, val
+    
+    parser = argparse.ArgumentParser(description='Run unit tests on ServerConfig')
+    parser.add_argument('files', metavar='file', type=str, nargs='+',
+                   help='config files to be loaded')    
+    args = parser.parse_args()
+    
+    files = zip(args.files, [ f.replace('.ini', '_configspec.ini') for f in args.files])
+
+    callbacks = { 'Logging': logcallback }
+    sconfig = ServerConfig(files, callbacks=callbacks, env_config={'_proj_dir': '.'})
+    
+    d = {}
+    try:
+        d['Logging'] = sconfig.get('Logging', {}).dict()
+    except AttributeError:
+        d['Logging'] = dict(sconfig.get('Logging', {}))
+    print type(d), type(d['Logging']), type(d['Logging']['handlers']), type(d['Logging']['handlers']['console']), type(d['Logging']['handlers']['console']['level'])
+    d['Logging']['handlers']['console']['level'] = 'ERROR'
+    print ' ABout to update with ', d
+
+    print "____MERGING___"
+    sconfig.update_config(d)
+    
+
+    
+    
     

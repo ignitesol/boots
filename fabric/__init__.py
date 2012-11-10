@@ -27,7 +27,8 @@ class state_meta(type):
     
 class concurrency(object):
     __metaclass__ = state_meta
-    state = 'threading'
+    GEVENT, THREADING = "gevent", "threading"
+    state = THREADING
 
 class use_logging(object):
     __metaclass__ = state_meta
