@@ -102,6 +102,7 @@ class Config(ConfigObj):
         @param val: any
         '''
         #We are calling update_main here so that the .main of all sections in the hierarchy is set.
+        depth = -1
         try:
             self.main.lock
         except AttributeError:          #Means we are not a Config.
@@ -149,6 +150,7 @@ class Config(ConfigObj):
         @param val: the value being assigned
         @param val: any
         '''
+        depth = -1
         try:
             self.main.lock
         except AttributeError:          #Means we are not a Config.
