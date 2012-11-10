@@ -16,7 +16,6 @@ import beaker.util as bkutil
 from fabric.servers.helpers.authorize import SparxAuth
 from fabric.servers.server import Server
 import bottle
-
 import logging
 
 # since we are a library, let's add null handler to root to allow us logging
@@ -31,7 +30,7 @@ class HTTPBaseServer(Server):
     The :py:data:`fabric.concurrency` controls whether the default server is *gevent* based or WSGIReference  
     '''
 
-    def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='', 
+    def __init__(self,  name="", endpoints=None, parent_server=None, mount_prefix='', 
                  **kargs):
         '''
         Most arguments have the same interpretation as :py:class:`fabric.servers.Server`. The additional parameters 
@@ -88,8 +87,8 @@ class HTTPBaseServer(Server):
             server = kargs.get('server', 'wsgiref')
             quiet = kargs.get('quiet', True)
             if concurrency == 'gevent': server = 'gevent'
-#            bottle.debug(True)
-            bottle.run(app=self, host=host, port=port, server=server, quiet=True)
+            bottle.debug(True)
+            bottle.run(app=self, host=host, port=port, server=server)
 
     def activate_endpoints(self):
         '''
@@ -170,6 +169,10 @@ class HTTPServer(HTTPBaseServer):
         '''
         self.cache = bkcache.CacheManager(**bkutil.parse_cache_config_options(config_obj['Caching']))
         logging.getLogger().debug('Cache config updated')
+    
+    def template_config(self, action, full_key, new_val, config_obj):
+        for path in config_obj["Template"]["template_paths"]:
+            self.add_template_path(path)
         
     def get_standard_plugins(self, plugins):
         '''
@@ -194,3 +197,7 @@ class HTTPServer(HTTPBaseServer):
         exception_handler = [ WrapException() ] if WrapException not in plugins and self.handle_exception else []
         
         return exception_handler + [ RequestParams() ] + tracer_plugin  # outermost to innermost
+    
+    def add_template_path(self, template_path):
+#        self.logger.debug("Adding template path:%s",template_path)
+        bottle.TEMPLATE_PATH.append(template_path)

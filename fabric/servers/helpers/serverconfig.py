@@ -53,7 +53,7 @@ class ServerConfig(Config):
             common_config.merge(spec_config)        #Merging configs
             common_configspec.merge(spec_configspec)        #Merging configspecs
         
-        self.merged_configspec = common_configspec
+        self.merged_configspec = common_configspec.dict()
 
         # add the default values for project dirs
         for k, v in env_config.iteritems():
@@ -68,7 +68,7 @@ class ServerConfig(Config):
         if config_test != True:
             warnings.warn('Configuration validation failed on %s and result is %s' % (config_files, config_test))
 
-        self.merge(configuration) # callbacks will be invoked now
+        self.merge(configuration.dict()) # callbacks will be invoked now
         
         if config_test != True:
             logging.getLogger().warning('Configuration validation not completely successful for %s and result is %s',
@@ -83,7 +83,7 @@ class ServerConfig(Config):
         config = config or {}
         overrides = overrides or []
         
-        curr_config = Config(dict(self))
+        curr_config = Config(self.dict())
         configspec = self.merged_configspec
         val = Validator()
         
@@ -96,6 +96,10 @@ class ServerConfig(Config):
                                         config, config_test)
             return #TODO: Return a better error msg.
         else:
+            try:
+                config = config.dict()
+            except AttributeError:
+                config = dict(config)
             self.merge(config) # selected callbacks should be called
             return None #TODO: return a success msg.
 

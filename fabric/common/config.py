@@ -73,6 +73,11 @@ class Config(ConfigObj):
                 return self.parent._find_parent_keys(complete=complete) + [par_key] if complete else [par_key]  # recursively call parent's find_parent_key
             except (ValueError, KeyError):
                 return []
+            
+    def merge(self, indict):
+        ret_val = super(Config, self).merge(indict)
+        self._update_main(self)
+        return ret_val
     
     def _new_getitem(self, attr, *args, **kargs):
         '''
@@ -121,6 +126,7 @@ class Config(ConfigObj):
         Sets the .main of all sections in the hierarchy recursively.
         '''
         if isinstance(vals, Section):
+#            vals.parent = self
             vals.main = self.main
             for _, val in vals.items():
                 if isinstance(val, Section): 
@@ -285,7 +291,7 @@ if __name__ == '__main__':
 
     print ("-----------------READY TO MERGE------------------------")
     cfg.merge(cfg2)
-    
+    print ("-----------------MERGE DONE------------------------")
     cfg['Section1']['sec1_var_1'] = 10
     
     cfg['Section2'].merge({ 'sec2_var1' : 'new_30', 'sec2_var2': 'new_40' })
@@ -293,7 +299,9 @@ if __name__ == '__main__':
     print('[Section2][sec2_var1]', cfg['Section2']['sec2_var1'])
 #    cfg.filename = 'config.test2.ini'
 #    cfg.write()
-    
+    print ("-----------------READY TO MERGE------------------------")
+    cfg.merge(cfg2)
+    print ("-----------------MERGE DONE------------------------")
     print('[Section3][sec3_var1]', cfg['Section3']['sec3_var1'], type(cfg['Section3']['sec3_var1']))
     print('[Section3][sec3_var2]', cfg['Section3']['sec3_var2'], type(cfg['Section3']['sec3_var2']))
     print('[Section3][sec3_var3]', cfg['Section3']['sec3_var3'], type(cfg['Section3']['sec3_var3']))

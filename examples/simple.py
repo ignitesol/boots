@@ -75,6 +75,6 @@ class EP(HTTPServerEndPoint):
 ep1 = EP()
 # associate the endpoint with a server
 standalone = __name__ == '__main__'
-main_server = ManagedServer(endpoints=[ep1], logger=True)
+main_server = ManagedServer(mount_prefix="/testing", endpoints=[ep1], logger=True)
 main_server.start_server(defport=9999, standalone=standalone, description="A test server for the fabric framework")
 application = main_server

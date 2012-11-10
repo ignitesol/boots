@@ -446,10 +446,10 @@ class HTTPServerEndPoint(EndPoint):
         
         for kw in dir(self): # for all varnames
             try:
-                callback = getattr(self, kw)  # get the var value
+                callback = getattr(self, kw) if type(getattr(self.__class__, kw, None)) is not property else None # get the var value
             except AttributeError:
                 callback = None
-            if hasattr(callback, '_methodroute'): # only methodroute decorated methods will have this
+            if hasattr(callback, '_methodroute') and hasattr(callback, '_route_kargs') and isinstance(callback._route_kargs, dict): # only methodroute decorated methods will have this
                 route_kargs = callback._route_kargs  # additional kargs passed on the decorator
                 
                 # implement skip by type and update skip for the route
@@ -494,7 +494,23 @@ class HTTPServerEndPoint(EndPoint):
         
         if activate:
             self.activate()
-            
+    
+    @property
+    def logger(self):
+        try:
+            logger = self.server.logger.getChild(self.name)
+#            logger.level = logging.DEBUG
+#            logger.propagate = 0
+#            handler = logging.FileHandler(os.path.join(self.server.config["Logging"]["logs"], self.name+".log"))
+#            frmt = logging.Formatter(self.server.config['Logging']['formatters']['detailed']['format'])
+#            handler.setFormatter(frmt)
+#            logger.addHandler(handler)
+#            logger.debug("Repo Server Loggers:%s",logging.Logger.manager.loggerDict) #@UndefinedVariable
+        except:
+            logger = logging.getLogger()
+            logger.exception("Returning root logger")
+        return logger
+    
     def activate(self, server=None, mount_prefix=None):
         '''
         activate an endpoint. This is typically invoked in start_server and it sets up the endpoint to start reciveing requests
