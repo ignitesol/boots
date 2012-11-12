@@ -499,6 +499,12 @@ class HTTPServerEndPoint(EndPoint):
     def logger(self):
         try:
             logger = self.server.logger.getChild(self.name)
+#            try:
+#                if callable(logger.getInfo):
+#                    logger.critical("Logger Info:%s", logger.getInfo())
+#            except Exception as e:
+#                logger.exception("%s",e)
+
 #            logger.level = logging.DEBUG
 #            logger.propagate = 0
 #            handler = logging.FileHandler(os.path.join(self.server.config["Logging"]["logs"], self.name+".log"))

@@ -116,7 +116,7 @@ SPARX.Manage.UI = function(){
 		create_tab : function(new_tab){
 			var tabs = document.getElementById("tabs");
 			var pages = document.getElementById("pages");
-			tabs.innerHTML = tabs.innerHTML + "<div id='"+new_tab+"_tab' onclick='SPARX.Manage.tab_clicked(event);' class='inactive_tab'><p style='margin:5px auto;width:"+(8.5*new_tab.length)+"px;'>"+new_tab+"</p></div>";
+			tabs.innerHTML = tabs.innerHTML + "<div id='"+new_tab+"_tab' onclick='SPARX.Manage.tab_clicked(event);' class='inactive_tab'><p style='margin:5px auto;width:"+(6.5*new_tab.length)+"px;'>"+new_tab+"</p></div>";
 			pages.innerHTML = pages.innerHTML + "<div id='"+new_tab+"_page' class='inactive_page'>"+new_tab+" is loading...</div>";
 		},
 		get_current_active_tab : function(){

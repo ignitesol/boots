@@ -202,14 +202,21 @@ SPARX.Manage.Logging = function(){
 			else
 				SPARX.Manage.Logging.set_and_show("No Filter Info Available");
 		},
-		add_filter : function(name, match, args, level, lineno, funcname){
-			filters[name] = {};
-			SPARX.Manage.Logging.update_filter(name, name, match, args, level, lineno, funcname);
+		add_filter : function(name, regex, args, level, lineno, funcname){
+			var new_filter = {"()":"fabric_logging.FabricFilter"};
+			var filter_fields = ["name", "regex", "args", "level", "lineno", "funcName"];
+			for(var i in filter_fields)
+				new_filter[filter_fields[i]] = document.getElementById("new_filter_"+filter_fields[i]).value;
+			document.getElementById('add_filter_div').style.display='none';
+			document.getElementById('add_filter_button').style.display='block';
+			filters[new_filter["name"]] = new_filter;
+			
+//			SPARX.Manage.Logging.update_filter(name, name, regex, args, level, lineno, funcname);
 		},
-		update_filter : function(id, name, match, args, level, lineno, funcname){
+		update_filter : function(id, name, regex, args, level, lineno, funcname){
 			filters[id]["()"] = "fabric_logging.FabricFilter";
 			filters[id]["name"] = name;
-			filters[id]["match"] = match;
+			filters[id]["regex"] = regex;
 			filters[id]["args"] = args;
 			filters[id]["level"] = level;
 			filters[id]["lineno"] = lineno;
