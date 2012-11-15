@@ -75,7 +75,31 @@ class Server(object):
         logger = kargs.get('logger', False)
         if logger: self.__class__.config_callbacks['Logging'] = Server._logger_config_update # defined in this class
         self.uuid = generate_uuid()
-        
+    
+    @property
+    def logger(self):
+        try:
+            #Inititalizing and configuring the logger.
+            logger = logging.getLogger(self.name)       
+            #Setting logger's level so that if we have multiple handlers we can lessen the log level for all using this.
+#            logger.level = logging.DEBUG
+            #Disabling propagate so that the LogRecords are not sent to the parent logger.                
+#            logger.propagate = 0
+            
+#            handler = logging.FileHandler(os.path.join(self.config["Logging"]["logs"], self.name+".log"))   #Inititalizing and configuring the handler.
+#            frmt = logging.Formatter(self.config['Logging']['formatters']['detailed']['format'])
+#            handler.setFormatter(frmt)
+            
+            #Setting handler's level so that if we have multiple handlers we can lessen the log level for individual one using this.
+            #Thus a FileHandler may always be on warning but a PubHandler maybe set to debug as it is not so taxing.
+#            handler.setLevel(logging.DEBUG)
+            
+#            logger.addHandler(handler)          #Adding handler to logger.
+        except:
+            logger = logging.getLogger()
+            logger.exception("Returning root logger")
+        return logger
+    
     def add_endpoint(self, endpoint):
         '''
         Simply add to the list of endpoints if it does not already exist. assumes an activated endpoint is being added if the server has already been activated
@@ -338,6 +362,6 @@ class Server(object):
             warn('Cannot instantiate logging: %s' % (e,))
         except ValueError as e:
             warn('Incomplete logging configuration: %s' % (e,))
-        self.logger = logging.getLogger()
+        self.logger.debug("Logging Config Updated.")
 
 

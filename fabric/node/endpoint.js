@@ -57,6 +57,7 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 
 	function _setup() {
 		_socket = zmq.socket(zmq_endpoint.socket_type);
+		// _socket.setsockopt(zmq.options.hwm, 10000);
 		_plugins.forEach(function(v) {
 			v.setup(zmq_endpoint);
 		});
@@ -80,17 +81,23 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 		_socket.send(msg);
 	}
 
-	function _recv_message() {		
+	function _recv_message() {
+	    var t = process.hrtime();		
 		var msg = utils.listify_arguments(arguments);
 		msg.forEach( function(v, i) { msg[i] = v.toString(); } );
 		
 		// zmq_endpoint.server.logger.info('Received ', msg);
 		// Plugins
-		_recv_plugins.forEach(function(v) {
-			msg = v.apply(msg);
-		})
-		// overridden callback
-		zmq_endpoint.self.callback(msg);
+		// process.nextTick(
+		    // function() {
+        		_recv_plugins.forEach(function(v) {
+        			msg = v.apply(msg);
+        			if(typeof(msg) == 'object') msg['t'] = t;
+        		})
+        		// overridden callback
+        		zmq_endpoint.self.callback(msg);
+            // }
+		// );
 	}
 
 	function _callback(msg) {
