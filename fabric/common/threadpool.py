@@ -13,6 +13,21 @@ import functools
 from heapq import heappop, heappush
 import logging
 
+# incredibly heroic patch attempt
+from multiprocessing.dummy import DummyProcess
+
+def _dummy_process_start_hook(themself):
+    if not hasattr(themself._parent, '_children'):
+        themself._parent._children = dict()
+    apply(_start, (themself,))
+    
+try: _start #@UndefinedVariable
+except NameError:
+    _start = DummyProcess.start
+    DummyProcess.start = _dummy_process_start_hook
+
+# End incredibly heroic patch attempt
+
 class ThreadPool(t):
     
     def __init__(self, processes=5):

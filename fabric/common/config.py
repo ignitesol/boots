@@ -4,6 +4,7 @@ Created on 08-Jul-2011
 
 from __future__ import print_function
 from fabric import concurrency
+from collections import OrderedDict
 if concurrency == 'gevent':
     from gevent.coros import RLock
 elif concurrency == 'threading':
@@ -285,6 +286,33 @@ class Config(ConfigObj):
             cb_list.remove(callback_func)
         except ValueError:
             pass
+        
+    def dict(self):
+        """
+        Return a deepcopy of self as a dictionary.
+        
+        All members that are ``Section`` instances are recursively turned to
+        ordinary dictionaries - by calling their ``dict`` method.
+        
+        >>> n = a.dict()
+        >>> n == a
+        1
+        >>> n is a
+        0
+        """
+        newdict = OrderedDict()
+        for entry in self:
+            this_entry = self[entry]
+            if isinstance(this_entry, Section):
+                this_entry = this_entry.dict()
+            elif isinstance(this_entry, list):
+                # create a copy rather than a reference
+                this_entry = list(this_entry)
+            elif isinstance(this_entry, tuple):
+                # create a copy rather than a reference
+                this_entry = tuple(this_entry)
+            newdict[entry] = this_entry
+        return newdict
         
 class ConfigSingleton(Config):
     '''
