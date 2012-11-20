@@ -22,6 +22,10 @@ class EndPoint(object):
     
     def activate(self):
         self._activated = True
+    
+    @property
+    def address(self):
+        return self.name
 
 class EndPointException(Exception):
     '''
