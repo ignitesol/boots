@@ -485,7 +485,6 @@ class HTTPServerEndPoint(EndPoint):
         if type(self.plugins) != list: self.plugins = [ self.plugins ]
         self.server = server
         self.mount_prefix = ''
-        self.activated = False
         
         with self.lock:
             if self.http_server_end_points.get(self.name, None):
@@ -546,8 +545,7 @@ class HTTPServerEndPoint(EndPoint):
         [ self._endpoint_app.install(plugin) for plugin in self.plugins ]
 
         self.routeapp() # establish any routes that have been setup by the @methodroute decorator
-        self.activated = True
-
+        super(HTTPServerEndPoint, self).activate()
     
     def abort(self, code, text):
         '''

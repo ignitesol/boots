@@ -16,6 +16,7 @@ class EndPoint(object):
         self.server = server
         self.name = name
         self.stickeykeys = stickeykeys
+        self._activated = False
     
     def close(self):
         pass
@@ -24,7 +25,11 @@ class EndPoint(object):
         self._activated = True
     
     @property
-    def address(self):
+    def activated(self):
+        return self._activated
+    
+    @property
+    def addressing(self):
         return self.name
 
 class EndPointException(Exception):

@@ -101,7 +101,7 @@ class Server(object):
             logger.exception("Returning root logger")
         return logger
     
-    def endpoint(self, address=None, name=None, **attr):
+    def endpoint(self, addressing=None, name=None, **attr):
         '''
         Endpoint addressing
         Uses the address of an endpoint to retrieve it form a hash
@@ -109,8 +109,8 @@ class Server(object):
         and return the first matching endpoint
         '''
         ep = None
-        if address is not None:
-            ep = self._addressing.get(address)
+        if addressing is not None:
+            ep = self._addressing.get(addressing)
         if not ep and name is not None:
             try: ep = filter(lambda e: e.name == name, self.endpoints)[0]
             except IndexError: pass
@@ -128,17 +128,17 @@ class Server(object):
         if endpoint.uuid not in [ e.uuid for e in self.endpoints ]:
             self.endpoints += [ endpoint ]
             try: 
-                ep = self._addressing[endpoint.address]
-                self.logger().warn("Same Address Endpoint already exists as %s before %s", ep, endpoint)
+                ep = self._addressing[endpoint.addressing]
+                self.logger.warn("Same Address Endpoint already exists as %s before %s", ep, endpoint)
             except KeyError: 
-                self._addressing[endpoint.address] = endpoint
+                self._addressing[endpoint.addressing] = endpoint
     
     def remove_endpoint(self, endpoint):
         '''
         Remove an endpoint from the list
         '''
         self.endpoints = list(filter(lambda e: endpoint.uuid != e.uuid, self.endpoints))
-        self._addressing.pop(endpoint.address, None)
+        self._addressing.pop(endpoint.addressing, None)
         
     def add_sub_server(self, server, mount_prefix=None):
         '''
@@ -198,7 +198,7 @@ class Server(object):
         '''
         Activate this server's endpoints. This is typically overridden in subclasses
         '''
-        pass
+        [ e.activate() for e in self.endpoints if not e.activated ]
     
     def pre_activate_hook(self):
         '''
