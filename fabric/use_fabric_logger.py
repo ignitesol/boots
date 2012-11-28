@@ -4,8 +4,7 @@ Created on 26-Oct-2012
 @author: harsh
 '''
 import fabric 
+from fabric.common.fabric_logging import FabricLogging
 fabric.use_logging = 'fabric'
-print "use_fabric_logger called"
-from fabric_logging import FabricLogging
 
 FabricLogging.enable()

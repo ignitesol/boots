@@ -10,11 +10,12 @@ import inspect
 import sys
 import os
 import functools
+import fabric
 from fabric.servers.helpers.serverconfig import ServerConfig
+from fabric.common.utils import new_counter, generate_uuid
+from fabric.common.fabric_logging import FabricLogging
 from logging.config import dictConfig
 import logging
-
-from fabric.common.utils import new_counter, generate_uuid
 
 class Server(object):
     '''
@@ -80,7 +81,8 @@ class Server(object):
     def logger(self):
         try:
             #Inititalizing and configuring the logger.
-            logger = logging.getLogger(self.name)       
+            logger = logging.getLogger(FabricLogging.root_logger_name).getChild(self.name)
+#            logger = logging.getLogger(self.name)
             #Setting logger's level so that if we have multiple handlers we can lessen the log level for all using this.
 #            logger.level = logging.DEBUG
             #Disabling propagate so that the LogRecords are not sent to the parent logger.                
@@ -355,6 +357,10 @@ class Server(object):
         '''
         Called by Config to update the logging Configuration.
         '''
+        name = config_obj['Fabric'].get('root_logger_name', None)
+        if fabric.use_logging == 'fabric' and name:
+            FabricLogging.set_root_logger_name(name)
+        
         try:
             d=config_obj.dict()
             dictConfig(d.get('Logging', {}))

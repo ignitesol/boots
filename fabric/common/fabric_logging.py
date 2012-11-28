@@ -117,6 +117,8 @@ def post_filter(self, msg):
 
 class FabricLogging:
     
+    root_logger_name = ""
+    
     @classmethod
     def enable(cls):
         '''
@@ -127,3 +129,9 @@ class FabricLogging:
         logging.Handler.format = fabric_format
         logging.Filterer.post_filter = post_filter
         logging.Logger.manager.__class__.getLoggerDict = getLoggerDict
+    
+    @classmethod
+    def set_root_logger_name(cls, name):
+        cls.root_logger_name = name or ""
+    
+    
