@@ -171,7 +171,11 @@ class HTTPServer(HTTPBaseServer):
         logging.getLogger().debug('Cache config updated')
     
     def template_config(self, action, full_key, new_val, config_obj):
-        for path in config_obj["Template"]["template_paths"]:
+        self.logger.debug("Template Config updated for %s", full_key)
+        sub_config_obj = config_obj
+        for key in full_key:
+            sub_config_obj = config_obj[key]
+        for path in sub_config_obj.get("template_paths", []):
             self.add_template_path(path)
         
     def get_standard_plugins(self, plugins):
@@ -201,3 +205,4 @@ class HTTPServer(HTTPBaseServer):
     def add_template_path(self, template_path):
 #        self.logger.debug("Adding template path:%s",template_path)
         bottle.TEMPLATE_PATH.append(template_path)
+#        self.logger.debug("Added template path:%s",bottle.TEMPLATE_PATH)

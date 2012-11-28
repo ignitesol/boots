@@ -50,7 +50,7 @@ class ManagedEP(HTTPServerEndPoint):
     
     @bottle.view('adminui')
     @methodroute(path="/", skip_by_type=[Stats, Tracer])
-#    @bottle.auth_basic(check=admin_auth)    #Not working!!
+#    @bottle.auth_basic(check=admin_auth, realm="admin", text="Admin interface access denied")    #Not working!!
     def admin(self):
         '''
         Returns the admin UI and the list of tabs that the UI has to load.
@@ -203,7 +203,6 @@ class ManagedServer(HTTPServer):
         endpoints = [ endpoints ] if type(endpoints) not in [list, tuple] else endpoints
         endpoints = endpoints + [ ManagedEP()]
         self._stats = StatsCollection()
-        self.config_callbacks['Template'] = self.template_config
         super(ManagedServer, self).__init__(endpoints=endpoints, **kargs)
 
     def get_standard_plugins(self, plugins):
