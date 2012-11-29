@@ -357,7 +357,7 @@ class Server(object):
         '''
         Called by Config to update the logging Configuration.
         '''
-        name = config_obj['Fabric'].get('root_logger_name', None)
+        name = config_obj.get('Fabric', {}).get('root_logger_name', None)
         if fabric.use_logging == 'fabric' and name:
             FabricLogging.set_root_logger_name(name)
         
