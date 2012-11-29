@@ -513,15 +513,15 @@ class HTTPServerEndPoint(EndPoint):
 #            logger.addHandler(handler)
 #            logger.debug("Repo Server Loggers:%s",logging.Logger.manager.loggerDict) #@UndefinedVariable
 
-            try:
-                logger.debug("All Loggers:%s",logging.Logger.manager.getLoggerDict()) #@UndefinedVariable
-                logger.debug("All Loggers Config:%s",self.server.config['Logging']['loggers']) #@UndefinedVariable
-                logger.debug("Server Logger:%s, type:%s, name:%s",str(self.server.logger.getInfo()), type(self.server.logger), self.server.logger.name) #@UndefinedVariable
-                logger.debug("Real Server Config:%s", self.server.config['Logging']['loggers'].get(self.server.logger.name, "Not Present"))
-                logger.debug("Endpoint Logger:%s, type:%s, name:%s",str(logger.getInfo()), type(logger), logger.name) #@UndefinedVariable
-                logger.debug("Real Endpoint Config:%s", self.server.config['Logging']['loggers'].get(logger.name, "Not Present"))
-            except:
-                logger.debug("Logger info printing failed")
+#            try:
+#                logger.debug("All Loggers:%s",logging.Logger.manager.getLoggerDict()) #@UndefinedVariable
+#                logger.debug("All Loggers Config:%s",self.server.config['Logging']['loggers']) #@UndefinedVariable
+#                logger.debug("Server Logger:%s, type:%s, name:%s",str(self.server.logger.getInfo()), type(self.server.logger), self.server.logger.name) #@UndefinedVariable
+#                logger.debug("Real Server Config:%s", self.server.config['Logging']['loggers'].get(self.server.logger.name, "Not Present"))
+#                logger.debug("Endpoint Logger:%s, type:%s, name:%s",str(logger.getInfo()), type(logger), logger.name) #@UndefinedVariable
+#                logger.debug("Real Endpoint Config:%s", self.server.config['Logging']['loggers'].get(logger.name, "Not Present"))
+#            except:
+#                logger.debug("Logger info printing failed")
         except:
             logger = logging.getLogger()
             logger.exception("Returning root logger")
@@ -537,7 +537,7 @@ class HTTPServerEndPoint(EndPoint):
             mount_prefix + mountpoint + individual route paths
         '''
         
-        if self.activated:
+        if self.activated:  
             return
 
         self.mount_prefix = mount_prefix or self.mount_prefix

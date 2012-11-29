@@ -5,17 +5,18 @@ through which they communicate (receive and send).
 
  
 '''
-from warnings import warn
-import inspect
 import sys
 import os
+import inspect
+import logging
 import functools
+from warnings import warn
+from logging.config import dictConfig
+
 import fabric
 from fabric.servers.helpers.serverconfig import ServerConfig
 from fabric.common.utils import new_counter, generate_uuid
 from fabric.common.fabric_logging import FabricLogging
-from logging.config import dictConfig
-import logging
 
 class Server(object):
     '''
@@ -368,6 +369,9 @@ class Server(object):
             warn('Cannot instantiate logging: %s' % (e,))
         except ValueError as e:
             warn('Incomplete logging configuration: %s' % (e,))
+        except Exception as e:
+            logging.exception(e)
+            warn('Cannot instantiate logging: %s' % (e,))
         self.logger.debug("Logging Config Updated.")
 
 
