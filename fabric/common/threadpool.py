@@ -87,8 +87,9 @@ class InstancedScheduler(Singleton, threading.Thread):
                     try: callback()
                     except Exception as e:
                         logging.getLogger().exception("Exception running scheduled Timer: %s", e)
-                
-                if self._stop is True: break
+                        
+                with self._lock:
+                    if self._stop is True: break
             finally:
                 try:
                     # new timeout

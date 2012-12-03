@@ -7,8 +7,10 @@ from fabric.datastore.dbengine import DatabaseEngineFactory, DBConfig
 from fabric.endpoints.endpoint import EndPoint
 from sqlalchemy.ext.declarative import declarative_base
 from inspect import getargspec
+import threading
+from fabric.common.threadpool import InstancedScheduler
 
-class DBEndPoint(EndPoint):
+class DBConnectionEndPoint(EndPoint):
     '''
     An SQLAlchemy specific database Endpoint
     Current functionality is limited to Engine and session management
@@ -45,7 +47,7 @@ class DBEndPoint(EndPoint):
         
         setattr(_base, '__repr__', rep)
         self._schema_base = _base
-        super(DBEndPoint, self).__init__(**kargs)
+        super(DBConnectionEndPoint, self).__init__(**kargs)
 #    
     @property
     def Base(self):
@@ -80,3 +82,52 @@ class DBEndPoint(EndPoint):
             if clean:
                 self.Base.metadata.drop_all(checkfirst=True)
                 self.Base.metadata.create_all()
+
+
+class DBDelayedWriter(object):
+    
+    
+    DELETE = "delete"
+    ADD = "add"
+    UPDATE = "update"
+    
+    def __init__(self, db_ep, interval=5):
+        self.db_ep = db_ep
+        self._job = None
+        self.interval = interval
+        
+        self._actions = {}
+        self._actions.setdefault(self.__class__.DELETE, [])
+        self._actions.setdefault(self.__class__.ADD, [])
+        self._actions.setdefault(self.__class__.UPDATE, [])
+        
+        self._write_lock = threading.RLock()
+    
+    def _update(self, command):
+        pass
+    
+    def _add(self, command):
+        pass
+    
+    def _delete(self, command):
+        pass
+    
+    def _delayed_write(self):
+        with self._write_lock:
+            # TODO: The DB Stuff
+            for action, actions in self._actions:
+                for act in actions:
+                    if action is self.__class__.DELETE: self._delete(act)
+                    elif action is self.__class__.UPDATE: self._update(act)
+                    elif action is self.__class__.ADD: self._add(act)
+                    
+            self._job = InstancedScheduler().timer(self.interval, self._delayed_write)
+    
+    def stop(self):
+        with self._write_lock:
+            InstancedScheduler().cancel(self._job)
+    
+    def start(self):
+        with self._write_lock:
+            self._job = InstancedScheduler().timer(self.interval, self._delayed_write)
+        

@@ -1,3 +1,3 @@
-__all__ = ['DBEndPoint']
+__all__ = ['DBConnectionEndPoint']
 
-from db_base import DBEndPoint
+from db_base import DBConnectionEndPoint
