@@ -68,6 +68,7 @@ class Server(object):
         '''
         self.name = name or self._name_prefix + str(Server._counter()) # _name_prefix will be from subclass if overridden
         self.endpoints = endpoints or []
+        self._addressing = {}
         self.sub_servers = []
         self.parent_server = parent_server
         self.config = {} #: holds the parsed and processed config for this server (based on ini files and other updates)
@@ -103,18 +104,44 @@ class Server(object):
             logger.exception("Returning root logger")
         return logger
     
+    def endpoint(self, addressing=None, name=None, **attr):
+        '''
+        Endpoint addressing
+        Uses the address of an endpoint to retrieve it form a hash
+        else uses any other attribute to iterate the endpoints 
+        and return the first matching endpoint
+        '''
+        ep = None
+        if addressing is not None:
+            ep = self._addressing.get(addressing)
+        if not ep and name is not None:
+            try: ep = filter(lambda e: e.name == name, self.endpoints)[0]
+            except IndexError: pass
+        if not ep and len(attr) > 0:
+            for k, v in attr.iteritems():
+                try: ep = filter(lambda e: getattr(e, k, None) == v, self.endpoints)[0]
+                except IndexError: pass
+                else: break
+        return ep 
+    
     def add_endpoint(self, endpoint):
         '''
         Simply add to the list of endpoints if it does not already exist. assumes an activated endpoint is being added if the server has already been activated
         '''
         if endpoint.uuid not in [ e.uuid for e in self.endpoints ]:
             self.endpoints += [ endpoint ]
+            try: 
+                ep = self._addressing[endpoint.addressing]
+                self.logger.warn("Same Address Endpoint already exists as %s before %s", ep, endpoint)
+            except KeyError: 
+                self._addressing[endpoint.addressing] = endpoint
     
     def remove_endpoint(self, endpoint):
         '''
         Remove an endpoint from the list
         '''
         self.endpoints = list(filter(lambda e: endpoint.uuid != e.uuid, self.endpoints))
+        self._addressing.pop(endpoint.addressing, None)
         
     def add_sub_server(self, server, mount_prefix=None):
         '''
@@ -174,7 +201,7 @@ class Server(object):
         '''
         Activate this server's endpoints. This is typically overridden in subclasses
         '''
-        pass
+        [ e.activate() for e in self.endpoints if not e.activated ]
     
     def pre_activate_hook(self):
         '''

@@ -132,6 +132,7 @@ class ClusteredServer(HybridServer):
         This is set as server object. This state is used by the application to recover its original server state
         '''
         self.datastore = get_datastore( config_obj['Datastore']['datastore'] , config_obj)
+        self.add_endpoint(self.datastore)
         if not self.datastore:
             #the server won't be clustered in-case the datastore configuration is messed
             self.clustered = False

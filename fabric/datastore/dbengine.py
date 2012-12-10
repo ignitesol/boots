@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.interfaces import PoolListener
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import QueuePool
 
 class ForeignKeysListener(PoolListener):
@@ -53,6 +53,7 @@ class _DatabaseEngine :
                        listeners=[ForeignKeysListener(dbtype)]) 
 
             self.Session = sessionmaker(bind=self.engine, expire_on_commit=False) # create a configured "Session" class
+            self._scoped_sessions = scoped_session(self.Session) 
    
             #: begin txn listener
             @event.listens_for(self.engine, "begin")
@@ -72,6 +73,16 @@ class _DatabaseEngine :
         sess = self.Session()
         sess.expire_on_commit = False
         return sess
+    
+    def get_scoped_session(self):
+        '''
+        Return a scoped session object locally for a thread, 
+        can be used liberally within the same thread without deadlocks
+        '''
+        try: 
+            return self._scoped_sessions()
+        except (TypeError, AttributeError): 
+            return None
     
     
 class DatabaseEngineFactory(object):
