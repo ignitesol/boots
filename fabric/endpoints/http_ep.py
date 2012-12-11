@@ -40,7 +40,8 @@ import traceback
 try: from collections import MutableMapping as DictMixin
 except ImportError: # pragma: no cover
     from UserDict import DictMixin
- 
+
+template = bottle.view
 
 # leverages bottle.
 

@@ -241,7 +241,7 @@ class HTTPClientEndPoint(EndPoint):
             # FIXME: change logging to warning.warn
             raise
 
-    def request(self, url, headers=None, **kargs):
+    def request(self, url=None, headers=None, **kargs):
         '''
         a method to make a simple get request. all keyword arguments are converted to the data for the request.
 
@@ -260,8 +260,6 @@ class HTTPClientEndPoint(EndPoint):
         except KeyError:
             pass
         return self._request(url, data=kargs, headers=headers, method=method)
-    
-    
     
     @dejsonify_response
     def json_out_request(self, url, headers=None, **kargs):

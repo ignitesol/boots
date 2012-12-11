@@ -11,7 +11,8 @@ elif concurrency == 'threading':
     
 import time
 from fabric.servers.httpserver import HTTPServer
-from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute, Hook, Tracer
+from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute, Hook, Tracer,\
+    template
 import json
 
 import logging
@@ -48,7 +49,7 @@ class ManagedEP(HTTPServerEndPoint):
     def __init__(self, name=None, mountpoint='/admin', plugins=None, server=None, activate=False):
         super(ManagedEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
     
-    @bottle.view('adminui')
+    @template('adminui')
     @methodroute(path="/", skip_by_type=[Stats, Tracer])
 #    @bottle.auth_basic(check=admin_auth, realm="admin", text="Admin interface access denied")    #Not working!!
     def admin(self):
@@ -81,7 +82,7 @@ class ManagedEP(HTTPServerEndPoint):
             return dict(error="No configuration specified")
         return dict(status="Success")
     
-    @bottle.view('configui')
+    @template('configui')
     @methodroute(path="/config/<section>", skip_by_type=[Stats, Tracer], method="GET")
     def config(self, section="all"):
         '''
@@ -98,7 +99,7 @@ class ManagedEP(HTTPServerEndPoint):
         else:
             return dict(error="Invalid Section")
 
-    @bottle.view('loggingui')
+    @template('loggingui')
     @methodroute(skip_by_type=[Stats, Tracer], method="ANY")
     def config__Logging(self):
         '''
