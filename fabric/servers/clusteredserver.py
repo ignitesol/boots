@@ -107,7 +107,7 @@ class ClusteredServer(HybridServer):
         super(ClusteredServer, self).pre_activate_hook()
         self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port']) + getattr(self, 'mount_prefix', '') 
         #check if datastore is properly configured via init (in-case it is now , we default to  non-clustered module)
-        if self.datastore:
+        if hasattr(self, 'datastore'):
             if self.cmmd_line_args['restart']:
                 self.restart = True
                 logging.getLogger().debug("Server restarted after crash. read blob from db and set it to server_state")
@@ -121,7 +121,7 @@ class ClusteredServer(HybridServer):
             
     def post_activate_hook(self):
         super(ClusteredServer, self).post_activate_hook()
-        if self.restart:
+        if hasattr(self, 'restart'):
             self.process_restart(self.server_state)
         
     def _dbconfig_config_update(self, action, full_key, new_val, config_obj):
@@ -149,6 +149,7 @@ class ClusteredServer(HybridServer):
             par_plugins = []
         #Adds the clustered plugin only if this is clustered server
         if self.clustered:
+            logging.getLogger().debug("Adding the clustered plugin")
             par_plugins += [ ClusteredPlugin(datastore=self.datastore, ds=self.ds) ] 
         return par_plugins
         
