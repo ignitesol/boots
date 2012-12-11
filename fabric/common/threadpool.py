@@ -54,10 +54,20 @@ class InstancedScheduler(Singleton, threading.Thread):
         self._stop = False
         self.start()
     
+    def scheduled_time(self, job_id):
+        with self._lock:
+            for tm, _, idn in self._task_heap:
+                if idn is job_id: 
+                    return tm
+                
+    
     def cancel(self, idn):
         with self._lock: self._cancelled[idn] = True
     
     def timer(self, delay, fn, *args, **kargs):
+        '''
+        Timer Tuple Format: Absolute Time, Partial function(*args, **kargs), id(generated)
+        '''
         idn = self._counter()
         self._q.put((time.time() + delay, functools.partial(fn, *args, **kargs), idn))
         return idn

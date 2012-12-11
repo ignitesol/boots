@@ -82,6 +82,24 @@ class DBConnectionEndPoint(EndPoint):
             if clean:
                 self.Base.metadata.drop_all(checkfirst=True)
                 self.Base.metadata.create_all()
+    
+    def insession(self, commit=False):
+        '''
+        Decorator for creating and passing sessions into decorated methods
+        :param commit=False: Whether or not to commit the session after method invocation
+        '''
+        def decorator(fn):
+            def wrapper(*args, **kargs):
+                session=self.session
+                kargs['session'] = session
+                ret = fn(*args, **kargs)
+                if commit:
+                    session.commit()
+                return ret
+                    
+            return wrapper
+        return decorator
+        
 
 
 class DBDelayedWriter(object):
