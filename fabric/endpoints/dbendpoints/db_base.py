@@ -31,7 +31,7 @@ class DBConnectionEndPoint(EndPoint):
             
         self._dbconfig = DBConfig(dbtype, db_url, **dbargs) if not dbconfig else dbconfig
         self._engine = DatabaseEngineFactory(self._dbconfig)
-        _base = declarative_base(bind=self._engine.engine)
+        self._schema_base = declarative_base(bind=self._engine.engine)
         
 #        class BaseWrapper(_base):
 #            __tablename__ = ""
@@ -43,10 +43,9 @@ class DBConnectionEndPoint(EndPoint):
         # since we cannot easily create a shell inheritance
         # due to the declarative base's strict metaclass
         def rep(s):
-            return "<(%s)"%s.__tablename__ + " ".join([ "%s:%s"%(k, getattr(s, k)) for k in s.__table__.c.keys() ]) + ">"
+            return "<(%s)"%s.__tablename__ + " ".join([ "%s:%.200s"%(k, getattr(s, k)) for k in s.__table__.c.keys() ]) + ">"
         
-        setattr(_base, '__repr__', rep)
-        self._schema_base = _base
+        setattr(self._schema_base, '__repr__', rep)
         super(DBConnectionEndPoint, self).__init__(**kargs)
 #    
     @property
