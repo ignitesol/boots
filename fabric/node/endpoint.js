@@ -82,7 +82,6 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 	}
 
 	function _recv_message() {
-	    var t = process.hrtime();		
 		var msg = utils.listify_arguments(arguments);
 		msg.forEach( function(v, i) { msg[i] = v.toString(); } );
 		
@@ -92,7 +91,6 @@ function ZMQEndpoint(socket_type, address, bind, plugins, filters) {
 		    // function() {
         		_recv_plugins.forEach(function(v) {
         			msg = v.apply(msg);
-        			if(typeof(msg) == 'object') msg['t'] = t;
         		})
         		// overridden callback
         		zmq_endpoint.self.callback(msg);

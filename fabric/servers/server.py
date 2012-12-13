@@ -132,7 +132,7 @@ class Server(object):
             self.endpoints += [ endpoint ]
             try: 
                 ep = self._addressing[endpoint.addressing]
-                self.logger.warn("Same Address Endpoint already exists as %s before %s", ep, endpoint)
+                # self.logger.warn("Same Address Endpoint already exists as %s before %s", ep, endpoint)
             except KeyError: 
                 self._addressing[endpoint.addressing] = endpoint
     

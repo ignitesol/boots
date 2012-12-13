@@ -4,7 +4,7 @@ if concurrency == concurrency.GEVENT and False:
 else:
     from multiprocessing.pool import ThreadPool as t
     
-from fabric.common.singleton import Singleton
+from fabric.common.singleton import Singleton, NamespaceSingleton
 import threading
 import Queue
 import time
@@ -41,7 +41,7 @@ class InstancedThreadPool(Singleton, ThreadPool):
     def __init__(self, num_workers=10):
         super(InstancedThreadPool, self).__init__(processes=num_workers)
 
-class InstancedScheduler(Singleton, threading.Thread):    
+class InstancedScheduler(NamespaceSingleton, threading.Thread):    
     
     def __init__(self, *args, **kargs):
         super(InstancedScheduler, self).__init__(*args, **kargs)
@@ -54,11 +54,11 @@ class InstancedScheduler(Singleton, threading.Thread):
         self._stop = False
         self.start()
     
-    def scheduled_time(self, job_id):
+    def scheduled_data(self, job_id):
         with self._lock:
-            for tm, _, idn in self._task_heap:
+            for tm, cb, idn in self._task_heap:
                 if idn is job_id: 
-                    return tm
+                    return (tm, cb, idn)
                 
     
     def cancel(self, idn):
