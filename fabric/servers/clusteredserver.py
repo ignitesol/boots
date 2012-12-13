@@ -121,7 +121,7 @@ class ClusteredServer(HybridServer):
             
     def post_activate_hook(self):
         super(ClusteredServer, self).post_activate_hook()
-        if hasattr(self, 'restart'):
+        if hasattr(self, 'restart') and self.restart:
             self.process_restart(self.server_state)
         
     def _dbconfig_config_update(self, action, full_key, new_val, config_obj):

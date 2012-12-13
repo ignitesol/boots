@@ -60,13 +60,17 @@ class ClusteredPlugin(BasePlugin):
                     stickyvalues = self._get_stickyvalues(server, sticky_keys, kargs)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
+                        print "Stickyvalues :  %s"%stickyvalues
                         ds_wrapper._read_by_stickyvalue(stickyvalues)
                         server_adress = ds_wrapper.server_address
-                    except Exception:
+                        print "GOTO ==> server address : %s "%server_adress
+                    except Exception as e:
+                        print "Exception occured is :%s "%e
                         with Atomic.lock: # Do we really need at this level
                             server_adress = server.get_least_loaded(server.servertype, server.server_adress)
                             ds_wrapper.server_address = server_adress
                     res = None    
+                    print "my server : %s"%server.server_adress
                     if server_adress != server.server_adress: 
                         destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
                                                 bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]

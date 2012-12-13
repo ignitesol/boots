@@ -16,6 +16,7 @@ from sqlalchemy.schema import ForeignKey
 from sqlalchemy.types import String, Integer, Float
 from sqlalchemy.sql.expression import and_, func
 import json
+import datetime
 
     
 def dbsessionhandler(wrapped_fn):
@@ -128,14 +129,20 @@ class MySQLBinding(BaseDatastore):
         '''
         if not stickyvalues:
             return None
+        print "Inside dbsessionhandler : get_server_by_stickyvalue : %s "%stickyvalues
+        print "type : %s "% type(stickyvalues)
+        print datetime.datetime.now()
+        for s in stickyvalues:
+            print s
         try:
-            existing_mapping_list = sess.query(StickyMapping).filter(and_(StickyMapping.sticky_value.in_(stickyvalues), \
-                                                                       True)).all()
+            existing_mapping_list = sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).all()
+            print "existing_mapping_list : %s "%existing_mapping_list
         except Exception:
             pass
         if not existing_mapping_list:
             return None
         #TODO : Join was screwing up for some reason so , dirty code . Must  fix
+        print "existing_mapping_list[0].server_id : %s "%existing_mapping_list[0].server_id
         server = sess.query(Server).filter(Server.server_id == existing_mapping_list[0].server_id).one()
         return  (server, existing_mapping_list)
     
@@ -155,17 +162,25 @@ class MySQLBinding(BaseDatastore):
         #Two sub transactions .
         #first transaction updates the load and server_state
         #other transaction is set of multiple individual db transactions that tries to add the sticky-key ONE-by-ONE if NOT already exist
+        print "Saving the sticky keys : %s "% stickyvalues
         server = sess.query(Server).filter(Server.unique_key == server_adress).one()
+        print datetime.datetime.now()
         if server_state:
             sess.query(Server).filter(Server.unique_key == server_adress)\
                     .update({Server.load:load, Server.server_state:server_state}, synchronize_session=False)
         else:
             sess.query(Server).filter(Server.unique_key == server_adress)\
                     .update({Server.load:load}, synchronize_session=False)
-        sess.commit()
+        
+        print "sticky record commit : %s "%datetime.datetime.now()
         for stickyvalue in stickyvalues:
-            self._add_sticky_record(server.server_id, endpoint_key, endpoint_name, stickyvalue)
-    
+            sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)
+            sess.add(sticky_record)  
+            #self._add_sticky_record(server.server_id, endpoint_key, endpoint_name, stickyvalue)
+        sess.commit()
+        
+        
+        
     @dbsessionhandler
     def _add_sticky_record(self, sess, server_id, endpoint_key, endpoint_name, stickyvalue):
         '''
@@ -179,6 +194,7 @@ class MySQLBinding(BaseDatastore):
             sticky_record = StickyMapping(server_id, endpoint_key, endpoint_name, stickyvalue)
             sess.add(sticky_record)  
             sess.commit()
+            print "sticky record commit : %s "%datetime.datetime.now()
         except IntegrityError:
             pass
             #print "Sticky mapping already exist with another server"
