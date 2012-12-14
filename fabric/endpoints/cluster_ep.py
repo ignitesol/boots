@@ -3,6 +3,8 @@ from fabric.datastore.datawrapper import DSWrapperObject
 from fabric.endpoints.http_ep import BasePlugin
 from functools import wraps
 import bottle
+import json
+import urllib
 import urllib2
 
 if concurrency == 'gevent':
@@ -60,17 +62,13 @@ class ClusteredPlugin(BasePlugin):
                     stickyvalues = self._get_stickyvalues(server, sticky_keys, kargs)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
-                        print "Stickyvalues :  %s"%stickyvalues
                         ds_wrapper._read_by_stickyvalue(stickyvalues)
                         server_adress = ds_wrapper.server_address
-                        print "GOTO ==> server address : %s "%server_adress
                     except Exception as e:
-                        print "Exception occured is :%s "%e
                         with Atomic.lock: # Do we really need at this level
                             server_adress = server.get_least_loaded(server.servertype, server.server_adress)
                             ds_wrapper.server_address = server_adress
                     res = None    
-                    print "my server : %s"%server.server_adress
                     if server_adress != server.server_adress: 
                         destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
                                                 bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
@@ -78,7 +76,7 @@ class ClusteredPlugin(BasePlugin):
                         cookies = bottle.request.COOKIES.dict
                         getparams = bottle.request.GET.dict
                         postparams = bottle.request.POST.dict
-                        res = self._make_proxy_call(server_adress, headers, cookies, getparams, postparams)
+                        res = self._make_proxy_call(server_adress+ '/services', headers, cookies, getparams, postparams)
                     if res:return res # return if there is response 
                         
                 # If method-route expects the param then add the ds_wrapper with the param named defined in the plugin
@@ -87,7 +85,6 @@ class ClusteredPlugin(BasePlugin):
                 result = callback(*args, **kargs)
             except Exception as e:
                 exception = e
-                print e
                 result=None
             finally:
                 if exception:
@@ -169,10 +166,17 @@ class ClusteredPlugin(BasePlugin):
         '''
         
         destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
-                                                    bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
-        
-        data = postparams if postparams else None
+                                                    bottle.request.environ["PATH_INFO"] #+ "?" + bottle.request.environ["QUERY_STRING"]
+        data = None
+        if postparams:
+            for k, v in postparams.items():
+                if isinstance(v, list): 
+                    postparams[k] = v[0]
+            data = postparams
+
         ret_val = None
+        print "Making proxy call : %s "%destination_url
+        data = urllib.urlencode(data)
         try:
             req = urllib2.Request(destination_url, data, headers)
             res = urllib2.urlopen(req)
