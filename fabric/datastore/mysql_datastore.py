@@ -163,12 +163,32 @@ class MySQLBinding(BaseDatastore):
                         .update({Server.load:load}, synchronize_session=False)
             
             for stickyvalue in stickyvalues:
-                sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)
-                sess.add(sticky_record)  
+                try:
+                    sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)
+                    sess.add(sticky_record)  
+                    sess.flush()
+                except Exception as e:
+                    sess.rollback()
                 #self._add_sticky_record(server.server_id, endpoint_key, endpoint_name, stickyvalue)
             sess.commit()
         except IntegrityError as e:
             sess.rollback()
+        
+    @dbsessionhandler
+    def save_stickyvalue(self, sess, server_adress, endpoint_key, endpoint_name, stickyvalue):  
+        '''
+        Save one stickyvalue
+        '''
+        try:
+            server = sess.query(Server).filter(Server.unique_key == server_adress).one()
+            sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)
+            sess.add(sticky_record)  
+            sess.commit()
+            print "save sticky value : %s"%datetime.datetime.now()
+        except IntegrityError as e:
+            print "save_updated_data : %s "%e
+            sess.rollback()
+            
         
         
         
@@ -306,8 +326,8 @@ class StickyMapping(Base):
         
         
     def __repr__(self):
-        return "<StickyMapping (mapping_id, server_id, endpoint_key, endpoint_name, sticky_value)('%s', '%s', '%s', '%s')>" % \
-            (self.mapping_id , self.server_id, str(self.endpoint_key), str(self.endpoint_name), str(self.sticky_value))
+        return "<StickyMapping (server_id, endpoint_key, endpoint_name, sticky_value)('%s', '%s', '%s', '%s')>" % \
+            (self.server_id, str(self.endpoint_key), str(self.endpoint_name), str(self.sticky_value))
 
    
 if __name__ == '__main__':

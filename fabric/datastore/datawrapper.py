@@ -86,6 +86,14 @@ class DSWrapperObject(object):
                 save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.stickymappinglist, self.load, self.server_state)
 
     
+    def _save_stickyvalues(self):
+        '''
+        saves only the sticky values
+        '''
+        if self._autosave and self._dirty:
+            for s in self.stickymappinglist:
+                self.datastore.save_stickyvalue(self.server_address, self.endpoint_key, self.endpoint_name, s)
+    
     def _read_by_stickyvalue(self, stickyvalues):
         '''
         This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled

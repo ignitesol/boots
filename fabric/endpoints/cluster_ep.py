@@ -3,7 +3,7 @@ from fabric.datastore.datawrapper import DSWrapperObject
 from fabric.endpoints.http_ep import BasePlugin
 from functools import wraps
 import bottle
-import json
+import datetime
 import urllib
 import urllib2
 
@@ -62,8 +62,12 @@ class ClusteredPlugin(BasePlugin):
                     stickyvalues = self._get_stickyvalues(server, sticky_keys, kargs)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
+                        print "stickyvalues : %s "%stickyvalues
+                        print datetime.datetime.now()
                         ds_wrapper._read_by_stickyvalue(stickyvalues)
                         server_adress = ds_wrapper.server_address
+                        ds_wrapper.add_sticky_value(stickyvalues)
+                        ds_wrapper._save_stickyvalues()
                     except Exception as e:
                         with Atomic.lock: # Do we really need at this level
                             server_adress = server.get_least_loaded(server.servertype, server.server_adress)
