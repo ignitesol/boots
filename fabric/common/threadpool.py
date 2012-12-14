@@ -4,7 +4,7 @@ if concurrency == concurrency.GEVENT and False:
 else:
     from multiprocessing.pool import ThreadPool as t
     
-from fabric.common.singleton import Singleton
+from fabric.common.singleton import Singleton, NamespaceSingleton
 import threading
 import Queue
 import time
@@ -41,7 +41,7 @@ class InstancedThreadPool(Singleton, ThreadPool):
     def __init__(self, num_workers=10):
         super(InstancedThreadPool, self).__init__(processes=num_workers)
 
-class InstancedScheduler(Singleton, threading.Thread):    
+class InstancedScheduler(NamespaceSingleton, threading.Thread):    
     
     def __init__(self, *args, **kargs):
         super(InstancedScheduler, self).__init__(*args, **kargs)
@@ -54,10 +54,20 @@ class InstancedScheduler(Singleton, threading.Thread):
         self._stop = False
         self.start()
     
+    def scheduled_data(self, job_id):
+        with self._lock:
+            for tm, cb, idn in self._task_heap:
+                if idn is job_id: 
+                    return (tm, cb, idn)
+                
+    
     def cancel(self, idn):
         with self._lock: self._cancelled[idn] = True
     
     def timer(self, delay, fn, *args, **kargs):
+        '''
+        Timer Tuple Format: Absolute Time, Partial function(*args, **kargs), id(generated)
+        '''
         idn = self._counter()
         self._q.put((time.time() + delay, functools.partial(fn, *args, **kargs), idn))
         return idn
@@ -87,8 +97,9 @@ class InstancedScheduler(Singleton, threading.Thread):
                     try: callback()
                     except Exception as e:
                         logging.getLogger().exception("Exception running scheduled Timer: %s", e)
-                
-                if self._stop is True: break
+                        
+                with self._lock:
+                    if self._stop is True: break
             finally:
                 try:
                     # new timeout

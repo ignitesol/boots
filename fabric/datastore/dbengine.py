@@ -52,8 +52,10 @@ class _DatabaseEngine :
                        isolation_level='SERIALIZABLE', connect_args={ },\
                        listeners=[ForeignKeysListener(dbtype)]) 
 
-            session_factory = sessionmaker(bind=self.engine, expire_on_commit=False) # create a configured "Session" class
-            self.Session = scoped_session(session_factory)
+#            session_factory = sessionmaker(bind=self.engine, expire_on_commit=False) # create a configured "Session" class
+#            self.Session = scoped_session(session_factory)
+            self.Session = sessionmaker(bind=self.engine, expire_on_commit=False) # create a configured "Session" class
+            self._scoped_sessions = scoped_session(self.Session) 
    
             #: begin txn listener
             @event.listens_for(self.engine, "begin")
@@ -73,6 +75,16 @@ class _DatabaseEngine :
         sess = self.Session()
         sess.expire_on_commit = False
         return sess
+    
+    def get_scoped_session(self):
+        '''
+        Return a scoped session object locally for a thread, 
+        can be used liberally within the same thread without deadlocks
+        '''
+        try: 
+            return self._scoped_sessions()
+        except (TypeError, AttributeError): 
+            return None
     
     
 class DatabaseEngineFactory(object):

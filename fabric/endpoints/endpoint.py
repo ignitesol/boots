@@ -16,12 +16,21 @@ class EndPoint(object):
         self.server = server
         self.name = name
         self.stickeykeys = stickeykeys
+        self._activated = False
     
     def close(self):
         pass
     
     def activate(self):
         self._activated = True
+    
+    @property
+    def activated(self):
+        return self._activated
+    
+    @property
+    def addressing(self):
+        return self.name
 
 class EndPointException(Exception):
     '''

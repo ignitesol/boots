@@ -15,6 +15,7 @@ from sqlalchemy.sql.expression import func
 from sqlalchemy.types import String, Integer, Float
 import datetime
 import json
+from fabric.endpoints.dbendpoints.db_base import DBEndPoint
 
     
 def dbsessionhandler(wrapped_fn):
@@ -32,13 +33,12 @@ def dbsessionhandler(wrapped_fn):
     return wrapped       
     
     
-class MySQLBinding(BaseDatastore):
+class MySQLBinding(DBEndPoint):
     
     def get_session(self):
-        return self.engine.get_session()
+        return self.session
     
     def __init__(self, dbconfig=None):
-        super(MySQLBinding, self).__init__()
         if not dbconfig:
             #Read from ini files
             dbtype = "mysql"
@@ -48,7 +48,8 @@ class MySQLBinding(BaseDatastore):
             connection_timeout = 30
             dbconfig = DBConfig(dbtype, db_url, pool_size, max_overflow, connection_timeout)
             #raise Exception("Mysql not configured properly . Config parameters from the mysql are not provided in ini")
-        self.engine = DatabaseEngineFactory(dbconfig)
+        super(MySQLBinding, self).__init__(dbconfig=dbconfig)
+        self.engine = self._engine
     
         
     @dbsessionhandler
