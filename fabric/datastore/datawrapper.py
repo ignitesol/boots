@@ -156,3 +156,9 @@ class DSWrapperObject(object):
                 for stickyvalue in new_sticky_values:
                     self.stickymappinglist += [stickyvalue] if type(stickyvalue) is str else stickyvalue 
                     self.dirty = True
+                    
+    def remove_sticky_value(self, stickyvalues):
+        '''
+        This will remove the sticky values
+        '''
+        self.datastore.remove_stickykeys(self, self.server_adress, stickyvalues)
