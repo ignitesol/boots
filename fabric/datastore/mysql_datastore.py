@@ -2,8 +2,7 @@
 This is module for writing the data binding for cluster server
 We will have either mysql  persistent type of data binding
 '''
-from fabric.datastore.datastore_interface import BaseDatastore
-from fabric.datastore.dbengine import DBConfig, DatabaseEngineFactory
+from fabric.datastore.dbengine import DBConfig
 from sqlalchemy import Column, schema as saschema
 from sqlalchemy.dialects.mysql.base import LONGTEXT
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -15,7 +14,7 @@ from sqlalchemy.sql.expression import func
 from sqlalchemy.types import String, Integer, Float
 import datetime
 import json
-from fabric.endpoints.dbendpoints.db_base import DBEndPoint
+from fabric.endpoints.dbendpoints.db_base import DBConnectionEndPoint
 
     
 def dbsessionhandler(wrapped_fn):
@@ -26,14 +25,14 @@ def dbsessionhandler(wrapped_fn):
     method.
     '''
     def wrapped(self, *args, **kwargs):
-        sess = self.get_session()
+        sess = self.session
         retval = wrapped_fn(self, sess,  *args, **kwargs)
         sess.close()
         return retval
     return wrapped       
     
     
-class MySQLBinding(DBEndPoint):
+class MySQLBinding(DBConnectionEndPoint):
     
     def get_session(self):
         return self.session
@@ -187,7 +186,6 @@ class MySQLBinding(DBEndPoint):
             sess.commit()
             print "save sticky value : %s"%datetime.datetime.now()
         except IntegrityError as e:
-            print "save_updated_data : %s "%e
             sess.rollback()
             
         
