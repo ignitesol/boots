@@ -105,13 +105,12 @@ class ClusteredServer(HybridServer):
     
     def pre_activate_hook(self):
         super(ClusteredServer, self).pre_activate_hook()
-        self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port']) + getattr(self, 'mount_prefix', '') 
+        self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port']) 
         #check if datastore is properly configured via init (in-case it is now , we default to  non-clustered module)
         if hasattr(self, 'datastore'):
             if self.cmmd_line_args['restart']:
                 self.restart = True
                 logging.getLogger().debug("Server restarted after crash. read blob from db and set it to server_state")
-                print "server address : ", self.server_adress
                 self.server_state = self.datastore.get_server_state(self.server_adress)
                 self.prepare_to_restart(self.server_state)
             else:
@@ -137,7 +136,7 @@ class ClusteredServer(HybridServer):
             #the server won't be clustered in-case the datastore configuration is messed
             self.clustered = False
             logging.getLogger().debug('Misconfigured datastore . Fallback to non-cluster mode.')
-            print 'Misconfigured datastore  . Fallback to non-cluster mode.'
+            #print 'Misconfigured datastore  . Fallback to non-cluster mode.'
         logging.getLogger().debug('Cluster database config updated')
         
     def get_standard_plugins(self, plugins):
@@ -199,7 +198,8 @@ class ClusteredServer(HybridServer):
         :param stickyvalues : List of sticky values that we want to untag from this server
         :param load : pass the new load , so that it can be updated. 
         '''
-        self.datastore.remove_stickykeys(self.server_adress, stickyvalues, load)
+        if self.clustered:
+            self.datastore.remove_stickykeys(self.server_adress, stickyvalues, load)
     
     def cleanupall(self, load = None):
         '''

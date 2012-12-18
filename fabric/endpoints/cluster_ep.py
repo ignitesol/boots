@@ -47,7 +47,6 @@ class ClusteredPlugin(BasePlugin):
         If current server is destination server DO NOTHING . Request will be handled by this server
         '''
         server = self.get_callback_obj(callback).server
-
         @wraps(callback)
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             server_adress = None
@@ -62,8 +61,7 @@ class ClusteredPlugin(BasePlugin):
                     stickyvalues = self._get_stickyvalues(server, sticky_keys, kargs)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
-                        print "stickyvalues : %s "%stickyvalues
-                        print datetime.datetime.now()
+                        #print "stickyvalues : %s "%stickyvalues
                         ds_wrapper._read_by_stickyvalue(stickyvalues)
                         server_adress = ds_wrapper.server_address
                         ds_wrapper.add_sticky_value(stickyvalues)
@@ -74,13 +72,14 @@ class ClusteredPlugin(BasePlugin):
                             ds_wrapper.server_address = server_adress
                     res = None    
                     if server_adress != server.server_adress: 
-                        destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
-                                                bottle.request.environ["PATH_INFO"] + "?" + bottle.request.environ["QUERY_STRING"]
+                        destination_url =   server_adress + self.get_callback_obj(callback).request.urlparts.path
+                                                    # + "?" + bottle.request.environ["QUERY_STRING"]
                         headers = bottle.request.headers.environ
                         cookies = bottle.request.COOKIES.dict
                         getparams = bottle.request.GET.dict
                         postparams = bottle.request.POST.dict
-                        res = self._make_proxy_call(server_adress+ '/services', headers, cookies, getparams, postparams)
+                        #TODO : mountpoint of the endpoint (hard coded /services for testing)
+                        res = self._make_proxy_call(destination_url, headers, cookies, getparams, postparams)
                     if res:return res # return if there is response 
                         
                 # If method-route expects the param then add the ds_wrapper with the param named defined in the plugin
@@ -169,8 +168,8 @@ class ClusteredPlugin(BasePlugin):
         :returns: the response that is returned from the proxied server 
         '''
         
-        destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress + \
-                                                    bottle.request.environ["PATH_INFO"] #+ "?" + bottle.request.environ["QUERY_STRING"]
+        destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress 
+                                        #bottle.request.environ["PATH_INFO"] #+ "?" + bottle.request.environ["QUERY_STRING"]
         data = None
         if postparams:
             for k, v in postparams.items():
