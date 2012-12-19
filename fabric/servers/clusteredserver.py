@@ -217,7 +217,8 @@ class ClusteredServer(HybridServer):
         '''
         servertype = servertype or self.servertype
         server =  self.datastore.get_least_loaded(servertype)
-        return server_adress if self.get_current_load() == server.load else server.unique_key if server else None
+        return server.unique_key
+        #return server_adress if self.get_current_load() == server.load else server.unique_key if server else None
         
     
     def get_by_stickyvalue(self, stickyvalues, endpoint_key):

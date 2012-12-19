@@ -171,12 +171,15 @@ class MySQLBinding(DBConnectionEndPoint):
                              server come back up the existing state when some failure occur
         '''
         try:
-            if server_state:
+            if server_state is not None and load is not None:
                 sess.query(Server).filter(Server.unique_key == server_adress)\
                         .update({Server.load:load, Server.server_state:server_state}, synchronize_session=False)
-            else:
+            elif load is not None:
                 sess.query(Server).filter(Server.unique_key == server_adress)\
                         .update({Server.load:load}, synchronize_session=False)
+            elif server_state is not None:
+                sess.query(Server).filter(Server.unique_key == server_adress)\
+                        .update({Server.server_state:server_state}, synchronize_session=False)
             sess.commit()
         except IntegrityError as e:
             sess.rollback()        

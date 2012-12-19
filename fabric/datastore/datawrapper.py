@@ -83,7 +83,7 @@ class DSWrapperObject(object):
         '''
         if self._autosave and self._dirty:
             self.datastore.\
-                save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.stickymappinglist, self.load, self.server_state)
+                save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.stickymappinglist)
             self.datastore.save_load_state(self.server_address, self.load, self.server_state)
 
     
@@ -118,7 +118,21 @@ class DSWrapperObject(object):
             self.stickymappinglist += [ mapping.sticky_value] if mapping.sticky_value not in self.stickymappinglist else []
             
     
-    def update(self, stickyvalues=[], load=None, datablob=None):
+    def update_load(self, load, force=False):
+        '''
+        This method updates the load in datawrapper object
+        :param float load: this is the new/current load for this server
+        '''
+        if load is not None:
+            self.load = load
+            self.dirty = True
+        if force and self.dirty:
+            #force the update directly
+            self.datastore.save_load_state(self.server_address, self.load, self.server_state) 
+            self.dirty = False
+            
+    
+    def update(self, stickyvalues=[], datablob=None):
         '''
         This method update the wrapped mapping
         :param list stickyvalues: this is the list of stickyvalues
@@ -130,11 +144,7 @@ class DSWrapperObject(object):
         for stickyvalue in new_sticky_values:
             self.stickymappinglist += [stickyvalue]
             self.dirty = True
-        #Load is update to new sent 
-        if load is not None:
-            self.load = load
-            self.dirty = True
-        
+
         if datablob is not None:
             #TODO : this needs to be updated rather than insert . 
             self.data = datablob
