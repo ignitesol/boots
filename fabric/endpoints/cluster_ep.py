@@ -96,8 +96,9 @@ class ClusteredPlugin(BasePlugin):
             # Application needs to implement how load gets updated AND # Also need to determine how load is decremented
             with Atomic.lock: #Do we really need at this level
                 if stickyvalues:
+                    pass
                     # We reach here when request is handled by this server ( there was NO redirect via stickiness or least-load)
-                    ds_wrapper._update(stickyvalues, server.get_new_load())
+                    #ds_wrapper.update(stickyvalues, server.get_new_load())
             #Inside this method we check if autosave is true , dirty flag is true and then make save call 
             ds_wrapper._save()
             return result

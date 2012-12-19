@@ -27,7 +27,10 @@ class BaseDatastore(object)  :
     def get_server_by_stickyvalue(self, stickyvalues, endpoint_key):
         pass
      
-    def save_updated_data(self, server_adress, endpoint_key, endpoint_name, stickyvalues, load, server_state):
+    def save_updated_data(self, server_adress, endpoint_key, endpoint_name, stickyvalues):
+        pass
+    
+    def save_load_state(self, server_adress, load, server_state):
         pass
        
     def remove_stickykeys(self, server_adress, stickyvalues, load):

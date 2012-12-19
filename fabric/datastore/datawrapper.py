@@ -84,6 +84,7 @@ class DSWrapperObject(object):
         if self._autosave and self._dirty:
             self.datastore.\
                 save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.stickymappinglist, self.load, self.server_state)
+            self.datastore.save_load_state(self.server_address, self.load, self.server_state)
 
     
     def _save_stickyvalues(self):
@@ -117,7 +118,7 @@ class DSWrapperObject(object):
             self.stickymappinglist += [ mapping.sticky_value] if mapping.sticky_value not in self.stickymappinglist else []
             
     
-    def _update(self, stickyvalues=[], load=None, datablob=None):
+    def update(self, stickyvalues=[], load=None, datablob=None):
         '''
         This method update the wrapped mapping
         :param list stickyvalues: this is the list of stickyvalues

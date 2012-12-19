@@ -12,7 +12,6 @@ from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.sql.expression import func
 from sqlalchemy.types import String, Integer, Float
-import datetime
 import json
 from fabric.endpoints.dbendpoints.db_base import DBConnectionEndPoint
 
@@ -139,29 +138,17 @@ class MySQLBinding(DBConnectionEndPoint):
     
     
     @dbsessionhandler
-    def save_updated_data(self, sess, server_adress, endpoint_key, endpoint_name, stickyvalues, load, server_state):
+    def save_updated_data(self, sess, server_adress, endpoint_key, endpoint_name, stickyvalues):
         '''
-        This method adds the stickyvalue mapping and the load for the server_address
+        This method adds the stickyvalue mapping for the server_address
         :param server_adress: the unique server_adress
         :param endpoint_key: unique key of the endpoint
         :param endpoint_name: name of the endpoint
         :param stickyvalues: list of new sticky values
-        :param load: load percentage for this server
-        :param server_state: jsonified server_state . This server_state blob needs to be updated to the existing datablob. This is the datablob that we keep so that
-                    server come back up the existing state when some failure occur
         '''
-        #Two sub transactions .
-        #first transaction updates the load and server_state
         #other transaction is set of multiple individual db transactions that tries to add the sticky-key ONE-by-ONE if NOT already exist
         try:
             server = sess.query(Server).filter(Server.unique_key == server_adress).one()
-            if server_state:
-                sess.query(Server).filter(Server.unique_key == server_adress)\
-                        .update({Server.load:load, Server.server_state:server_state}, synchronize_session=False)
-            else:
-                sess.query(Server).filter(Server.unique_key == server_adress)\
-                        .update({Server.load:load}, synchronize_session=False)
-            
             for stickyvalue in stickyvalues:
                 try:
                     sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)
@@ -173,7 +160,28 @@ class MySQLBinding(DBConnectionEndPoint):
             sess.commit()
         except IntegrityError as e:
             sess.rollback()
+            
+    @dbsessionhandler
+    def save_load_state(self, sess, server_adress, load, server_state):
+        '''
+        This method saves/update the load and the server state
+        :param load: load percentage for this server
+        :param server_state: jsonified server_state . This server_state blob needs to be updated
+                             to the existing datablob. This is the datablob that we keep so that
+                             server come back up the existing state when some failure occur
+        '''
+        try:
+            if server_state:
+                sess.query(Server).filter(Server.unique_key == server_adress)\
+                        .update({Server.load:load, Server.server_state:server_state}, synchronize_session=False)
+            else:
+                sess.query(Server).filter(Server.unique_key == server_adress)\
+                        .update({Server.load:load}, synchronize_session=False)
+            sess.commit()
+        except IntegrityError as e:
+            sess.rollback()        
         
+                
     @dbsessionhandler
     def save_stickyvalue(self, sess, server_adress, endpoint_key, endpoint_name, stickyvalue):  
         '''
@@ -184,7 +192,7 @@ class MySQLBinding(DBConnectionEndPoint):
             sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)
             sess.add(sticky_record)  
             sess.commit()
-            print "save sticky value : %s"%datetime.datetime.now()
+            #print "save sticky value : %s"%datetime.datetime.now()
         except IntegrityError as e:
             sess.rollback()
             
