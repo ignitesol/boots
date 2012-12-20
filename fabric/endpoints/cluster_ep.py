@@ -3,7 +3,6 @@ from fabric.datastore.datawrapper import DSWrapperObject
 from fabric.endpoints.http_ep import BasePlugin
 from functools import wraps
 import bottle
-import datetime
 import urllib
 import urllib2
 
@@ -58,7 +57,7 @@ class ClusteredPlugin(BasePlugin):
                 sticky_keys = kargs.get('stickykeys', None) or getattr(callback.im_self, 'stickykeys', None) or server.stickykeys
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
-                    stickyvalues = self._get_stickyvalues(server, sticky_keys, kargs)
+                    stickyvalues = server.get_stickyvalues(sticky_keys, kargs)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
                         #print "stickyvalues : %s "%stickyvalues
@@ -78,7 +77,6 @@ class ClusteredPlugin(BasePlugin):
                         cookies = bottle.request.COOKIES.dict
                         getparams = bottle.request.GET.dict
                         postparams = bottle.request.POST.dict
-                        #TODO : mountpoint of the endpoint (hard coded /services for testing)
                         res = self._make_proxy_call(destination_url, headers, cookies, getparams, postparams)
                     if res:return res # return if there is response 
                         
@@ -106,55 +104,6 @@ class ClusteredPlugin(BasePlugin):
         return wrapper
     
     
-    
-    def  _get_stickyvalues(self, server, sticky_keys,  paramdict):
-        '''
-        This method creates the stickyvalues based on the paramaters provided in the paramdict and the type of
-        combination which defines the stciky keys as given in sticky_keys
-        :param server: server object reference, it defines how sticky values are combined together to get a sticky_value string
-        :param sticky_keys: list of sticky keys which are used to make the sticky_key_values . 
-                            This can be string, list, tuple or a callable
-        :param dict paramdict: this is the dict of all the parameters provided for this route
-        
-        :returns: returns the list of sticky values that needs to be updated to the datastore
-        '''
-        stickyvalues = [] # this is list of stickyvalues
-        if type(sticky_keys) is str:
-            try :
-                stickyvalues += [ paramdict[sticky_keys] ]
-            except KeyError:
-                pass # If key not present no stickiness 
-        elif type(sticky_keys) is tuple:
-            value_tuple = self._extract_values_from_keys(sticky_keys, paramdict)
-            stickyvalues += [ server.transform_stickyvalues(value_tuple) ]  if value_tuple else []
-        elif type(sticky_keys) is list:
-            for sticky_key in sticky_keys:
-                #recursive call
-                stickyvalues += self._get_stickyvalues(server, sticky_key, paramdict)
-#                value_tuple = self._extract_values_from_keys(sticky_key, paramdict)
-#                stickyvalues += [ server.transform_stickyvalues(value_tuple) ]  if value_tuple else []
-        elif hasattr(sticky_keys, '__call__'):
-            val = sticky_keys(paramdict)
-            if val is not list:
-                val = [val]
-            stickyvalues +=val
-        return stickyvalues
-
-    
-    
-    def _extract_values_from_keys(self, key_tuple, paramdict):
-        '''
-        This is internal method that extracts the values for the keys provided in the tuple from the param dict
-        :param tuple key_tuple: the tuple of keys which are used for the extracting the corresponding values
-        :param dict paramdict: the dict of param which contains the values if they exist
-        
-        :returns: return the tuple if all the values are present else return None
-        '''
-        try:
-            return tuple([ paramdict[key] for key in key_tuple ])
-        except KeyError:
-            return None 
-
     
     def _make_proxy_call(self, server_adress , headers, cookies, getparams, postparams):
         #server_adress = "localhost:8870"

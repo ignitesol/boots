@@ -14,7 +14,6 @@ from fabric.servers.hybrid import HybridServer
 import argparse
 import logging
 import os
-#from fabric.datastore import truncate_cluster_data
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -235,7 +234,53 @@ class ClusteredServer(HybridServer):
         ret_val =  self.datastore.get_server_by_stickyvalue(stickyvalues, endpoint_key)
         server , clustermapping_list = ret_val
         return (server.unique_key, clustermapping_list) if ret_val else None
+    
+    def  get_stickyvalues(self, sticky_keys,  paramdict):
+        '''
+        This method creates the stickyvalues based on the paramaters provided in the paramdict and the type of
+        combination which defines the stciky keys as given in sticky_keys
+        :param sticky_keys: list of sticky keys which are used to make the sticky_key_values . 
+                            This can be string, list, tuple or a callable
+        :param dict paramdict: this is the dict of all the parameters provided for this route
         
+        :returns: returns the list of sticky values that needs to be updated to the datastore
+        '''
+        stickyvalues = [] # this is list of stickyvalues
+        if type(sticky_keys) is str:
+            try :
+                stickyvalues += [ paramdict[sticky_keys] ]
+            except KeyError:
+                pass # If key not present no stickiness 
+        elif type(sticky_keys) is tuple:
+            value_tuple = self._extract_values_from_keys(sticky_keys, paramdict)
+            stickyvalues += [ self.transform_stickyvalues(value_tuple) ]  if value_tuple else []
+        elif type(sticky_keys) is list:
+            for sticky_key in sticky_keys:
+                #recursive call
+                stickyvalues += self.get_stickyvalues(sticky_key, paramdict)
+#                value_tuple = self._extract_values_from_keys(sticky_key, paramdict)
+#                stickyvalues += [ server.transform_stickyvalues(value_tuple) ]  if value_tuple else []
+        elif hasattr(sticky_keys, '__call__'):
+            val = sticky_keys(paramdict)
+            if val is not None:
+                if type(val) is not list:
+                    val = [val]
+                stickyvalues += val
+        return stickyvalues
+    
+    def _extract_values_from_keys(self, key_tuple, paramdict):
+        '''
+        This is internal method that extracts the values for the keys provided in the tuple from the param dict
+        :param tuple key_tuple: the tuple of keys which are used for the extracting the corresponding values
+        :param dict paramdict: the dict of param which contains the values if they exist
+        
+        :returns: return the tuple if all the values are present else return None
+        '''
+        try:
+            return tuple([ paramdict[key] for key in key_tuple ])
+        except KeyError:
+            return None 
+    
 
     def transform_stickyvalues(self, value_tuple):
         '''

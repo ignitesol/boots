@@ -1,3 +1,4 @@
+import logging
 class DSWrapperObject(object):
     '''
     This class is used to create and update the sticky relations per sticky keys 
@@ -81,7 +82,9 @@ class DSWrapperObject(object):
         This method will be always called whenever there are new sticky keys updated and/or there is change in load 
         and/or there is some updates to data blob that we want to do.
         '''
+        logging.getLogger().debug("Save is called . dirty : %s", self._dirty)
         if self._autosave and self._dirty:
+            logging.getLogger().debug("Adding stickymappinglist : %s", self.stickymappinglist)
             self.datastore.\
                 save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.stickymappinglist)
             self.datastore.save_load_state(self.server_address, self.load, self.server_state)
@@ -129,7 +132,6 @@ class DSWrapperObject(object):
         if force and self.dirty:
             #force the update directly
             self.datastore.save_load_state(self.server_address, self.load, self.server_state) 
-            self.dirty = False
             
     
     def update(self, stickyvalues=[], datablob=None):
@@ -172,4 +174,10 @@ class DSWrapperObject(object):
         '''
         This will remove the sticky values
         '''
-        self.datastore.remove_stickykeys(self, self.server_adress, stickyvalues)
+        try:
+            logging.getLogger().debug("Remove sticky values : %s", stickyvalues)
+            if type(stickyvalues) is not list:
+                stickyvalues = [ stickyvalues ] 
+            self.datastore.remove_stickykeys(stickyvalues)
+        except Exception as e:
+            logging.getLogger().debug("Exception in Remove sticky values : %s", e)

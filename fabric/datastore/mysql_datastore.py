@@ -3,6 +3,7 @@ This is module for writing the data binding for cluster server
 We will have either mysql  persistent type of data binding
 '''
 from fabric.datastore.dbengine import DBConfig
+from fabric.endpoints.dbendpoints.db_base import DBConnectionEndPoint
 from sqlalchemy import Column, schema as saschema
 from sqlalchemy.dialects.mysql.base import LONGTEXT
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -13,7 +14,7 @@ from sqlalchemy.schema import ForeignKey
 from sqlalchemy.sql.expression import func
 from sqlalchemy.types import String, Integer, Float
 import json
-from fabric.endpoints.dbendpoints.db_base import DBConnectionEndPoint
+import logging
 
     
 def dbsessionhandler(wrapped_fn):
@@ -221,7 +222,7 @@ class MySQLBinding(DBConnectionEndPoint):
             
             
     @dbsessionhandler
-    def remove_stickykeys(self, sess, server_adress, stickyvalues, load = None):
+    def remove_stickykeys(self, sess, stickyvalues):
         '''
     	This method removes the list of the sticky keys for the given server 
     	:param server_adress: the unique server_adress
@@ -230,16 +231,20 @@ class MySQLBinding(DBConnectionEndPoint):
     	'''
 
         try:
-            sticky_mappings = sess.query(StickyMapping).select_from(join(Server, StickyMapping))\
-            					.filter(Server.unique_key == server_adress, StickyMapping.sticky_value.in_(stickyvalues)).all()
-            if sticky_mappings:
-                sess.query(StickyMapping).filter(StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
-                					.delete(synchronize_session='fetch')
-            
-            if load:
-                sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
+            logging.getLogger().debug("dal query : %s", stickyvalues)
+            logging.getLogger().debug("dal query : type %s", type(stickyvalues))
+            sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).delete(synchronize_session='fetch')
+#            sticky_mappings = sess.query(StickyMapping).select_from(join(Server, StickyMapping))\
+#            					.filter(Server.unique_key == server_adress, StickyMapping.sticky_value.in_(stickyvalues)).all()
+#            if sticky_mappings:
+#                sess.query(StickyMapping).filter(StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
+#                					.delete(synchronize_session='fetch')
+#            
+#            if load:
+#                sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
             sess.commit()
-        except Exception:
+        except Exception as e:
+            logging.getLogger().debug("Exception occured while removing the sticky value from the db : %s", e)
             pass
     
     
