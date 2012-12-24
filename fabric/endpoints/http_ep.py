@@ -172,6 +172,7 @@ class RequestParams(BasePlugin):
                     missing_params += [m]
             if len(missing_params) != 0:
                 bottle.abort(400, 'Missing parameters: {}'.format(", ".join(missing_params)))
+            #logging.getLogger().debug("id of cluster_ds just before callback  : %s", id(kargs.get('cluster_ds')) if kargs.get('cluster_ds') else None )
             return callback(*args, **kargs)
         
         self.plugin_post_apply(callback, wrapper)
@@ -645,7 +646,7 @@ class HTTPServerEndPoint(EndPoint):
         If you get confusing results, ensure X-Forwarded-Hosts
         is set properly
         '''
-        scheme = bottle.request.urlparts()[0] 
+        scheme = bottle.request.urlparts[0] 
         return '://'.join([scheme, self.environ['SERVER_NAME']])
     
     def selected_cookies(self, keys=None):

@@ -222,17 +222,16 @@ class MySQLBinding(DBConnectionEndPoint):
             
             
     @dbsessionhandler
-    def remove_stickykeys(self, sess, stickyvalues):
+    def remove_stickyvalues(self, sess, stickyvalues):
         '''
-    	This method removes the list of the sticky keys for the given server 
+    	This method removes the list of the sticky values for the given server 
     	:param server_adress: the unique server_adress
 		:param stickyvalues: list of new sticky values
 		:param load: load value that we want to update in datastore for this server
     	'''
 
         try:
-            logging.getLogger().debug("dal query : %s", stickyvalues)
-            logging.getLogger().debug("dal query : type %s", type(stickyvalues))
+            logging.getLogger().debug("DB query remove: %s", stickyvalues)
             sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).delete(synchronize_session='fetch')
 #            sticky_mappings = sess.query(StickyMapping).select_from(join(Server, StickyMapping))\
 #            					.filter(Server.unique_key == server_adress, StickyMapping.sticky_value.in_(stickyvalues)).all()

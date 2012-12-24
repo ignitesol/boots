@@ -1,10 +1,10 @@
 from fabric import concurrency
 from fabric.datastore.datawrapper import DSWrapperObject
 from fabric.endpoints.http_ep import BasePlugin
+from fabric.endpoints.httpclient_ep import HTTPClientEndPoint
 from functools import wraps
 import bottle
-import urllib
-import urllib2
+import logging
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -45,16 +45,30 @@ class ClusteredPlugin(BasePlugin):
         Redirects to destination server if current server is NOT destination server .
         If current server is destination server DO NOTHING . Request will be handled by this server
         '''
-        server = self.get_callback_obj(callback).server
+        ep = self.get_callback_obj(callback)
+        server = ep.server
         @wraps(callback)
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             server_adress = None
             exception = None
             stickyvalues = None
+            
+            params = bottle.request.POST
+            d = {}
+            for k in params.keys():
+                d[k] = params.getall(k)
+                if len(d[k]) == 1:
+                    d[k] = d[k][0] # drop the list of single valued params
+            
+            logging.getLogger().debug("Server : %s . Request arrived with the params : %s", server.server_adress, d)
+            logging.getLogger().debug("Type of params : %s ", type(d))
+            server.server_adress = ep.server_name
+            server.create_data()
             ds_wrapper = DSWrapperObject(self.datastore, callback.im_self.uuid, callback.im_self.name)
             try:
                 # Gets the stickykeys provided from  route/ endpoint /server in that order
                 sticky_keys = kargs.get('stickykeys', None) or getattr(callback.im_self, 'stickykeys', None) or server.stickykeys
+                add_sticky = kargs.get('addsticky', True)
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
                     stickyvalues = server.get_stickyvalues(sticky_keys, kargs)
@@ -63,7 +77,8 @@ class ClusteredPlugin(BasePlugin):
                         #print "stickyvalues : %s "%stickyvalues
                         ds_wrapper._read_by_stickyvalue(stickyvalues)
                         server_adress = ds_wrapper.server_address
-                        ds_wrapper.add_sticky_value(stickyvalues)
+                        if add_sticky:
+                            ds_wrapper.add_sticky_value(stickyvalues)
                         ds_wrapper._save_stickyvalues()
                     except Exception as e:
                         with Atomic.lock: # Do we really need at this level
@@ -76,7 +91,7 @@ class ClusteredPlugin(BasePlugin):
                         headers = bottle.request.headers.environ
                         cookies = bottle.request.COOKIES.dict
                         getparams = bottle.request.GET.dict
-                        postparams = bottle.request.POST.dict
+                        postparams = d
                         res = self._make_proxy_call(destination_url, headers, cookies, getparams, postparams)
                     if res:return res # return if there is response 
                         
@@ -93,8 +108,9 @@ class ClusteredPlugin(BasePlugin):
             # Typically application needs to add the sticky key values to the "stickywrapper" object that gets passed to it 
             # Application needs to implement how load gets updated AND # Also need to determine how load is decremented
             with Atomic.lock: #Do we really need at this level
-                if stickyvalues:
-                    ds_wrapper.update(stickyvalues)
+                if stickyvalues and add_sticky:
+                    pass
+                    #ds_wrapper.update(stickyvalues)
                     # We reach here when request is handled by this server ( there was NO redirect via stickiness or least-load)
                     #ds_wrapper.update(stickyvalues, server.get_new_load())
             #Inside this method we check if autosave is true , dirty flag is true and then make save call 
@@ -118,22 +134,30 @@ class ClusteredPlugin(BasePlugin):
         :returns: the response that is returned from the proxied server 
         '''
         
-        destination_url =   bottle.request.environ["wsgi.url_scheme"] + "://" + server_adress 
-                                        #bottle.request.environ["PATH_INFO"] #+ "?" + bottle.request.environ["QUERY_STRING"]
+        destination_url =  server_adress 
         data = None
-        if postparams:
-            for k, v in postparams.items():
-                if isinstance(v, list): 
-                    postparams[k] = v[0]
-            data = postparams
-
+#        d = {}
+#        logging.getLogger().debug("PostParams : %s", postparams.items())
+#        logging.getLogger().debug("destination_url : %s", destination_url)
+#        if postparams:
+#            logging.getLogger().debug("Type of postparams :%s", type(postparams))
+#            logging.getLogger().debug("Values postparams :%s", postparams)
+#            if type(postparams) is dict:
+#                postparams = postparams.items()
+#            for k, v in postparams:
+#                if isinstance(v, list): 
+#                    d[k] = v[0]
+#            data = d
+        data = postparams
         ret_val = None
-        print "Making proxy call : %s "%destination_url
-        data = urllib.urlencode(data)
+        logging.getLogger().debug("passing  postparams : %s", data)
+        logging.getLogger().debug("Making proxy call : %s ", destination_url)
         try:
-            req = urllib2.Request(destination_url, data, headers)
-            res = urllib2.urlopen(req)
-            ret_val = res.read()
+            http_client = HTTPClientEndPoint(url=destination_url, data=data, headers=headers)
+#            ret_val = post_request(destination_url, headers, data)
+#            req = urllib2.Request(destination_url, data, headers)
+#            res = urllib2.urlopen(req)
+            ret_val = http_client.request().data
         except Exception as e:
-            pass
+            logging.getLogger().debug("Exception in proxy call : %s", e)
         return ret_val

@@ -1,3 +1,10 @@
+import sys
+import os
+try:
+    import fabric
+except ImportError:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../fabric'))) # Since fabric is not as yet installed into the site-packages
+
 from fabric.datastore.mysql_datastore import Server, MySQLBinding, StickyMapping
 from fabric.datastore.dbengine import DBConfig
 

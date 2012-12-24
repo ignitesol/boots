@@ -31,6 +31,7 @@ class ClusteredEP(HTTPServerEndPoint):
     '''
         
     def __init__(self, name=None, mountpoint='/cluster', plugins=None, server=None, activate=False):
+        name = name or 'ClusteredEP'
         super(ClusteredEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
         
     @methodroute()
@@ -65,8 +66,10 @@ class ClusteredServer(HybridServer):
             self.restart = False
             self.config_callbacks['MySQLConfig'] = self._dbconfig_config_update
             self.servertype = servertype
+            self.server_adress = None
             self.stickykeys = stickykeys
             self.ds = ds
+            self._created_data = False
             endpoints = endpoints + [ ClusteredEP()]
         super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs) 
    
@@ -104,7 +107,7 @@ class ClusteredServer(HybridServer):
     
     def pre_activate_hook(self):
         super(ClusteredServer, self).pre_activate_hook()
-        self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port']) 
+        #self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port']) 
         #check if datastore is properly configured via init (in-case it is now , we default to  non-clustered module)
         if hasattr(self, 'datastore'):
             if self.cmmd_line_args['restart']:
@@ -153,11 +156,13 @@ class ClusteredServer(HybridServer):
         return par_plugins
         
 
-    def create_data(self):
+    def create_data(self, force=False):
         '''
         This create DataStructure in Persistent data store
         '''
-        self.datastore.createdata(self.server_adress, self.servertype )
+        if force or not self._created_data and self.server_adress: 
+            self.datastore.createdata(self.server_adress, self.servertype )
+            self._created_data = True
         
     def get_server_state(self):
         '''
@@ -198,7 +203,7 @@ class ClusteredServer(HybridServer):
         :param load : pass the new load , so that it can be updated. 
         '''
         if self.clustered:
-            self.datastore.remove_stickykeys(self.server_adress, stickyvalues, load)
+            self.ds.remove_sticky_value(stickyvalues)
     
     def cleanupall(self, load = None):
         '''
