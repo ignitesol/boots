@@ -104,9 +104,10 @@ class MySQLBinding(DBConnectionEndPoint):
                     .update({ Server.server_state:server_state}, synchronize_session=False)
             sess.commit()
 
+
     
     @dbsessionhandler
-    def get_current_load(self, sess, server_address):
+    def get_current_load_db(self, sess, server_address):
         '''
         This method returns the current load of the server as it exist in the datastore
         :param server_address:the address of the server which is the unique key
@@ -115,7 +116,7 @@ class MySQLBinding(DBConnectionEndPoint):
             server = sess.query(Server).filter(Server.unique_key == server_address).one()
             return server.load
         except NoResultFound:
-            pass
+            return 0
     
         
     @dbsessionhandler
@@ -173,16 +174,20 @@ class MySQLBinding(DBConnectionEndPoint):
         '''
         try:
             if server_state is not None and load is not None:
+                #logging.getLogger().warn("server state and load  dal : %f", load)
                 sess.query(Server).filter(Server.unique_key == server_adress)\
                         .update({Server.load:load, Server.server_state:server_state}, synchronize_session=False)
             elif load is not None:
+                #logging.getLogger().warn("Load value that needs to be updated inside dal : %f", load)
                 sess.query(Server).filter(Server.unique_key == server_adress)\
                         .update({Server.load:load}, synchronize_session=False)
             elif server_state is not None:
                 sess.query(Server).filter(Server.unique_key == server_adress)\
                         .update({Server.server_state:server_state}, synchronize_session=False)
             sess.commit()
-        except IntegrityError as e:
+            #logging.getLogger().warn("Commit done inside dal : %f", load)
+        except Exception as e:
+            #logging.getLogger().warn("Exception occured while writing load to db ")
             sess.rollback()        
         
                 
@@ -258,8 +263,8 @@ class MySQLBinding(DBConnectionEndPoint):
             sticky_mappings = sess.query(StickyMapping).select_from(join(Server, StickyMapping)).all()
             sess.query(StickyMapping).filter(StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
             					.delete(synchronize_session='fetch')
-            if load:
-                sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
+#            if load:
+#                sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
             sess.commit()
         except Exception:
             pass

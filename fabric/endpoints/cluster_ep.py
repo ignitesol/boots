@@ -1,10 +1,11 @@
 from fabric import concurrency
 from fabric.datastore.datawrapper import DSWrapperObject
 from fabric.endpoints.http_ep import BasePlugin
-from fabric.endpoints.httpclient_ep import HTTPClientEndPoint
 from functools import wraps
 import bottle
 import logging
+import urllib
+import urllib2
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -60,15 +61,13 @@ class ClusteredPlugin(BasePlugin):
                 if len(d[k]) == 1:
                     d[k] = d[k][0] # drop the list of single valued params
             
-            logging.getLogger().debug("Server : %s . Request arrived with the params : %s", server.server_adress, d)
-            logging.getLogger().debug("Type of params : %s ", type(d))
             server.server_adress = ep.server_name
             server.create_data()
             ds_wrapper = DSWrapperObject(self.datastore, callback.im_self.uuid, callback.im_self.name)
             try:
                 # Gets the stickykeys provided from  route/ endpoint /server in that order
                 sticky_keys = kargs.get('stickykeys', None) or getattr(callback.im_self, 'stickykeys', None) or server.stickykeys
-                add_sticky = kargs.get('addsticky', True)
+                add_sticky = kargs.get('autoaddsticky', True)
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
                     stickyvalues = server.get_stickyvalues(sticky_keys, kargs)
@@ -87,7 +86,6 @@ class ClusteredPlugin(BasePlugin):
                     res = None    
                     if server_adress != server.server_adress: 
                         destination_url =   server_adress + self.get_callback_obj(callback).request.urlparts.path
-                                                    # + "?" + bottle.request.environ["QUERY_STRING"]
                         headers = bottle.request.headers.environ
                         cookies = bottle.request.COOKIES.dict
                         getparams = bottle.request.GET.dict
@@ -122,7 +120,6 @@ class ClusteredPlugin(BasePlugin):
     
     
     def _make_proxy_call(self, server_adress , headers, cookies, getparams, postparams):
-        #server_adress = "localhost:8870"
         '''
         This method makes the proxy call to the destination serever
         :param server_adress: the server address to which we want to proxy the request
@@ -133,31 +130,13 @@ class ClusteredPlugin(BasePlugin):
         
         :returns: the response that is returned from the proxied server 
         '''
-        
         destination_url =  server_adress 
-        data = None
-#        d = {}
-#        logging.getLogger().debug("PostParams : %s", postparams.items())
-#        logging.getLogger().debug("destination_url : %s", destination_url)
-#        if postparams:
-#            logging.getLogger().debug("Type of postparams :%s", type(postparams))
-#            logging.getLogger().debug("Values postparams :%s", postparams)
-#            if type(postparams) is dict:
-#                postparams = postparams.items()
-#            for k, v in postparams:
-#                if isinstance(v, list): 
-#                    d[k] = v[0]
-#            data = d
-        data = postparams
         ret_val = None
-        logging.getLogger().debug("passing  postparams : %s", data)
-        logging.getLogger().debug("Making proxy call : %s ", destination_url)
         try:
-            http_client = HTTPClientEndPoint(url=destination_url, data=data, headers=headers)
-#            ret_val = post_request(destination_url, headers, data)
-#            req = urllib2.Request(destination_url, data, headers)
-#            res = urllib2.urlopen(req)
-            ret_val = http_client.request().data
+#            http_client = HTTPClientEndPoint(url=destination_url, data=postparams, headers=headers)
+            #FIXME : Proxy will need to send the Headers info as well
+            encoded_args = urllib.urlencode(postparams)
+            ret_val = urllib2.urlopen(destination_url, encoded_args).read()
         except Exception as e:
             logging.getLogger().debug("Exception in proxy call : %s", e)
         return ret_val

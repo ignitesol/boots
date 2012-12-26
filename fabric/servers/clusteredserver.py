@@ -161,6 +161,7 @@ class ClusteredServer(HybridServer):
         This create DataStructure in Persistent data store
         '''
         if force or not self._created_data and self.server_adress: 
+            self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
             self.datastore.createdata(self.server_adress, self.servertype )
             self._created_data = True
         
@@ -192,7 +193,7 @@ class ClusteredServer(HybridServer):
         '''
         This method returns the existing load of this server as per it exists in the datastore
         '''
-        return self.datastore.get_current_load(self.server_adress)
+        return self.datastore.get_current_load_db(self.server_adress)
     
     
     def cleanup(self, stickyvalues, load = None):
@@ -224,6 +225,12 @@ class ClusteredServer(HybridServer):
         return server.unique_key
         #return server_adress if self.get_current_load() == server.load else server.unique_key if server else None
         
+    def update_new_load(self):
+        '''
+        This method get the current load and updates to db ( TODO : By add or update)
+        '''
+        pass
+        #self.datastore.save_load_state(self.server_adress, 12.5)
     
     def get_by_stickyvalue(self, stickyvalues, endpoint_key):
         '''

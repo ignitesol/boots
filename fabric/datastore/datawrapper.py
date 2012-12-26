@@ -193,6 +193,7 @@ class DSWrapperObject(object):
         '''
         if load is not None:
             self.load = load
+        #logging.getLogger().warn("Inside wrapper object update_load dirty : %s", self.dirty)
         if force and self.dirty:
             #force the update directly
             self.datastore.save_load_state(self.server_address, self.load, self.server_state) 
