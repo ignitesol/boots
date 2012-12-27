@@ -146,7 +146,6 @@ class DSWrapperObject(object):
         with self.lock:
             if self._autosave and self.dirty:
                 self.dirty = False
-                self.dirty = False
                 logging.getLogger().debug("Saving into DB write_stickymappinglist : %s", self.write_stickymappinglist)
                 self.datastore.save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.write_stickymappinglist)
                 self.write_stickymappinglist = []
