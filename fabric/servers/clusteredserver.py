@@ -232,20 +232,20 @@ class ClusteredServer(HybridServer):
         pass
         #self.datastore.save_load_state(self.server_adress, 12.5)
     
-    def get_by_stickyvalue(self, stickyvalues, endpoint_key):
-        '''
-        This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
-        by the correct server. 
-        :param list stickyvalues: stickyvalues which is handled by this server
-        :param endpoint_key: uuid of the endpoint
-        
-        :returns: the unique id or the server which is the sever address with port
-        '''
-        if stickyvalues is None:
-            return None
-        ret_val =  self.datastore.get_server_by_stickyvalue(stickyvalues, endpoint_key)
-        server , clustermapping_list = ret_val
-        return (server.unique_key, clustermapping_list) if ret_val else None
+#    def get_by_stickyvalue(self, stickyvalues, endpoint_key):
+#        '''
+#        This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
+#        by the correct server. 
+#        :param list stickyvalues: stickyvalues which is handled by this server
+#        :param endpoint_key: uuid of the endpoint
+#        
+#        :returns: the unique id or the server which is the sever address with port
+#        '''
+#        if stickyvalues is None:
+#            return None
+#        ret_val =  self.datastore.get_server_by_stickyvalue(stickyvalues, endpoint_key)
+#        server , clustermapping_list = ret_val
+#        return (server.unique_key, clustermapping_list) if ret_val else None
     
     def  get_stickyvalues(self, sticky_keys,  paramdict):
         '''

@@ -74,11 +74,8 @@ class ClusteredPlugin(BasePlugin):
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
                         #print "stickyvalues : %s "%stickyvalues
-                        ds_wrapper._read_by_stickyvalue(stickyvalues)
-                        server_adress = ds_wrapper.server_address
-                        if add_sticky:
-                            ds_wrapper.add_sticky_value(stickyvalues)
-                        ds_wrapper._save_stickyvalues()
+                        server_adress = ds_wrapper._read_by_stickyvalue(stickyvalues)
+                        #server_adress = ds_wrapper.server_address
                     except Exception as e:
                         with Atomic.lock: # Do we really need at this level
                             server_adress = server.get_least_loaded(server.servertype, server.server_adress)
@@ -96,6 +93,9 @@ class ClusteredPlugin(BasePlugin):
                 # If method-route expects the param then add the ds_wrapper with the param named defined in the plugin
                 if self.ds in callback._signature[0]:
                     kargs[self.ds] = ds_wrapper
+                if add_sticky:
+                    ds_wrapper.add_sticky_value(stickyvalues)
+                ds_wrapper._save_stickyvalues()
                 result = callback(*args, **kargs)
             except Exception as e:
                 exception = e

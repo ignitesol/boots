@@ -173,16 +173,18 @@ class DSWrapperObject(object):
         '''
         if stickyvalues is None:
             raise Exception("Sticky values passed cannot be empty or None")
-        ret_val =  self.datastore.get_server_by_stickyvalue(stickyvalues, self.endpoint_key)
-        if ret_val is None:
-            raise Exception("No server is found sticked to this")
-        server, cluster_mapping_list = ret_val
-        self.server_address = server.unique_key
-
-        for mapping in cluster_mapping_list:
-            self.endpoint_key = mapping.endpoint_key
-            self.endpoint_name = mapping.endpoint_name
-            self.read_stickymappinglist += [ mapping.sticky_value] if mapping.sticky_value not in self.read_stickymappinglist else []
+        d =  self.datastore.get_server_by_stickyvalue(stickyvalues, self.endpoint_key, self.server_address, self.endpoint_name)
+        
+        cluster_mapping_list = d['stickymapping']
+        if cluster_mapping_list:
+            server = d['redirect_server']
+            self.server_address = server.unique_key
+    
+            for mapping in cluster_mapping_list:
+                self.endpoint_key = mapping.endpoint_key
+                self.endpoint_name = mapping.endpoint_name
+                self.read_stickymappinglist += [ mapping.sticky_value] if mapping.sticky_value not in self.read_stickymappinglist else []
+        return server.unique_id
             
     
     def update_load(self, load, force=False):

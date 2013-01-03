@@ -27,6 +27,7 @@ def dbsessionhandler(wrapped_fn):
     def wrapped(self, *args, **kwargs):
         sess = self.session
         retval = wrapped_fn(self, sess,  *args, **kwargs)
+        sess.execute("UNLOCK TABLES")
         sess.close()
         return retval
     return wrapped       
@@ -120,23 +121,47 @@ class MySQLBinding(DBConnectionEndPoint):
     
         
     @dbsessionhandler
-    def get_server_by_stickyvalue(self, sess, stickyvalues, endpoint_key):
+    def get_server_by_stickyvalue(self, sess, stickyvalues, endpoint_key, server_address, endpoint_name, servertype):
         '''
         This method returns the server which handles the stickyvalue and 
         :param stickyvalue: the sticky value string.
         :param endpoint_key: unique value of the endpoint key
         '''
+        server = None
         if not stickyvalues:
             return None
+        sess.execute("LOCK TABLES server, stickymapping WRITE")
         try:
             existing_mapping_list = sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).all()
         except Exception:
             pass
         if not existing_mapping_list:
-            return None
+            #return None
+            
+            min_loaded_server = None
+            min_load = sess.query(func.min(Server.load)).filter(Server.server_type == servertype ).one()
+            if(min_load[0] < 100):
+                min_loaded_server = sess.query(Server).filter(Server.load == min_load[0] ).first()
+                server = min_loaded_server
+                unique_key = min_loaded_server.unique_key
+                if unique_key == server_address:
+                    try:
+                        logging.getLogger().debug("start get_least_loaded")
+                        #FIXME : pass the unit of work-load (currently hardcoded as 12.5)
+                        #sess.query(Server).filter(Server.unique_key == server_address).update({Server.load:min_loaded_server.load + 12.5}, synchronize_session=False)
+                        for s in stickyvalues:
+                            sticky_record = StickyMapping(min_loaded_server.server_id, endpoint_key, endpoint_name, s)
+                            sess.add(sticky_record) 
+                        sess.commit()
+                        logging.getLogger().debug("after doing commit get_least_loaded")
+                        existing_mapping_list = sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).all()
+                    except Exception as e:
+                        sess.rollback()
+                        logging.getLogger().debug("Exception is occurred while finding the least loaded server : %s", e)
         #TODO : Join was screwing up for some reason so , dirty code . Must  fix
-        server = sess.query(Server).filter(Server.server_id == existing_mapping_list[0].server_id).one()
-        return  (server, existing_mapping_list)
+        if server is None:
+            server = sess.query(Server).filter(Server.server_id == existing_mapping_list[0].server_id).one()
+        return  {'redirect_server' : server, 'stickymapping' : existing_mapping_list}
     
     
     @dbsessionhandler
