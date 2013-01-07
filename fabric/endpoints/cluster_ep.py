@@ -62,8 +62,8 @@ class ClusteredPlugin(BasePlugin):
                     d[k] = d[k][0] # drop the list of single valued params
             
             server.server_adress = ep.server_name
-            server.create_data()
-            ds_wrapper = DSWrapperObject(self.datastore, callback.im_self.uuid, callback.im_self.name)
+            server_id = server.create_data()
+            ds_wrapper = DSWrapperObject(self.datastore, server.server_adress, server_id, callback.im_self.uuid, callback.im_self.name)
             try:
                 # Gets the stickykeys provided from  route/ endpoint /server in that order
                 sticky_keys = kargs.get('stickykeys', None) or getattr(callback.im_self, 'stickykeys', None) or server.stickykeys
@@ -71,17 +71,20 @@ class ClusteredPlugin(BasePlugin):
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
                     stickyvalues = server.get_stickyvalues(sticky_keys, kargs)
+                    logging.getLogger().debug("Sticky values formed are : %s ", stickyvalues)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
-                        #print "stickyvalues : %s "%stickyvalues
-                        server_adress = ds_wrapper._read_by_stickyvalue(stickyvalues)
+                        server_adress = ds_wrapper._read_by_stickyvalue(stickyvalues, server.servertype)
                         #server_adress = ds_wrapper.server_address
                     except Exception as e:
-                        with Atomic.lock: # Do we really need at this level
-                            server_adress = server.get_least_loaded(server.servertype, server.server_adress)
-                            ds_wrapper.server_address = server_adress
+                        logging.getLogger().exception("exception while _read_by_stickyvalue occured is : %s ", e)
+                        pass
+#                        with Atomic.lock: # Do we really need at this level
+#                            server_adress = server.get_least_loaded(server.servertype, server.server_adress)
+#                            ds_wrapper.server_address = server_adress
                     res = None    
-                    if server_adress != server.server_adress: 
+                    logging.getLogger().debug("server_adress retuned by _read_by_stickyvalue: %s ", server_adress)
+                    if  server_adress and server_adress != server.server_adress: 
                         destination_url =   server_adress + self.get_callback_obj(callback).request.urlparts.path
                         headers = bottle.request.headers.environ
                         cookies = bottle.request.COOKIES.dict

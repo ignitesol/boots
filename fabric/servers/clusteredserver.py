@@ -160,10 +160,12 @@ class ClusteredServer(HybridServer):
         '''
         This create DataStructure in Persistent data store
         '''
+        server_id = None
         if force or not self._created_data and self.server_adress: 
             self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
-            self.datastore.createdata(self.server_adress, self.servertype )
+            server_id = self.datastore.createdata(self.server_adress, self.servertype )
             self._created_data = True
+        return server_id
         
     def get_server_state(self):
         '''
@@ -266,6 +268,7 @@ class ClusteredServer(HybridServer):
         elif type(sticky_keys) is tuple:
             value_tuple = self._extract_values_from_keys(sticky_keys, paramdict)
             stickyvalues += [ self.transform_stickyvalues(value_tuple) ]  if value_tuple else []
+            logging.getLogger().debug("sticky values on key : %s tuple : %s ", sticky_keys, stickyvalues)
         elif type(sticky_keys) is list:
             for sticky_key in sticky_keys:
                 #recursive call

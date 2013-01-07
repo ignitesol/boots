@@ -1,6 +1,7 @@
 from fabric.common.singleton import SingletonType
 from threading import RLock
 import logging
+from sqlalchemy.exc import SQLAlchemyError
 
 class Shared(object):
     def __init__(self):
@@ -51,7 +52,7 @@ class DSWrapperObject(object):
     
     __metaclass__ = SingletonType
 
-    def __init__(self, datastore, endpoint_key, endpoint_name, autosave=True, read_stickymappinglist=None):
+    def __init__(self, datastore, server_address, server_id, endpoint_key, endpoint_name, autosave=True, read_stickymappinglist=None):
         read_stickymappinglist = read_stickymappinglist or []
         self._lock = RLock()
         # add your shared attributes here
@@ -61,7 +62,8 @@ class DSWrapperObject(object):
         self.read_stickymappinglist = read_stickymappinglist
         self.write_stickymappinglist = []
 
-        self.server_address = None
+        self.server_address = server_address
+        self.server_id = server_id
         self._autosave = autosave
 
         self.load = None
@@ -147,7 +149,7 @@ class DSWrapperObject(object):
             if self._autosave and self.dirty:
                 self.dirty = False
                 logging.getLogger().debug("Saving into DB write_stickymappinglist : %s", self.write_stickymappinglist)
-                self.datastore.save_updated_data(self.server_address, self.endpoint_key, self.endpoint_name, self.write_stickymappinglist)
+                self.datastore.save_updated_data(self.server_id, self.endpoint_key, self.endpoint_name, self.write_stickymappinglist)
                 self.write_stickymappinglist = []
                 self.datastore.save_load_state(self.server_address, self.load, self.server_state)
 
@@ -159,10 +161,10 @@ class DSWrapperObject(object):
         with self.lock:
             if self._autosave and self.dirty:
                 for s in self.write_stickymappinglist:
-                    self.datastore.save_stickyvalue(self.server_address, self.endpoint_key, self.endpoint_name, s)
+                    self.datastore.save_stickyvalue(self.server_id, self.endpoint_key, self.endpoint_name, s)
                 self.write_stickymappinglist = []
     
-    def _read_by_stickyvalue(self, stickyvalues):
+    def _read_by_stickyvalue(self, stickyvalues, servertype):
         '''
         This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
         by the correct server. 
@@ -171,20 +173,22 @@ class DSWrapperObject(object):
         
         :returns: returns the unique id or the server which is the sever address with port
         '''
-        if stickyvalues is None:
+        if not stickyvalues:
             raise Exception("Sticky values passed cannot be empty or None")
-        d =  self.datastore.get_server_by_stickyvalue(stickyvalues, self.endpoint_key, self.server_address, self.endpoint_name)
-        
+        try:
+            d =  self.datastore.get_server_by_stickyvalue(stickyvalues, servertype, self.server_address, self.endpoint_name, self.endpoint_key)
+        except SQLAlchemyError as e:
+            logging.getLogger().debug("Exception in get_server_by_stickyvalue : %s", e)
         cluster_mapping_list = d['stickymapping']
-        if cluster_mapping_list:
-            server = d['redirect_server']
-            self.server_address = server.unique_key
-    
+        server = d['redirect_server']
+        success = True #d['success']
+        self.server_address = server.unique_key
+        if success and cluster_mapping_list:
             for mapping in cluster_mapping_list:
                 self.endpoint_key = mapping.endpoint_key
                 self.endpoint_name = mapping.endpoint_name
                 self.read_stickymappinglist += [ mapping.sticky_value] if mapping.sticky_value not in self.read_stickymappinglist else []
-        return server.unique_id
+        return server.unique_key
             
     
     def update_load(self, load, force=False):
@@ -226,11 +230,12 @@ class DSWrapperObject(object):
         logging.getLogger().debug("adding sticky values to the datastructure : %s , object : %s", stickyvalues, id(self))
         if stickyvalues is not None:
             if type(stickyvalues) is str:
-                if stickyvalues not in self.write_stickymappinglist: # if condition separated on purpose ,# else depends only on first if
+                if stickyvalues not in self.write_stickymappinglist and stickyvalues not in self.read_stickymappinglist: # if condition separated on purpose ,# else depends only on first if
                     self.add_to_write_list([stickyvalues])
                     self.dirty = True
             else:
-                new_sticky_values = (stickyvalue for stickyvalue in stickyvalues if stickyvalue not in self.write_stickymappinglist) # generator expression 
+                new_sticky_values = (stickyvalue for stickyvalue in stickyvalues if stickyvalue not in self.write_stickymappinglist and 
+                                                                                        stickyvalue not in self.read_stickymappinglist) # generator expression 
                 for stickyvalue in new_sticky_values:
                     self.add_to_write_list([stickyvalue] if type(stickyvalue) is str else stickyvalue)
                     self.dirty = True
