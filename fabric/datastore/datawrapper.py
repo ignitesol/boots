@@ -41,6 +41,22 @@ class DSWrapperObject(object):
     updated. These are then updated in db if the dirty flag is set(there has been change in the
     sticky mapping)
     
+    Some of the methods also provide directly writing to DB, instead updating at the end of the
+    request
+    
+    DSWrapper object is a signleton. Each server will have only one object of this type. 
+    
+    This object will have 
+    server_address : server adress which is represented as unique_key in server table
+    server_id : The database id of the server
+    endpoint_key : endpoint_key
+    endpoint_name : endpoint name
+    
+    There are two list of stickyvalues
+    1) read_stickymappinglist : These are read from the db for this server
+    2) write_stickymappinglist : These are newly created values and needs to be written to the DB at the
+                                 end of the request if _dirty flag is set
+    
     Following params are class level attributes in the DSWapper object
     load - load : float - The load in float in % of the server
     server_state : json - The server state saved by the server, It will used to retrieve the state of the server in 
@@ -96,7 +112,7 @@ class DSWrapperObject(object):
         
     def add_to_write_list(self, stickyvalues):
         '''
-        This adds to write stikcy list
+        This adds to write sticky list
         :param stickyvalues: list
         '''
         logging.getLogger().debug("adding to write list : %s", stickyvalues)
@@ -110,32 +126,6 @@ class DSWrapperObject(object):
         '''
         logging.getLogger().debug("removing from write list : %s", stickyvalues)
         self.write_stickymappinglist =  [s for s in self.write_stickymappinglist if s not in stickyvalues]
-#    @property
-#    def server_address(self):
-#        return self._server_address
-#    
-#    @server_address.setter
-#    def server_address(self, value):
-#        self.dirty = True
-#        self._server_address = value
-#        
-#    @property
-#    def endpoint_key(self):
-#        return self._endpoint_key
-#    
-#    @endpoint_key.setter
-#    def endpoint_key(self, value):
-#        self.dirty = True
-#        self._endpoint_key = value
-#    
-#    @property
-#    def endpoint_name(self):
-#        return self._endpoint_name
-#      
-#    @endpoint_name.setter
-#    def endpoint_name(self, value):
-#        self.dirty = True
-#        self._endpoint_name = value  
      
     
     def _save(self):
@@ -149,7 +139,7 @@ class DSWrapperObject(object):
             if self._autosave and self.dirty:
                 self.dirty = False
                 logging.getLogger().debug("Saving into DB write_stickymappinglist : %s", self.write_stickymappinglist)
-                self.datastore.save_updated_data(self.server_id, self.endpoint_key, self.endpoint_name, self.write_stickymappinglist)
+                self.datastore.save_stickyvalues(self.server_id, self.endpoint_key, self.endpoint_name, self.write_stickymappinglist)
                 self.write_stickymappinglist = []
                 self.datastore.save_load_state(self.server_address, self.load, self.server_state)
 
@@ -168,19 +158,20 @@ class DSWrapperObject(object):
         '''
         This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
         by the correct server. 
+        If there are no server handling these sticky values 
         :param list stickyvalues: stickyvalues which is handled by this server
-        :param str endpoint_key: uuid of the endpoint
+        :param str servertype: the type of the server
         
         :returns: returns the unique id or the server which is the sever address with port
         '''
         if not stickyvalues:
             raise Exception("Sticky values passed cannot be empty or None")
         try:
-            d =  self.datastore.get_server_by_stickyvalue(stickyvalues, servertype, self.server_address, self.endpoint_name, self.endpoint_key)
+            d =  self.datastore.get_target_server(stickyvalues, servertype, self.server_address, self.endpoint_name, self.endpoint_key)
         except SQLAlchemyError as e:
-            logging.getLogger().debug("Exception in get_server_by_stickyvalue : %s", e)
+            logging.getLogger().exception("Exception in while finding the correct server  : %s", e)
         cluster_mapping_list = d['stickymapping']
-        server = d['redirect_server']
+        server = d['target_server']
         success = True #d['success']
         self.server_address = server.unique_key
         if success and cluster_mapping_list:
@@ -195,6 +186,7 @@ class DSWrapperObject(object):
         '''
         This method updates the load in datawrapper object
         :param float load: this is the new/current load for this server
+        :param boolean force: explicitly tells to write to database
         '''
         if load is not None:
             self.load = load
