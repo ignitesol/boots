@@ -164,13 +164,14 @@ class DSWrapperObject(object):
         
         :returns: returns the unique id or the server which is the sever address with port
         '''
-        if not stickyvalues:
-            raise Exception("Sticky values passed cannot be empty or None")
         try:
             d =  self.datastore.get_target_server(stickyvalues, servertype, self.server_address, self.endpoint_name, self.endpoint_key)
         except SQLAlchemyError as e:
             logging.getLogger().exception("Exception in while finding the correct server  : %s", e)
-        cluster_mapping_list = d['stickymapping']
+            raise Exception
+        cluster_mapping_list = None
+        if d['sticky_found']:
+            cluster_mapping_list = d['stickymapping']
         server = d['target_server']
         success = True #d['success']
         self.server_address = server.unique_key

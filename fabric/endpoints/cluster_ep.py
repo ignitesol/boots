@@ -78,7 +78,7 @@ class ClusteredPlugin(BasePlugin):
                         #server_adress = ds_wrapper.server_address
                     except Exception as e:
                         logging.getLogger().exception("exception while _read_by_stickyvalue occured is : %s ", e)
-                        pass
+                        raise Exception("All the server of type : %s are running at max-limit", server.servertype)
 #                        with Atomic.lock: # Do we really need at this level
 #                            server_adress = server.get_least_loaded(server.servertype, server.server_adress)
 #                            ds_wrapper.server_address = server_adress

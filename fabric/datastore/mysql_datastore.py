@@ -11,7 +11,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import join, relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.schema import ForeignKey
-from sqlalchemy.sql.expression import func
+from sqlalchemy.sql.expression import func, and_
 from sqlalchemy.types import String, Integer, Float
 from threading import RLock
 import json
@@ -144,21 +144,24 @@ class MySQLBinding(DBConnectionEndPoint):
         :param endpoint_name: name of the endpoint
         '''
         sess.flush()
+        logging.getLogger().debug("Servertype passed : %s", servertype)
         server = None
-        if not stickyvalues:
-            return None
+        existing_mapping_list = None
+        sticky_found = False
         with self.__class__.internal_lock:
             #logging.getLogger().debug("stickyvalues : %s ", stickyvalues)
-            try:
-                existing_mapping_list = sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).all()
-            except Exception as e:
-                logging.getLogger().debug("Exception occurred in the stickymapping query : %s ", e)
+            if stickyvalues:
+                try:
+                    existing_mapping_list = sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).all()
+                    sticky_found = True
+                except Exception as e:
+                    logging.getLogger().debug("Exception occurred in the stickymapping query : %s ", e)
             
             if not existing_mapping_list:
                 min_loaded_server = None
                 min_load = sess.query(func.min(Server.load)).filter(Server.server_type == servertype ).one()
                 if(min_load[0] < 100):
-                    min_loaded_server = sess.query(Server).filter(Server.load == min_load[0] ).first()
+                    min_loaded_server = sess.query(Server).filter(and_(Server.load == min_load[0], Server.server_type == servertype) ).first()
                     server = min_loaded_server
                     unique_key = min_loaded_server.unique_key
                     if unique_key == server_address:
@@ -178,13 +181,15 @@ class MySQLBinding(DBConnectionEndPoint):
                 pass
                 #logging.getLogger().debug("found existing mapping")
             if server is None:
-                server = sess.query(Server).filter(Server.server_id == existing_mapping_list[0].server_id).one()
-            return_dict = {'target_server' : server, 'stickymapping' : existing_mapping_list}
+                server_ids = set([e.server_id for e in existing_mapping_list])
+                #The server_ids list above will be at most one server of each type even if sticky values for different type of servers are same
+                server = sess.query(Server).filter(and_(Server.server_id.in_(server_ids), Server.server_type==servertype)).one()
+            return_dict = {'target_server' : server, 'stickymapping' : existing_mapping_list, 'sticky_found' : sticky_found}
             '''
             If return dict contains the server and existing_mapping_list ==> already sticked server found
             If existing_mapping_list is empty means this is newly found minimum loaded server (either self or some other server)
             '''
-        #logging.getLogger().debug("returning the redirect server : %s", return_dict)
+        logging.getLogger().debug("returning the redirect server : %s", return_dict)
         return  return_dict
     
     
@@ -199,16 +204,16 @@ class MySQLBinding(DBConnectionEndPoint):
         :param str endpoint_name: name of the endpoint
         :param list stickyvalues: list of new sticky values
         '''
-        #other transaction is set of multiple individual db transactions that tries to add the sticky-key ONE-by-ONE if NOT already exist
+        #we use subtransactions here so that if any query fails with integrity error we can rollback only that and outer transaction continues
         try:
             for stickyvalue in stickyvalues:
                 try:
+                    sess.begin_nested()
                     sticky_record = StickyMapping(server_id, endpoint_key, endpoint_name, stickyvalue)
                     sess.add(sticky_record)  
-                    sess.flush()
+                    sess.commit()
                 except Exception as e:
                     sess.rollback()
-                #self._add_sticky_record(server.server_id, endpoint_key, endpoint_name, stickyvalue)
             sess.commit()
         except IntegrityError as e:
             sess.rollback()

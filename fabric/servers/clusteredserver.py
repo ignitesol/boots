@@ -70,7 +70,7 @@ class ClusteredServer(HybridServer):
             self.stickykeys = stickykeys
             self.ds = ds
             self._created_data = False
-            endpoints = endpoints + [ ClusteredEP()]
+            endpoints = endpoints #+ [ ClusteredEP()]
         super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs) 
    
     
