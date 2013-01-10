@@ -1,7 +1,7 @@
-from fabric.common.singleton import SingletonType
+from fabric.common.singleton import Singleton
+from sqlalchemy.exc import SQLAlchemyError
 from threading import RLock
 import logging
-from sqlalchemy.exc import SQLAlchemyError
 
 class Shared(object):
     def __init__(self):
@@ -34,7 +34,7 @@ class Shared(object):
             self._dirty = val
             return self._dirty
             
-class DSWrapperObject(object):
+class DSWrapperObject(Singleton):
     '''
     This class is used to create and update the sticky relations per sticky keys 
     This loads the sticky keys values that exist and then update the new sticky key values those are 
@@ -66,7 +66,12 @@ class DSWrapperObject(object):
     use the lock to maintain the integrity of the server
     '''    
     
-    __metaclass__ = SingletonType
+    @classmethod
+    def get_instance(cls):
+        '''
+        This method returns the signleton object of the this class
+        '''
+        return DSWrapperObject()
 
     def __init__(self, datastore, server_address, server_id, endpoint_key, endpoint_name, autosave=True, read_stickymappinglist=None):
         read_stickymappinglist = read_stickymappinglist or []

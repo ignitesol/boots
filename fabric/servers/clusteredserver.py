@@ -268,7 +268,7 @@ class ClusteredServer(HybridServer):
         elif type(sticky_keys) is tuple:
             value_tuple = self._extract_values_from_keys(sticky_keys, paramdict)
             stickyvalues += [ self.transform_stickyvalues(value_tuple) ]  if value_tuple else []
-            logging.getLogger().debug("sticky values on key : %s tuple : %s ", sticky_keys, stickyvalues)
+            #logging.getLogger().debug("sticky values on key : %s tuple : %s ", sticky_keys, stickyvalues)
         elif type(sticky_keys) is list:
             for sticky_key in sticky_keys:
                 #recursive call
@@ -281,6 +281,7 @@ class ClusteredServer(HybridServer):
                 if type(val) is not list:
                     val = [val]
                 stickyvalues += val
+        logging.getLogger().debug("Sticky values formed are : %s ", stickyvalues)
         return stickyvalues
     
     def _extract_values_from_keys(self, key_tuple, paramdict):
