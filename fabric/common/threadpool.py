@@ -67,9 +67,10 @@ class InstancedScheduler(NamespaceSingleton, threading.Thread):
     def timer(self, delay, fn, *args, **kargs):
         '''
         Timer Tuple Format: Absolute Time, Partial function(*args, **kargs), id(generated)
+        Time is taken in milliseconds
         '''
         idn = self._counter()
-        self._q.put((time.time() + delay, functools.partial(fn, *args, **kargs), idn))
+        self._q.put((time.time() + delay/1000.0, functools.partial(fn, *args, **kargs), idn))
         return idn
     
     def shutdown(self):
