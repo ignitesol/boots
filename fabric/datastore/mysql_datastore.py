@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import join, relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.orm.util import aliased
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.sql.expression import func, and_
 from sqlalchemy.types import String, Integer, Float
@@ -27,8 +28,10 @@ def dbsessionhandler(wrapped_fn):
     '''
     def wrapped(self, *args, **kwargs):
         sess = self.session
-        retval = wrapped_fn(self, sess,  *args, **kwargs)
-        sess.close()
+        try:
+            retval = wrapped_fn(self, sess,  *args, **kwargs)
+        finally:
+            sess.close()
         return retval
     return wrapped       
     
@@ -159,15 +162,19 @@ class MySQLBinding(DBConnectionEndPoint):
             
             if not existing_mapping_list:
                 min_loaded_server = None
-                min_load = sess.query(func.min(Server.load)).filter(Server.server_type == servertype ).one()
-                if(min_load[0] < 100):
-                    min_loaded_server = sess.query(Server).filter(and_(Server.load == min_load[0], Server.server_type == servertype) ).first()
-                    server = min_loaded_server
-                    unique_key = min_loaded_server.unique_key
+                #Following query finds the minimum loaded server of the given type, with load less than 100%
+                ParentServer = aliased(Server, name='parent_server')
+                min_loaded_server = sess.query(Server, ParentServer).\
+                            outerjoin(ParentServer, and_(Server.server_type==ParentServer.server_type, ParentServer.load < Server.load)).\
+                            filter(and_(Server.server_type==servertype, ParentServer.load==None, Server.load < 100)).first()
+                if min_loaded_server:
+                    logging.getLogger().debug("min loaded server found are : %s ", min_loaded_server[0])
+                    server = min_loaded_server[0]
+                    unique_key = server.unique_key
                     if unique_key == server_address:
                         try:
                             for s in stickyvalues:
-                                sticky_record = StickyMapping(min_loaded_server.server_id, endpoint_key, endpoint_name, s)
+                                sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, s)
                                 sess.add(sticky_record) 
                             sess.commit()
                         except Exception as e:
