@@ -147,7 +147,7 @@ class MySQLBinding(DBConnectionEndPoint):
         :param endpoint_name: name of the endpoint
         '''
         sess.flush()
-        logging.getLogger().debug("Servertype passed : %s", servertype)
+#        logging.getLogger().debug("Servertype passed : %s", servertype)
         server = None
         existing_mapping_list = None
         sticky_found = False
@@ -168,7 +168,7 @@ class MySQLBinding(DBConnectionEndPoint):
                             outerjoin(ParentServer, and_(Server.server_type==ParentServer.server_type, ParentServer.load < Server.load)).\
                             filter(and_(Server.server_type==servertype, ParentServer.load==None, Server.load < 100)).first()
                 if min_loaded_server:
-                    logging.getLogger().debug("min loaded server found are : %s ", min_loaded_server[0])
+#                    logging.getLogger().debug("min loaded server found are : %s ", min_loaded_server[0])
                     server = min_loaded_server[0]
                     unique_key = server.unique_key
                     if unique_key == server_address:
@@ -196,7 +196,7 @@ class MySQLBinding(DBConnectionEndPoint):
             If return dict contains the server and existing_mapping_list ==> already sticked server found
             If existing_mapping_list is empty means this is newly found minimum loaded server (either self or some other server)
             '''
-        logging.getLogger().debug("returning the redirect server : %s", return_dict)
+#        logging.getLogger().debug("returning the redirect server : %s", return_dict)
         return  return_dict
     
     
@@ -281,7 +281,7 @@ class MySQLBinding(DBConnectionEndPoint):
     	'''
 
         try:
-            logging.getLogger().debug("DB query remove: %s", stickyvalues)
+#            logging.getLogger().debug("DB query remove: %s", stickyvalues)
             sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).delete(synchronize_session='fetch')
             sess.commit()
         except Exception as e:

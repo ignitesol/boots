@@ -120,7 +120,7 @@ class DSWrapperObject(Singleton):
         This adds to write sticky list
         :param stickyvalues: list
         '''
-        logging.getLogger().debug("adding to write list : %s", stickyvalues)
+#        logging.getLogger().debug("adding to write list : %s", stickyvalues)
         if stickyvalues is not None and type(stickyvalues) is list:
             self.write_stickymappinglist += stickyvalues
     
@@ -129,7 +129,7 @@ class DSWrapperObject(Singleton):
         This method removes from the the write sticky list
         :param stickyvalues: list        
         '''
-        logging.getLogger().debug("removing from write list : %s", stickyvalues)
+#        logging.getLogger().debug("removing from write list : %s", stickyvalues)
         self.write_stickymappinglist =  [s for s in self.write_stickymappinglist if s not in stickyvalues]
      
     
@@ -139,11 +139,11 @@ class DSWrapperObject(Singleton):
         This method will be always called whenever there are new sticky keys updated and/or there is change in load 
         and/or there is some updates to data blob that we want to do.
         '''
-        logging.getLogger().debug("save is called. dirty : %s, object : %s ", self.dirty, id(self))
+#        logging.getLogger().debug("save is called. dirty : %s, object : %s ", self.dirty, id(self))
         with self.lock:
             if self._autosave and self.dirty:
                 self.dirty = False
-                logging.getLogger().debug("Saving into DB write_stickymappinglist : %s", self.write_stickymappinglist)
+#                logging.getLogger().debug("Saving into DB write_stickymappinglist : %s", self.write_stickymappinglist)
                 self.datastore.save_stickyvalues(self.server_id, self.endpoint_key, self.endpoint_name, self.write_stickymappinglist)
                 self.write_stickymappinglist = []
                 self.datastore.save_load_state(self.server_address, self.load, self.server_state)
@@ -209,7 +209,7 @@ class DSWrapperObject(Singleton):
         :param float load: this is the new/current load for this server
         :param datablob: this is the blob that needs to be updated for recovery
         '''
-        logging.getLogger().debug("update : %s , object : %s", stickyvalues, id(self))
+#        logging.getLogger().debug("update : %s , object : %s", stickyvalues, id(self))
         stickyvalues = stickyvalues or []
         new_sticky_values = (stickyvalue for stickyvalue in stickyvalues  if stickyvalue not in self.write_stickymappinglist) # generator expression 
         for stickyvalue in new_sticky_values:
@@ -225,7 +225,7 @@ class DSWrapperObject(Singleton):
         This will add the new sticky value to the existing list of params .
         :param stickyvalues: newly formed sticky values which are added to the DSWrapper object
         '''
-        logging.getLogger().debug("adding sticky values to the datastructure : %s , object : %s", stickyvalues, id(self))
+#        logging.getLogger().debug("adding sticky values to the datastructure : %s , object : %s", stickyvalues, id(self))
         if stickyvalues is not None:
             if type(stickyvalues) is str:
                 if stickyvalues not in self.write_stickymappinglist and stickyvalues not in self.read_stickymappinglist: # if condition separated on purpose ,# else depends only on first if
@@ -251,6 +251,6 @@ class DSWrapperObject(Singleton):
                 self.datastore.remove_stickyvalues(stickyvalues)
                 self.remove_from_write_list(stickyvalues)
                 self.read_stickymappinglist = [ s for s in self.read_stickymappinglist if s not in stickyvalues ]
-                logging.getLogger().debug("To be Written values in the object : %s", self.write_stickymappinglist)
+#                logging.getLogger().debug("To be Written values in the object : %s", self.write_stickymappinglist)
         except Exception as e:
             logging.getLogger().debug("Exception in Remove sticky values : %s", e)
