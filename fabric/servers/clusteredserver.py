@@ -162,7 +162,7 @@ class ClusteredServer(HybridServer):
         '''
         server_id = None
         if force or not self._created_data and self.server_adress: 
-            self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
+            #self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
             server_id = self.datastore.createdata(self.server_adress, self.servertype )
             self._created_data = True
         return server_id

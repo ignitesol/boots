@@ -560,7 +560,7 @@ class HTTPServerEndPoint(EndPoint):
         self.std_plugins = self.server.get_standard_plugins(self.plugins)
         self.plugins = self.std_plugins + self.plugins
         [ self._endpoint_app.install(plugin) for plugin in self.plugins ]
-        logging.getLogger().debug("plugins : %s", self.plugins)
+        #logging.getLogger().debug("plugins : %s", self.plugins)
         self.routeapp() # establish any routes that have been setup by the @methodroute decorator
         super(HTTPServerEndPoint, self).activate()
         
