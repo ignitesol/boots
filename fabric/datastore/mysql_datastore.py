@@ -29,7 +29,6 @@ def dbsessionhandler(wrapped_fn):
     def wrapped(self, *args, **kwargs):
         sess = self.session
         try:
-            sess.flush()
             retval = wrapped_fn(self, sess,  *args, **kwargs)
         finally:
             sess.close()
@@ -66,7 +65,7 @@ class MySQLBinding(DBConnectionEndPoint):
         :param server_adress: address of the self/server itself, this will be unique entry 
         :param servertype: type of the server 
         '''
-        #sess.flush()
+        sess.flush()
         with self.__class__.internal_lock:
             try:
                 server = Server(servertype, server_adress, json.dumps({}), 0)
@@ -147,7 +146,7 @@ class MySQLBinding(DBConnectionEndPoint):
         :param endpoint_key: unique key of the endpoint
         :param endpoint_name: name of the endpoint
         '''
-        
+        sess.flush()
 #        logging.getLogger().debug("Servertype passed : %s", servertype)
         server = None
         existing_mapping_list = None
@@ -282,7 +281,7 @@ class MySQLBinding(DBConnectionEndPoint):
     	'''
 
         try:
-#            logging.getLogger().debug("DB query remove: %s", stickyvalues)
+            logging.getLogger().debug("DB query remove: %s", stickyvalues)
             sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).delete(synchronize_session='fetch')
             sess.commit()
         except Exception as e:

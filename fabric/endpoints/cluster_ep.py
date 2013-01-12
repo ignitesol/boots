@@ -71,7 +71,7 @@ class ClusteredPlugin(BasePlugin):
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
                     stickyvalues = server.get_stickyvalues(sticky_keys, kargs)
-                    logging.getLogger().debug("Sticky values formed are : %s ", stickyvalues)
+#                    logging.getLogger().debug("Sticky values formed are : %s ", stickyvalues)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
                         server_adress = ds_wrapper._read_by_stickyvalue(stickyvalues, server.servertype)
