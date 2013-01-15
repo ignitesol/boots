@@ -5,8 +5,6 @@ from fabric.endpoints.httpclient_ep import HTTPClientEndPoint
 from functools import wraps
 import bottle
 import logging
-import urllib
-import urllib2
 
 if concurrency == 'gevent':
     from gevent.coros import RLock

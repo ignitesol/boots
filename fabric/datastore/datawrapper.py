@@ -156,6 +156,7 @@ class DSWrapperObject(Singleton):
         with self.lock:
             if self._autosave and self.dirty:
                 for s in self.write_stickymappinglist:
+#                    logging.getLogger().debug("Saving :%s",  s)
                     self.datastore.save_stickyvalue(self.server_id, self.endpoint_key, self.endpoint_name, s)
                 self.write_stickymappinglist = []
     
@@ -237,6 +238,7 @@ class DSWrapperObject(Singleton):
                 for stickyvalue in new_sticky_values:
                     self.add_to_write_list([stickyvalue] if type(stickyvalue) is str else stickyvalue)
                     self.dirty = True
+        self._save_stickyvalues()
                     
     def remove_sticky_value(self, stickyvalues):
         '''
