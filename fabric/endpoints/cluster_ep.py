@@ -70,7 +70,7 @@ class ClusteredPlugin(BasePlugin):
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
                     stickyvalues = server.get_stickyvalues(sticky_keys, kargs)
-                    logging.getLogger().debug("Sticky values formed are : %s ", stickyvalues)
+#                    logging.getLogger().debug("Sticky values formed are : %s ", stickyvalues)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
                         server_adress = ds_wrapper._read_by_stickyvalue(stickyvalues, server.servertype)
@@ -149,6 +149,7 @@ class ClusteredPlugin(BasePlugin):
         ret_val = None
         http_client = HTTPClientEndPoint()
         try:
+#            logging.getLogger().debug("Proxy call postparams : %s ", postparams)
             ret_val = http_client.request(destination_url, headers=headers, **postparams).data
         except Exception as e:
             logging.getLogger().debug("Exception occured in proxying the request: %s", e)
