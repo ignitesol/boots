@@ -7,8 +7,6 @@ from fabric.datastore.dbengine import DatabaseEngineFactory, DBConfig
 from fabric.endpoints.endpoint import EndPoint
 from sqlalchemy.ext.declarative import declarative_base
 from inspect import getargspec
-import threading
-from fabric.common.threadpool import InstancedScheduler
 
 class DBConnectionEndPoint(EndPoint):
     '''
@@ -32,6 +30,7 @@ class DBConnectionEndPoint(EndPoint):
         self._dbconfig = DBConfig(dbtype, db_url, **dbargs) if not dbconfig else dbconfig
         self._engine = DatabaseEngineFactory(self._dbconfig)
         self._schema_base = declarative_base(bind=self._engine.engine)
+        self._controlled_session = ControlledSession(self)
         
 #        class BaseWrapper(_base):
 #            __tablename__ = ""
@@ -63,6 +62,14 @@ class DBConnectionEndPoint(EndPoint):
         to communicate with the database
         '''
         return self._engine.get_scoped_session()
+    
+    @property
+    def stint(self):
+        '''
+        Returns the ControlledSession to be used by the python 'with' statement
+        **UNTESTED**
+        '''
+        return self._controlled_session
     
     @property
     def dbengine(self):
@@ -100,51 +107,16 @@ class DBConnectionEndPoint(EndPoint):
         return decorator
         
 
-
-class DBDelayedWriter(object):
+class ControlledSession(object):
+    '''
+    A session meant to be used by the 'with' operator
+    Must be a scoped session, else it is not thread safe
+    '''
+    def __init__(self, dbep):
+        self.dbep = dbep
     
+    def __enter__(self):
+        return self.dbep.session
     
-    DELETE = "delete"
-    ADD = "add"
-    UPDATE = "update"
-    
-    def __init__(self, db_ep, interval=5):
-        self.db_ep = db_ep
-        self._job = None
-        self.interval = interval
-        
-        self._actions = {}
-        self._actions.setdefault(self.__class__.DELETE, [])
-        self._actions.setdefault(self.__class__.ADD, [])
-        self._actions.setdefault(self.__class__.UPDATE, [])
-        
-        self._write_lock = threading.RLock()
-    
-    def _update(self, command):
-        pass
-    
-    def _add(self, command):
-        pass
-    
-    def _delete(self, command):
-        pass
-    
-    def _delayed_write(self):
-        with self._write_lock:
-            # TODO: The DB Stuff
-            for action, actions in self._actions:
-                for act in actions:
-                    if action is self.__class__.DELETE: self._delete(act)
-                    elif action is self.__class__.UPDATE: self._update(act)
-                    elif action is self.__class__.ADD: self._add(act)
-                    
-            self._job = InstancedScheduler().timer(self.interval, self._delayed_write)
-    
-    def stop(self):
-        with self._write_lock:
-            InstancedScheduler().cancel(self._job)
-    
-    def start(self):
-        with self._write_lock:
-            self._job = InstancedScheduler().timer(self.interval, self._delayed_write)
-        
+    def __exit__(self, etype, value, traceback):
+        self.dbep.session.close()
