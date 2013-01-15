@@ -1,6 +1,7 @@
 from fabric import concurrency
 from fabric.datastore.datawrapper import DSWrapperObject
 from fabric.endpoints.http_ep import BasePlugin
+from fabric.endpoints.httpclient_ep import HTTPClientEndPoint
 from functools import wraps
 import bottle
 import logging
@@ -48,18 +49,16 @@ class ClusteredPlugin(BasePlugin):
         '''
         @wraps(callback)
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
+            
+            headers = bottle.request.headers.environ
+#            logging.getLogger().debug("Headers at he start of the plugin")
+#            for hk,v in headers.items():
+#                logging.getLogger().debug("%s=%s", hk, v)
             ep = self.get_callback_obj(callback)
             server = ep.server
             server_adress = None
             exception = None
             stickyvalues = None
-            
-            params = bottle.request.POST
-            d = {}
-            for k in params.keys():
-                d[k] = params.getall(k)
-                if len(d[k]) == 1:
-                    d[k] = d[k][0] # drop the list of single valued params
             
             server.server_adress = ep.server_name
             server_id = server.create_data()
@@ -71,7 +70,7 @@ class ClusteredPlugin(BasePlugin):
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
                     stickyvalues = server.get_stickyvalues(sticky_keys, kargs)
-#                    logging.getLogger().debug("Sticky values formed are : %s ", stickyvalues)
+                    logging.getLogger().debug("Sticky values formed are : %s ", stickyvalues)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
                         server_adress = ds_wrapper._read_by_stickyvalue(stickyvalues, server.servertype)
@@ -79,17 +78,37 @@ class ClusteredPlugin(BasePlugin):
                     except Exception as e:
                         logging.getLogger().exception("exception while _read_by_stickyvalue occured is : %s ", e)
                         raise Exception("All the server of type : %s are running at max-limit", server.servertype)
-#                        with Atomic.lock:
-#                            server_adress = server.get_least_loaded(server.servertype, server.server_adress)
                     res = None    
                     #logging.getLogger().debug("server_adress retuned by _read_by_stickyvalue: %s ", server_adress)
                     if  server_adress and server_adress != server.server_adress: 
                         destination_url =   server_adress + self.get_callback_obj(callback).request.urlparts.path
                         headers = bottle.request.headers.environ
                         cookies = bottle.request.COOKIES.dict
+                        #logging.getLogger().debug("Cookies : %s", headers)
+                        cookie_headers = {}
+                        hstr =""
+                        for k, v  in cookies.items():
+                            hstr += '{key}={value};'.format(key=k, value=v[0])
+                        cookie_headers = {'Cookie' : hstr}
+                        
+                        fwd_h = {}
+                        for k,v in headers.items():
+                            if k == 'HTTP_X_FORWARDED_HOST':
+#                                logging.getLogger().debug("The forwarded host : %s", v)
+                                fwd_h['X_FORWARDED_HOST'] = v
+                            #else:fwd_h[k] = v
+                        cookie_headers.update(fwd_h)
+                        #cookie_headers.update(headers)
                         getparams = bottle.request.GET.dict
+                        
+                        params = bottle.request.POST
+                        d = {}
+                        for k in params.keys():
+                            d[k] = params.getall(k)
+                            if len(d[k]) == 1:
+                                d[k] = d[k][0] # drop the list of single valued params
                         postparams = d
-                        res = self._make_proxy_call(destination_url, headers, cookies, getparams, postparams)
+                        res = self._make_proxy_call(destination_url, cookie_headers, getparams, postparams)
                     if res:return res # return if there is response 
                         
                 # Add the ds object (Since the ds_wrapper object is singleton. We can get the oject directly )
@@ -118,24 +137,20 @@ class ClusteredPlugin(BasePlugin):
     
     
     
-    def _make_proxy_call(self, server_adress , headers, cookies, getparams, postparams):
+    def _make_proxy_call(self, destination_url , headers, getparams, postparams):
         '''
         This method makes the proxy call to the destination serever
         :param server_adress: the server address to which we want to proxy the request
         :param headers: the server header from the request
-        :param cookies: the cookies from the current request
         :param getparams : all the get parameters
         :param postparams : all the post params
-        
         :returns: the response that is returned from the proxied server 
         '''
-        destination_url =  server_adress 
         ret_val = None
+        http_client = HTTPClientEndPoint()
         try:
-#            http_client = HTTPClientEndPoint(url=destination_url, data=postparams, headers=headers)
-            #FIXME : Proxy will need to send the Headers info as well
-            encoded_args = urllib.urlencode(postparams)
-            ret_val = urllib2.urlopen(destination_url, encoded_args).read()
+            ret_val = http_client.request(destination_url, headers=headers, **postparams).data
         except Exception as e:
-            logging.getLogger().debug("Exception in proxy call : %s", e)
+            logging.getLogger().debug("Exception occured in proxying the request: %s", e)
+#            logging.getLogger().debug("Proxy call returned : %s ", ret_val)
         return ret_val

@@ -279,14 +279,17 @@ class MySQLBinding(DBConnectionEndPoint):
 		:param stickyvalues: list of new sticky values
 		:param load: load value that we want to update in datastore for this server
     	'''
-
-        try:
-            logging.getLogger().debug("DB query remove: %s", stickyvalues)
-            sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).delete(synchronize_session='fetch')
-            sess.commit()
-        except Exception as e:
-            logging.getLogger().debug("Exception occured while removing the sticky value from the db : %s", e)
-            pass
+        sess.flush()
+        logging.getLogger().debug("DB query remove: %s", stickyvalues)
+        for s in stickyvalues:
+            try:
+                sess.begin_nested()
+                sess.query(StickyMapping).filter(StickyMapping.sticky_value == s).delete(synchronize_session='fetch')
+                sess.commit()
+            except Exception as e:
+                sess.rollback()
+                logging.getLogger().debug("Exception occured while removing the sticky value from the db : %s", e)
+        sess.commit()
     
     
     @dbsessionhandler
