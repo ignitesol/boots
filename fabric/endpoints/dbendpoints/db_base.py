@@ -7,6 +7,7 @@ from fabric.datastore.dbengine import DatabaseEngineFactory, DBConfig
 from fabric.endpoints.endpoint import EndPoint
 from sqlalchemy.ext.declarative import declarative_base
 from inspect import getargspec
+import logging
 
 class DBConnectionEndPoint(EndPoint):
     '''
