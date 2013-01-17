@@ -52,7 +52,12 @@ class InstancedScheduler(NamespaceSingleton, threading.Thread):
         self._counter = new_counter()
         self._lock = threading.RLock()
         self._stop = False
+        self._local = threading.local()
         self.start()
+    
+    @property
+    def current(self):
+        return getattr(self._local, '_current', None)
     
     def scheduled_data(self, job_id):
         with self._lock:
@@ -70,8 +75,14 @@ class InstancedScheduler(NamespaceSingleton, threading.Thread):
         Time is taken in milliseconds
         '''
         idn = self._counter()
-        self._q.put((time.time() + delay/1000.0, functools.partial(fn, *args, **kargs), idn))
+        cb = functools.partial(self._callback_wrapper, fn, idn, *args, **kargs) if kargs.pop('_threadpool', False) \
+             else functools.partial(InstancedThreadPool().apply_async, self._callback_wrapper, args=(fn, idn)+args, kwds=kargs)
+        self._q.put((time.time() + delay/1000.0, cb, idn))
         return idn
+    
+    def _callback_wrapper(self, cb, idn, *args, **kargs):
+        setattr(self._local, '_current', idn)
+        return cb(*args, **kargs)
     
     def shutdown(self):
         logging.getLogger().debug("Shutting Down scheduler")
@@ -92,10 +103,11 @@ class InstancedScheduler(NamespaceSingleton, threading.Thread):
             except Queue.Empty: # timeout ran
                 _, callback, idn = heappop(self._task_heap)
                 if idn in self._cancelled:
-                    logging.getLogger.debug("cancelled %s", idn)
+                    logging.getLogger().debug("cancelled %s", idn)
                     self._cancelled.pop(idn)
                 else:
-                    try: callback()
+                    try: 
+                        callback()
                     except Exception as e:
                         logging.getLogger().exception("Exception running scheduled Timer: %s", e)
                         
