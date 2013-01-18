@@ -4,6 +4,7 @@ We will have either mysql  persistent type of data binding
 '''
 from fabric.datastore.dbengine import DBConfig
 from fabric.endpoints.dbendpoints.db_base import DBConnectionEndPoint
+from functools import wraps
 from sqlalchemy import Column, schema as saschema
 from sqlalchemy.dialects.mysql.base import LONGTEXT
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -26,6 +27,7 @@ def dbsessionhandler(wrapped_fn):
     We dont need to pass it explicitly to the method while making call to the decorated
     method.
     '''
+    @wraps(wrapped_fn)
     def wrapped(self, *args, **kwargs):
         sess = self.session
         try:
