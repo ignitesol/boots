@@ -70,7 +70,7 @@ class ClusteredServer(HybridServer):
             self.stickykeys = stickykeys
             self.ds = ds
             self._created_data = False
-            endpoints = endpoints + [ ClusteredEP()]
+            endpoints = endpoints #+ [ ClusteredEP()]
         super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs) 
    
     
@@ -112,7 +112,7 @@ class ClusteredServer(HybridServer):
         if hasattr(self, 'datastore'):
             if self.cmmd_line_args['restart']:
                 self.restart = True
-                logging.getLogger().debug("Server restarted after crash. read blob from db and set it to server_state")
+#                logging.getLogger().debug("Server restarted after crash. read blob from db and set it to server_state")
                 self.server_state = self.datastore.get_server_state(self.server_adress)
                 self.prepare_to_restart(self.server_state)
             else:
@@ -151,7 +151,7 @@ class ClusteredServer(HybridServer):
             par_plugins = []
         #Adds the clustered plugin only if this is clustered server
         if self.clustered:
-            logging.getLogger().debug("Adding the clustered plugin")
+#            logging.getLogger().debug("Adding the clustered plugin")
             par_plugins += [ ClusteredPlugin(datastore=self.datastore, ds=self.ds) ] 
         return par_plugins
         
@@ -160,10 +160,12 @@ class ClusteredServer(HybridServer):
         '''
         This create DataStructure in Persistent data store
         '''
+        server_id = None
         if force or not self._created_data and self.server_adress: 
-            self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
-            self.datastore.createdata(self.server_adress, self.servertype )
+            #self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
+            server_id = self.datastore.createdata(self.server_adress, self.servertype )
             self._created_data = True
+        return server_id
         
     def get_server_state(self):
         '''
@@ -232,20 +234,20 @@ class ClusteredServer(HybridServer):
         pass
         #self.datastore.save_load_state(self.server_adress, 12.5)
     
-    def get_by_stickyvalue(self, stickyvalues, endpoint_key):
-        '''
-        This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
-        by the correct server. 
-        :param list stickyvalues: stickyvalues which is handled by this server
-        :param endpoint_key: uuid of the endpoint
-        
-        :returns: the unique id or the server which is the sever address with port
-        '''
-        if stickyvalues is None:
-            return None
-        ret_val =  self.datastore.get_server_by_stickyvalue(stickyvalues, endpoint_key)
-        server , clustermapping_list = ret_val
-        return (server.unique_key, clustermapping_list) if ret_val else None
+#    def get_by_stickyvalue(self, stickyvalues, endpoint_key):
+#        '''
+#        This method gets the server with the stickyvalue. The stickyvalue makes sure this request is handled
+#        by the correct server. 
+#        :param list stickyvalues: stickyvalues which is handled by this server
+#        :param endpoint_key: uuid of the endpoint
+#        
+#        :returns: the unique id or the server which is the sever address with port
+#        '''
+#        if stickyvalues is None:
+#            return None
+#        ret_val =  self.datastore.get_server_by_stickyvalue(stickyvalues, endpoint_key)
+#        server , clustermapping_list = ret_val
+#        return (server.unique_key, clustermapping_list) if ret_val else None
     
     def  get_stickyvalues(self, sticky_keys,  paramdict):
         '''
@@ -266,6 +268,7 @@ class ClusteredServer(HybridServer):
         elif type(sticky_keys) is tuple:
             value_tuple = self._extract_values_from_keys(sticky_keys, paramdict)
             stickyvalues += [ self.transform_stickyvalues(value_tuple) ]  if value_tuple else []
+            #logging.getLogger().debug("sticky values on key : %s tuple : %s ", sticky_keys, stickyvalues)
         elif type(sticky_keys) is list:
             for sticky_key in sticky_keys:
                 #recursive call
@@ -278,6 +281,7 @@ class ClusteredServer(HybridServer):
                 if type(val) is not list:
                     val = [val]
                 stickyvalues += val
+#        logging.getLogger().debug("Sticky values formed are : %s ", stickyvalues)
         return stickyvalues
     
     def _extract_values_from_keys(self, key_tuple, paramdict):

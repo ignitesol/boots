@@ -4,17 +4,21 @@ We will have either mysql  persistent type of data binding
 '''
 from fabric.datastore.dbengine import DBConfig
 from fabric.endpoints.dbendpoints.db_base import DBConnectionEndPoint
+from functools import wraps
 from sqlalchemy import Column, schema as saschema
 from sqlalchemy.dialects.mysql.base import LONGTEXT
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import join, relationship
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.orm.util import aliased
 from sqlalchemy.schema import ForeignKey
-from sqlalchemy.sql.expression import func
+from sqlalchemy.sql.expression import func, and_
 from sqlalchemy.types import String, Integer, Float
+from threading import RLock
 import json
 import logging
+import time
 
     
 def dbsessionhandler(wrapped_fn):
@@ -24,18 +28,53 @@ def dbsessionhandler(wrapped_fn):
     We dont need to pass it explicitly to the method while making call to the decorated
     method.
     '''
+    @wraps(wrapped_fn)
     def wrapped(self, *args, **kwargs):
         sess = self.session
-        retval = wrapped_fn(self, sess,  *args, **kwargs)
-        sess.close()
+        try:
+            retval = wrapped_fn(self, sess,  *args, **kwargs)
+        finally:
+            sess.close()
         return retval
     return wrapped       
     
     
+class Retry(object):
+    default_exceptions = (OperationalError,)
+    def __init__(self, tries , exceptions=None, delay=0.01):
+        """
+        Decorator for retrying a function if exception occurs
+        
+        tries -- num tries 
+        exceptions -- exceptions to catch
+        delay -- wait between retries
+        """
+        self.tries = tries
+        if exceptions is None:
+            exceptions = Retry.default_exceptions
+        self.exceptions =  exceptions
+        self.delay = delay
+
+    def __call__(self, f):
+        def fn(*args, **kwargs):
+            exception = None
+            for _ in range(self.tries):
+                try:
+                    return f(*args, **kwargs)
+                except self.exceptions, e:
+                    time.sleep(self.delay)
+                    exception = e
+            #if no success after tries, raise last exception
+            raise exception
+        return fn
+
+
 class MySQLBinding(DBConnectionEndPoint):
     
     def get_session(self):
         return self.session
+    
+    internal_lock  = RLock()
     
     def __init__(self, dbconfig=None):
         if not dbconfig:
@@ -50,7 +89,7 @@ class MySQLBinding(DBConnectionEndPoint):
         super(MySQLBinding, self).__init__(dbconfig=dbconfig)
         self.engine = self._engine
     
-        
+
     @dbsessionhandler
     def createdata(self, sess, server_adress, servertype):
         '''
@@ -60,16 +99,19 @@ class MySQLBinding(DBConnectionEndPoint):
         :param server_adress: address of the self/server itself, this will be unique entry 
         :param servertype: type of the server 
         '''
-        try:
-            server = Server(servertype, server_adress, '', 0)
-            sess.add(server)
-            sess.commit()
-        except IntegrityError:
-            #This error will occur when we are in start mode. We will clear server_state by updating it to empty dict
-            sess.rollback()
-            sess.query(Server).filter(Server.unique_key == server_adress)\
-                    .update({Server.load:0, Server.server_type:servertype, Server.server_state:json.dumps({})}, synchronize_session=False)
-            sess.commit()
+        sess.flush()
+        with self.__class__.internal_lock:
+            try:
+                server = Server(servertype, server_adress, json.dumps({}), 0)
+                sess.add(server)
+                sess.commit()
+            except IntegrityError:
+                #This error will occur when we are in start mode. We will clear server_state by updating it to empty dict
+                sess.rollback()
+                sess.query(Server).filter(Server.unique_key == server_adress)\
+                        .update({Server.load:0, Server.server_type:servertype, Server.server_state:json.dumps({})}, synchronize_session=False)
+                sess.commit()
+            return server.server_id
         
     
     @dbsessionhandler
@@ -118,47 +160,101 @@ class MySQLBinding(DBConnectionEndPoint):
         except NoResultFound:
             return 0
     
+    @Retry(3)
+    @dbsessionhandler
+    def get_target_server(self, sess, stickyvalues, servertype, server_address, endpoint_name, endpoint_key):
+        '''
+        This method finds the target server who will handle this request based on stickyvalues or minimum load
+        Logic: 
+        -This method returns the server which handles the stickyvalue if found.
+        -If not found , tries to find the minimum loaded server.
+        -If current server is the minimum loaded servers, adds the corresponding sticky values instantly
+        - At the end returns the dict server as a target server and stickymappings if found already existing stickyness.
+
+        If return dict contains the server and existing_mapping_list ==> already sticked server found
+        If existing_mapping_list is empty means this is newly found minimum loaded server (either self or some other server)
         
-    @dbsessionhandler
-    def get_server_by_stickyvalue(self, sess, stickyvalues, endpoint_key):
-        '''
-        This method returns the server which handles the stickyvalue and 
         :param stickyvalue: the sticky value string.
-        :param endpoint_key: unique value of the endpoint key
-        '''
-        if not stickyvalues:
-            return None
-        try:
-            existing_mapping_list = sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).all()
-        except Exception:
-            pass
-        if not existing_mapping_list:
-            return None
-        #TODO : Join was screwing up for some reason so , dirty code . Must  fix
-        server = sess.query(Server).filter(Server.server_id == existing_mapping_list[0].server_id).one()
-        return  (server, existing_mapping_list)
-    
-    
-    @dbsessionhandler
-    def save_updated_data(self, sess, server_adress, endpoint_key, endpoint_name, stickyvalues):
-        '''
-        This method adds the stickyvalue mapping for the server_address
-        :param server_adress: the unique server_adress
+        :param servertype: the type of the server
+        :param server_address: he address of the server which is the unique key
         :param endpoint_key: unique key of the endpoint
         :param endpoint_name: name of the endpoint
-        :param stickyvalues: list of new sticky values
         '''
-        #other transaction is set of multiple individual db transactions that tries to add the sticky-key ONE-by-ONE if NOT already exist
+        sess.flush()
+#        logging.getLogger().debug("Servertype passed : %s", servertype)
+        server = None
+        existing_mapping_list = None
+        sticky_found = False
+        with self.__class__.internal_lock:
+            #logging.getLogger().debug("stickyvalues : %s ", stickyvalues)
+            if stickyvalues:
+                try:
+                    existing_mapping_list = sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).all()
+                    sticky_found = True
+                except Exception as e:
+                    logging.getLogger().debug("Exception occurred in the stickymapping query : %s ", e)
+            
+            if not existing_mapping_list:
+                min_loaded_server = None
+                #Following query finds the minimum loaded server of the given type, with load less than 100%
+                ParentServer = aliased(Server, name='parent_server')
+                min_loaded_server = sess.query(Server, ParentServer).\
+                            outerjoin(ParentServer, and_(Server.server_type==ParentServer.server_type, ParentServer.load < Server.load)).\
+                            filter(and_(Server.server_type==servertype, ParentServer.load==None, Server.load < 100)).first()
+                if min_loaded_server:
+#                    logging.getLogger().debug("min loaded server found are : %s ", min_loaded_server[0])
+                    server = min_loaded_server[0]
+                    unique_key = server.unique_key
+                    if unique_key == server_address:
+                        try:
+                            for s in stickyvalues:
+                                sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, s)
+                                sess.add(sticky_record) 
+                            sess.commit()
+                        except Exception as e:
+                            logging.getLogger().debug("Exception occurred while adding sticky values : %s ", e)
+                            sess.rollback()
+                else:
+                    #TODO  : Indicate System is totally full all extractors are 100%
+                    pass #session closing need to be taken care in case raising exception
+                    #raise Exception
+            else:
+                pass
+                #logging.getLogger().debug("found existing mapping")
+            if server is None:
+                server_ids = set([e.server_id for e in existing_mapping_list])
+                #The server_ids list above will be at most one server of each type even if sticky values for different type of servers are same
+                server = sess.query(Server).filter(and_(Server.server_id.in_(server_ids), Server.server_type==servertype)).one()
+            return_dict = {'target_server' : server, 'stickymapping' : existing_mapping_list, 'sticky_found' : sticky_found}
+            '''
+            If return dict contains the server and existing_mapping_list ==> already sticked server found
+            If existing_mapping_list is empty means this is newly found minimum loaded server (either self or some other server)
+            '''
+#        logging.getLogger().debug("returning the redirect server : %s", return_dict)
+        return  return_dict
+    
+    
+    @dbsessionhandler
+    def save_stickyvalues(self, sess, server_id, endpoint_key, endpoint_name, stickyvalues):
+        '''
+        This method adds the list of stickyvalue mapping for the server_address.
+        This method is called at the end of request in order to add any new sticky values which needs to be added
+        along with the existing list
+        :param int server_id: the server id of the current server as in DB
+        :param str endpoint_key: unique key of the endpoint
+        :param str endpoint_name: name of the endpoint
+        :param list stickyvalues: list of new sticky values
+        '''
+        #we use subtransactions here so that if any query fails with integrity error we can rollback only that and outer transaction continues
         try:
-            server = sess.query(Server).filter(Server.unique_key == server_adress).one()
             for stickyvalue in stickyvalues:
                 try:
-                    sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)
+                    sess.begin_nested()
+                    sticky_record = StickyMapping(server_id, endpoint_key, endpoint_name, stickyvalue)
                     sess.add(sticky_record)  
-                    sess.flush()
+                    sess.commit()
                 except Exception as e:
                     sess.rollback()
-                #self._add_sticky_record(server.server_id, endpoint_key, endpoint_name, stickyvalue)
             sess.commit()
         except IntegrityError as e:
             sess.rollback()
@@ -167,6 +263,7 @@ class MySQLBinding(DBConnectionEndPoint):
     def save_load_state(self, sess, server_adress, load, server_state):
         '''
         This method saves/update the load and the server state
+        :param server_id: the server id of the current server as in DB
         :param load: load percentage for this server
         :param server_state: jsonified server_state . This server_state blob needs to be updated
                              to the existing datablob. This is the datablob that we keep so that
@@ -192,38 +289,20 @@ class MySQLBinding(DBConnectionEndPoint):
         
                 
     @dbsessionhandler
-    def save_stickyvalue(self, sess, server_adress, endpoint_key, endpoint_name, stickyvalue):  
+    def save_stickyvalue(self, sess, server_id, endpoint_key, endpoint_name, stickyvalue):  
         '''
         Save one stickyvalue
+        :param server_id: the server id of the current server as in DB
+        :param endpoint_key: unique key of the endpoint
+        :param endpoint_name: name of the endpoint
+        :param stickyvalues: list of new sticky values
         '''
-        try:
-            server = sess.query(Server).filter(Server.unique_key == server_adress).one()
-            sticky_record = StickyMapping(server.server_id, endpoint_key, endpoint_name, stickyvalue)
-            sess.add(sticky_record)  
-            sess.commit()
-            #print "save sticky value : %s"%datetime.datetime.now()
-        except IntegrityError as e:
-            sess.rollback()
-            
-        
-        
-        
-    @dbsessionhandler
-    def _add_sticky_record(self, sess, server_id, endpoint_key, endpoint_name, stickyvalue):
-        '''
-    	This methods add the single sticky record in the database.
-    	:param server_id: the unique server id
-		:param endpoint_key: unique key of the endpoint
-		:param endpoint_name: name of the endpoint
-		:param stickyvalue: new sticky value, that we are trying to add
-    	'''
         try:
             sticky_record = StickyMapping(server_id, endpoint_key, endpoint_name, stickyvalue)
             sess.add(sticky_record)  
             sess.commit()
-        except IntegrityError:
-            pass
-            #print "Sticky mapping already exist with another server"
+        except IntegrityError as e:
+            sess.rollback()
             
             
     @dbsessionhandler
@@ -234,22 +313,17 @@ class MySQLBinding(DBConnectionEndPoint):
 		:param stickyvalues: list of new sticky values
 		:param load: load value that we want to update in datastore for this server
     	'''
-
-        try:
-            logging.getLogger().debug("DB query remove: %s", stickyvalues)
-            sess.query(StickyMapping).filter(StickyMapping.sticky_value.in_(stickyvalues)).delete(synchronize_session='fetch')
-#            sticky_mappings = sess.query(StickyMapping).select_from(join(Server, StickyMapping))\
-#            					.filter(Server.unique_key == server_adress, StickyMapping.sticky_value.in_(stickyvalues)).all()
-#            if sticky_mappings:
-#                sess.query(StickyMapping).filter(StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
-#                					.delete(synchronize_session='fetch')
-#            
-#            if load:
-#                sess.query(Server).filter(Server.unique_key == server_adress).update({Server.load:load}, synchronize_session=False)
-            sess.commit()
-        except Exception as e:
-            logging.getLogger().debug("Exception occured while removing the sticky value from the db : %s", e)
-            pass
+        sess.flush()
+        logging.getLogger().debug("DB query remove: %s", stickyvalues)
+        for s in stickyvalues:
+            try:
+                sess.begin_nested()
+                sess.query(StickyMapping).filter(StickyMapping.sticky_value == s).delete(synchronize_session='fetch')
+                sess.commit()
+            except Exception as e:
+                sess.rollback()
+                logging.getLogger().debug("Exception occured while removing the sticky value from the db : %s", e)
+        sess.commit()
     
     
     @dbsessionhandler
@@ -282,15 +356,12 @@ class MySQLBinding(DBConnectionEndPoint):
             min_loaded_server = sess.query(Server).filter(Server.load == min_load[0] ).first()
         return min_loaded_server
     
-    
-    
 # Following defined ORM mapping with the relational database
-
 #logging.basicConfig()
 #logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+#TODO : Put the cluste_orm definition in separate file
 
 Base = declarative_base(bind = MySQLBinding().engine.engine)
-
 
 class Server(Base):
     ''' mapping class for server table'''
