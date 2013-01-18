@@ -18,6 +18,7 @@ from sqlalchemy.types import String, Integer, Float
 from threading import RLock
 import json
 import logging
+import time
 
     
 def dbsessionhandler(wrapped_fn):
@@ -38,6 +39,36 @@ def dbsessionhandler(wrapped_fn):
     return wrapped       
     
     
+class Retry(object):
+    default_exceptions = (OperationalError,)
+    def __init__(self, tries , exceptions=None, delay=0.01):
+        """
+        Decorator for retrying a function if exception occurs
+        
+        tries -- num tries 
+        exceptions -- exceptions to catch
+        delay -- wait between retries
+        """
+        self.tries = tries
+        if exceptions is None:
+            exceptions = Retry.default_exceptions
+        self.exceptions =  exceptions
+        self.delay = delay
+
+    def __call__(self, f):
+        def fn(*args, **kwargs):
+            exception = None
+            for _ in range(self.tries):
+                try:
+                    return f(*args, **kwargs)
+                except self.exceptions, e:
+                    time.sleep(self.delay)
+                    exception = e
+            #if no success after tries, raise last exception
+            raise exception
+        return fn
+
+
 class MySQLBinding(DBConnectionEndPoint):
     
     def get_session(self):
@@ -58,6 +89,7 @@ class MySQLBinding(DBConnectionEndPoint):
         super(MySQLBinding, self).__init__(dbconfig=dbconfig)
         self.engine = self._engine
     
+
     @dbsessionhandler
     def createdata(self, sess, server_adress, servertype):
         '''
@@ -128,7 +160,7 @@ class MySQLBinding(DBConnectionEndPoint):
         except NoResultFound:
             return 0
     
-        
+    @Retry(3)
     @dbsessionhandler
     def get_target_server(self, sess, stickyvalues, servertype, server_address, endpoint_name, endpoint_key):
         '''
