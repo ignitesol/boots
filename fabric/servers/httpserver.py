@@ -115,7 +115,7 @@ class HTTPServer(HTTPBaseServer):
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
                  session=False, cache=False, auth=False, handle_exception=False,
-                 **kargs):
+                 openurls=[], **kargs):
         '''
         :params bool session: controls whether sessions based on configuration ini should be instantiated. sessions
             will be available through the HTTPServerEndPoint
@@ -135,6 +135,7 @@ class HTTPServer(HTTPBaseServer):
         if auth: self.config_callbacks['SPARXAuth'] = self.auth_config_update
         
         self.handle_exception = handle_exception
+        self.openurls = openurls
 #        self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
     
@@ -145,7 +146,8 @@ class HTTPServer(HTTPBaseServer):
         SPARXAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
         '''
         logins = [('demo', 'igniter0cks')]     #TODO:Get it from a User DB.
-    
+        config_obj['SPARXAuth']['open_urls'] = self.openurls
+        logging.getLogger().debug('Open URLs:%s', config_obj['SPARXAuth']['open_urls'])
         self.app = SparxAuth(self.app, users=logins, 
                              open_urls=config_obj['SPARXAuth']['open_urls'], 
                              session_key=config_obj['SPARXAuth']['key'])

@@ -36,6 +36,7 @@ import os
 import re
 import sys
 import traceback
+from urlparse import urlsplit
 
 try: from collections import MutableMapping as DictMixin
 except ImportError: # pragma: no cover
@@ -648,6 +649,13 @@ class HTTPServerEndPoint(EndPoint):
         '''
         scheme = bottle.request.urlparts[0] 
         return '://'.join([scheme, self.environ['SERVER_NAME']])
+    
+    @property
+    def user(self):
+        '''
+        Get the user from the environ.
+        '''
+        return self.environ.get('REMOTE_USER', 'unknown')
     
     def selected_cookies(self, keys=None):
         '''

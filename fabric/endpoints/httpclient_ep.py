@@ -215,7 +215,7 @@ class HTTPClientEndPoint(EndPoint):
         method = method or self.method
         if method is None: method = 'POST'
         if method.upper() != 'POST': method = 'GET'
-        
+#        logging.getLogger().debug('METHOD:%s', method)
         try:
             data = self._safe_urlencode(data, doseq=True)
         
@@ -225,19 +225,17 @@ class HTTPClientEndPoint(EndPoint):
     
             parsed = urlparse.urlparse(url)      #Making the path URL Quoted
             url = urlparse.urlunparse(parsed[:2]+(urllib2.quote(parsed.path.encode("utf8")),)+parsed[3:])
-           
+#            logging.getLogger().debug('url:%s, data:%s, headers:%s, origin_req_host:%s', url, data, headers, self.origin_req_host)
             request = urllib2.Request(url=url, data=data, headers=headers, origin_req_host=self.origin_req_host)
             with closing(urllib2.urlopen(request)) as req:
                 rv = Response(data=req.read(), headers=req.info())
                 return rv
         except urllib2.HTTPError as err:
-            logging.getLogger().exception('HTTPError for url:%s', url)
-            logging.getLogger().exception('HTTPError: %d', err.code)
+            logging.getLogger().exception('HTTPError: %d, url:%s, data:%s, headers:%s, origin_req_host:%s', err.code, url, data, headers, self.origin_req_host)
             # FIXME: change logging to warning.warn
             raise
         except urllib2.URLError as err:
-            logging.getLogger().exception('URLError for url:%s', url)
-            logging.getLogger().exception('URLError: %s', err.reason)
+            logging.getLogger().exception('URLError: %s, url:%s, data:%s, headers:%s, origin_req_host:%s', err.reason, url, data, headers, self.origin_req_host)
             # FIXME: change logging to warning.warn
             raise
 
