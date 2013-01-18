@@ -6,7 +6,6 @@ except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # this is unnecessary if fabric is installed in the site-packages or in PYTHONPATH
 from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute
 from fabric.servers.clusteredserver import ClusteredServer
-from fabric.servers.helpers.clusterenum import ClusterServerType
 
 class TestEP(HTTPServerEndPoint):
     def __init__(self, *args, **kwargs):
@@ -40,7 +39,7 @@ class TestClusterServer(ClusteredServer):
         return 10
     
 application = TestClusterServer(
-                                ClusterServerType.MPEG,  clustered=True, \
+                                'TEST',  clustered=True, \
                                 stickykeys=[ ('channel','host','port'), ('clientid')], \
                                 endpoints=[TestEP()], cache=False, logger=True, ds='datastructure')
 

@@ -70,8 +70,8 @@ class BasePlugin(object):
         :param callback: the callback passed to the decorator (i.e. the actual method/function that will be decorated)
         :param wrapper: the wrapper function that wraps callback (in plugins this is typically called *wrapper*)
         '''
-#        wrapper._signature = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
-#        wrapper._callback_obj = callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        wrapper._signature = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
+        wrapper._callback_obj = callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
         pass
         
     def get_callback_obj(self, callback):
@@ -82,7 +82,11 @@ class BasePlugin(object):
         :param callback: A reference to the current callback within a plugin wrapper
         :returns: object whose method was wrapped with @methodroute
         '''
-        return callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        try:
+            return callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        except Exception as e:
+            logging.getLogger().exception("Callback object : %s", callback)
+            raise
         
 
 class RequestParams(BasePlugin):
@@ -334,6 +338,7 @@ class WrapException(BasePlugin):
         def wrapper(*args, **kargs):
             qstr = bottle.request.POST if method == 'POST' or method == 'ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
             try:
+                logging.getLogger().debug("callback : %s", callback)
                 return callback(*args, **kargs)
             except (bottle.HTTPError, Exception) as err: # let's not handle HTTPError
                 logging.getLogger().exception('Exception: %s', err)
@@ -556,9 +561,10 @@ class HTTPServerEndPoint(EndPoint):
         self.std_plugins = self.server.get_standard_plugins(self.plugins)
         self.plugins = self.std_plugins + self.plugins
         [ self._endpoint_app.install(plugin) for plugin in self.plugins ]
-
+        #logging.getLogger().debug("plugins : %s", self.plugins)
         self.routeapp() # establish any routes that have been setup by the @methodroute decorator
         super(HTTPServerEndPoint, self).activate()
+        
     
     def abort(self, code, text):
         '''
