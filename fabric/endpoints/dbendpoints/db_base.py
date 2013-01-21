@@ -65,7 +65,7 @@ class DBConnectionEndPoint(EndPoint):
         return self._engine.get_scoped_session()
     
     @property
-    def stint(self):
+    def session_block(self):
         '''
         Returns the ControlledSession to be used by the python 'with' statement
         **UNTESTED**
@@ -120,4 +120,11 @@ class ControlledSession(object):
         return self.dbep.session
     
     def __exit__(self, etype, value, traceback):
-        self.dbep.session.close()
+        '''
+        close the session if no exception occurred, 
+        else rollback the session
+        '''
+        if traceback is not None:
+            self.dbep.session.close()
+        else:
+            self.dbep.session.rollback()
