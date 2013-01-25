@@ -124,7 +124,7 @@ class ControlledSession(object):
         close the session if no exception occurred, 
         else rollback the session
         '''
-        if traceback is not None:
+        if traceback is None:
             self.dbep.session.close()
         else:
             self.dbep.session.rollback()
