@@ -59,8 +59,10 @@ class ClusteredPlugin(BasePlugin):
             stickyvalues = None
             
             server.server_adress = ep.server_name
+#            logging.getLogger().debug("The server name is : %s", ep.server_name)
             server_id = server.create_data()
             ds_wrapper = DSWrapperObject(self.datastore, server.server_adress, server_id, ep.uuid, ep.name)
+#            logging.getLogger().debug("DSWrapperObject id in apply %s. Server address : %s", id(ds_wrapper), ds_wrapper.server_address)
             try:
                 # Gets the stickykeys provided from  route/ endpoint /server in that order
                 sticky_keys = kargs.get('stickykeys', None) or getattr(ep, 'stickykeys', None) or server.stickykeys

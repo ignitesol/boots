@@ -19,6 +19,7 @@ from threading import RLock
 import json
 import logging
 import time
+from twisted.conch.recvline import Logging
 
     
 def dbsessionhandler(wrapped_fn):
@@ -112,8 +113,14 @@ class MySQLBinding(DBConnectionEndPoint):
                         .update({Server.load:0, Server.server_type:servertype, Server.server_state:json.dumps({})}, synchronize_session=False)
                 sess.commit()
             return server.server_id
+
+    @dbsessionhandler
+    def get_server_id(self, sess, server_adress):
+        logging.getLogger().debug("The server address is passed :%s ", server_adress)
+        assert server_adress is not None
+        server = sess.query(Server).filter(Server.unique_key == server_adress).one()
+        return server.server_id
         
-    
     @dbsessionhandler
     def get_server_state(self, sess, server_adress):
         '''
@@ -355,6 +362,23 @@ class MySQLBinding(DBConnectionEndPoint):
         if(min_load[0] < 100):
             min_loaded_server = sess.query(Server).filter(Server.load == min_load[0] ).first()
         return min_loaded_server
+    
+    
+    @dbsessionhandler
+    def remove_server(self, sess, server_address):
+        '''
+        This clear the history of the server
+        '''
+        assert server_address is not None
+        try:
+            server = sess.query(Server).filter(Server.unique_key == server_address).one()
+            server_id = server.server_id
+            sess.query(Server).filter(Server.server_id == server_id).delete(synchronize_session='fetch')
+            sess.commit()
+        except Exception:
+            sess.rollback()
+
+        
     
 # Following defined ORM mapping with the relational database
 #logging.basicConfig()

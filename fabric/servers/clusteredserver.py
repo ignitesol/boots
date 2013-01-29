@@ -115,8 +115,10 @@ class ClusteredServer(HybridServer):
 #                logging.getLogger().debug("Server restarted after crash. read blob from db and set it to server_state")
                 self.server_state = self.datastore.get_server_state(self.server_adress)
                 self.prepare_to_restart(self.server_state)
-            else:
-                self.create_data() # This will create data if doesn't exist else updates if update flag is passed
+                
+#            else:
+#                Cannot create data here because we dont have server information
+#                self.create_data() # This will create data if doesn't exist else updates if update flag is passed
             
             
             
@@ -161,10 +163,17 @@ class ClusteredServer(HybridServer):
         This create DataStructure in Persistent data store
         '''
         server_id = None
-        if force or not self._created_data and self.server_adress: 
+        assert self.server_adress is not None
+        if not self.restart and not self._created_data:
+            # delete the previous run's history 
+            self.datastore.remove_server(self.server_adress)
+        if force or not self._created_data: 
             #self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
             server_id = self.datastore.createdata(self.server_adress, self.servertype )
             self._created_data = True
+        elif self._created_data:
+            server_id = self.datastore.get_server_id(self.server_adress)
+        assert server_id is not None    
         return server_id
         
     def get_server_state(self):

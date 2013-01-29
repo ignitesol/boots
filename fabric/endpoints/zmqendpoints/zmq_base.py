@@ -272,7 +272,7 @@ class ZMQListenEndPoint(ZMQEndPoint):
         for p in plugins:
             try: 
                 msg = p.apply(msg)
-            except Exception as e: self.server.logger.error('Error %s - %s - %s', p, e, traceback.print_exc(sys.exc_info()))
+            except Exception as e: self.server.logger.exception('Error %s - %s ', p, e)
         self.callback(msg)
     
     def add_filter(self, pattern):

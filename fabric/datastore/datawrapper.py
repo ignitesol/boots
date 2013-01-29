@@ -71,7 +71,11 @@ class DSWrapperObject(Singleton):
         '''
         This method returns the signleton object of the this class
         '''
-        return DSWrapperObject()
+        ret_val = DSWrapperObject()
+        #logging.getLogger().debug("DSWrapperObject id %s . Server address : %s ", id(ret_val), ret_val.server_address)
+        assert ret_val.server_address is not None
+        assert ret_val.server_id is not None
+        return ret_val
 
     def __init__(self, datastore, server_address, server_id, endpoint_key, endpoint_name, autosave=True, read_stickymappinglist=None):
         read_stickymappinglist = read_stickymappinglist or []
@@ -174,7 +178,7 @@ class DSWrapperObject(Singleton):
             d =  self.datastore.get_target_server(stickyvalues, servertype, self.server_address, self.endpoint_name, self.endpoint_key)
         except SQLAlchemyError as e:
             logging.getLogger().exception("Exception in while finding the correct server  : %s", e)
-            raise Exception
+            raise Exception("Exception in while finding the correct server")
         cluster_mapping_list = None
         if d['sticky_found']:
             cluster_mapping_list = d['stickymapping']
