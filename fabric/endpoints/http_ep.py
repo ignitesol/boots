@@ -26,17 +26,16 @@ if concurrency == 'gevent':
 elif concurrency == 'threading':
     from threading import RLock
 
-from fabric.common.utils import new_counter
 from fabric.endpoints.endpoint import EndPoint
+from fabric.common.utils import new_counter
 from functools import wraps
-import bottle
+import traceback
 import inspect
 import logging
+import bottle
+import sys
 import os
 import re
-import sys
-import traceback
-from urlparse import urlsplit
 
 try: from collections import MutableMapping as DictMixin
 except ImportError: # pragma: no cover
@@ -233,6 +232,7 @@ class Hook(BasePlugin):
             # ignore return value in before case
             self.handler(before_or_after='before', request_context=request_context, callback=callback, url=bottle.request.url, **kargs)
             try:
+#                logging.getLogger().debug("args:%s, kargs:%s", args, kargs)
                 result = callback(*args, **kargs)
             except Exception as e:
                 exception = e
@@ -338,7 +338,6 @@ class WrapException(BasePlugin):
         def wrapper(*args, **kargs):
             qstr = bottle.request.POST if method == 'POST' or method == 'ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
             try:
-                logging.getLogger().debug("callback : %s", callback)
                 return callback(*args, **kargs)
             except (bottle.HTTPError, Exception) as err: # let's not handle HTTPError
                 logging.getLogger().exception('Exception: %s', err)

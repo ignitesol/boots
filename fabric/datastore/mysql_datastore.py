@@ -116,7 +116,7 @@ class MySQLBinding(DBConnectionEndPoint):
 
     @dbsessionhandler
     def get_server_id(self, sess, server_adress):
-        logging.getLogger().debug("The server address is passed :%s ", server_adress)
+#        logging.getLogger().debug("The server address is passed :%s ", server_adress)
         assert server_adress is not None
         server = sess.query(Server).filter(Server.unique_key == server_adress).one()
         return server.server_id
@@ -321,7 +321,7 @@ class MySQLBinding(DBConnectionEndPoint):
 		:param load: load value that we want to update in datastore for this server
     	'''
         sess.flush()
-        logging.getLogger().debug("DB query remove: %s", stickyvalues)
+#        logging.getLogger().debug("DB query remove: %s", stickyvalues)
         for s in stickyvalues:
             try:
                 sess.begin_nested()
