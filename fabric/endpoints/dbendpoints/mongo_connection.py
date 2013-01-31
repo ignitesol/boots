@@ -47,10 +47,11 @@ class MongoEndPoint(EndPoint):
     This is the fabric wrapper over the mongoalchemy's session start , end
     It create connection pool to the mongo database with the given user configurations
     '''
-    def __init__(self, mongoconfig):
+    def __init__(self, mongoconfig, **kwargs):
         
         self._connection = _MongoConnectionFactory(mongoconfig)
         self._db = Database(self._connection, mongoconfig._db_name)
+        super(MongoEndPoint, self).__init__(**kwargs)
     
     @property
     def session(self):
