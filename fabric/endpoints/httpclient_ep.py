@@ -231,7 +231,7 @@ class HTTPClientEndPoint(EndPoint):
     def _request(self, url=None, data=None, headers=None, method=None):
         try:
             url, data, headers, method = self._construct_url(url=url, data=data, headers=headers, method=method)
-            logging.getLogger().debug('url:%s, data:%s, headers:%s, origin_req_host:%s', url, data, headers, self.origin_req_host)
+#            logging.getLogger().debug('url:%s, data:%s, headers:%s, origin_req_host:%s', url, data, headers, self.origin_req_host)
             request = urllib2.Request(url=url, data=data, headers=headers, origin_req_host=self.origin_req_host)
             with closing(urllib2.urlopen(request)) as req:
                 rv = Response(data=req.read(), headers=req.info())
