@@ -19,8 +19,6 @@ from threading import RLock
 import json
 import logging
 import time
-from twisted.conch.recvline import Logging
-
     
 def dbsessionhandler(wrapped_fn):
     '''
