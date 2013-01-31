@@ -82,7 +82,7 @@ class ZMQBaseEndPoint(EndPoint):
     All socket functionalities are wrapped within this and sub classes
     Keeping the complexity of the functionality away from server writers
     '''
-    def __init__(self, socket_type, address, bind=False, name=None, **kargs):
+    def __init__(self, socket_type, address, bind=False, **kargs):
         '''
         Constructor
         
