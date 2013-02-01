@@ -208,7 +208,11 @@ class HTTPClientEndPoint(EndPoint):
         self.method = method.upper()
         self.origin_req_host = origin_req_host
         
-    def _request(self, url=None, data=None, headers=None, method=None):
+    def _construct_url(self, url=None, data=None, headers=None, method=None):
+        '''
+        Constructs the url from the given url, data, headers and method.
+         We dont need to pass headers and method, but tomorrow we may have some logic which may be changing the headers due to some kind of data, like ebif data.
+        '''
         url = url or self.url
         headers = headers or self.headers
         data = data or self.data
@@ -216,15 +220,17 @@ class HTTPClientEndPoint(EndPoint):
         if method is None: method = 'POST'
         if method.upper() != 'POST': method = 'GET'
 #        logging.getLogger().debug('METHOD:%s', method)
-        try:
-            data = self._safe_urlencode(data, doseq=True)
+        data = self._safe_urlencode(data, doseq=True)
+        if method == 'GET' and data:
+            url += '?' + data
+            data = None
+        parsed = urlparse.urlparse(url)      #Making the path URL Quoted
+        url = urlparse.urlunparse(parsed[:2]+(urllib2.quote(parsed.path.encode("utf8")),)+parsed[3:])
+        return url, data, headers, method
         
-            if method == 'GET' and data:
-                url += '?' + data
-                data = None
-    
-            parsed = urlparse.urlparse(url)      #Making the path URL Quoted
-            url = urlparse.urlunparse(parsed[:2]+(urllib2.quote(parsed.path.encode("utf8")),)+parsed[3:])
+    def _request(self, url=None, data=None, headers=None, method=None):
+        try:
+            url, data, headers, method = self._construct_url(url=url, data=data, headers=headers, method=method)
 #            logging.getLogger().debug('url:%s, data:%s, headers:%s, origin_req_host:%s', url, data, headers, self.origin_req_host)
             request = urllib2.Request(url=url, data=data, headers=headers, origin_req_host=self.origin_req_host)
             with closing(urllib2.urlopen(request)) as req:
