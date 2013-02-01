@@ -60,3 +60,6 @@ class MongoEndPoint(EndPoint):
         '''
         return session.Session(self._db, safe=True)
     
+    def get_session(self):
+        return session.Session(self._db, safe=True)
+    
