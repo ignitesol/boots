@@ -8,7 +8,7 @@ from mongoalchemy import session
 from pymongo.connection import Connection
 from pymongo.database import Database
 
-class MongoConfig(EndPoint):
+class MongoConfig(object):
     '''
     This contains  all the configuration parameters required for mongo database
     '''
