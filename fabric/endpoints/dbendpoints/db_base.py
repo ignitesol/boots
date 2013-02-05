@@ -76,8 +76,8 @@ class DBConnectionEndPoint(EndPoint):
     def dbengine(self):
         return self._engine.engine
     
-    def execute(self, expr):
-        return self.engine.execute(expr)
+    def execute(self, expr, *args, **kargs):
+        return self.dbengine.execute(expr, *args, **kargs)
     
     def addressing(self):
         return self._dbconfig.db_url
