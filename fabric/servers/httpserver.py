@@ -179,6 +179,9 @@ class HTTPServer(HTTPBaseServer):
             sub_config_obj = config_obj[key]
         for path in sub_config_obj.get("template_paths", []):
             self.add_template_path(path)
+            
+    def social_config(self, action, full_key, new_val, config_obj):
+        pass
         
     def get_standard_plugins(self, plugins):
         '''
