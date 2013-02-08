@@ -75,7 +75,7 @@ class InstancedScheduler(NamespaceSingleton, threading.Thread):
         Time is taken in milliseconds
         '''
         idn = self._counter()
-        cb = functools.partial(self._callback_wrapper, fn, idn, *args, **kargs) if kargs.pop('_threadpool', False) \
+        cb = functools.partial(self._callback_wrapper, fn, idn, *args, **kargs) if not kargs.pop('_threadpool', True) \
              else functools.partial(InstancedThreadPool().apply_async, self._callback_wrapper, args=(fn, idn)+args, kwds=kargs)
         self._q.put((time.time() + delay/1000.0, cb, idn))
         return idn
