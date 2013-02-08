@@ -118,8 +118,8 @@ class SocialAuth(FabricSimpleAuth):
     <script src="/lib/dojo.minified/dojo.min.js" type="text/javascript" djConfig="parseOnLoad:true"></script>
     <script src="/oauth.js"></script>
     <title>Login with your social network</title>
-    <style>
-        btn {
+    <style type="text/css">
+        .btn {
             border-color: #c5c5c5;
             display: inline-block;
             padding: 4px 12px;
@@ -130,7 +130,8 @@ class SocialAuth(FabricSimpleAuth):
             cursor: pointer;
             text-shadow: 0 1px 1px rgba(255, 255, 255, 0.75);
             background-color: #f5f5f5;
-            background-image: -webkit-linear-gradient(top, #ffffff, %e6e6e6);
+            background-image: -webkit-linear-gradient(top, #ffffff, #e6e6e6);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.05);
             border: 1px solid #bbbbbb;
         }
     </style>
@@ -141,11 +142,10 @@ class SocialAuth(FabricSimpleAuth):
     <br>
         <center>
         <br><br>
-        <button class="btn" onclick="SPARXOAuth.authorize(SPARXOAuth.Providers.Twitter, function(resp) { window.open(resp.popup_url); });">Login with Twitter</button>
+        <div class="btn" onclick="SPARXOAuth.authorize(SPARXOAuth.Providers.Twitter, function(resp) { window.open(resp.popup_url); });">Login with Twitter</button>
+        <div class="btn" onclick="SPARXOAuth.authorize(SPARXOAuth.Providers.Facebook, function(resp) { window.open(resp.popup_url); });">Login with Facebook</button>
         <br>
-        <button class="btn" onclick="SPARXOAuth.authorize(SPARXOAuth.Providers.Facebook, function(resp) { window.open(resp.popup_url); });">Login with Facebook</button>
-        <br>
-        <button class="btn" onclick="javascript: history.back();">Cancel</button>
+        <button onclick="javascript: history.back();">Cancel</button>
         </center>
     </div>
 </body>

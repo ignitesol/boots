@@ -17,6 +17,8 @@ from fabric.servers.helpers.authorize import SocialAuth
 from fabric.servers.server import Server
 import bottle
 import logging
+from fabric.common.dirutils import DirUtils
+from string import Template
 
 # since we are a library, let's add null handler to root to allow us logging
 # without getting warnings about no handlers specified
@@ -150,11 +152,24 @@ class HTTPServer(HTTPBaseServer):
         config_obj['FabricAuth']['open_urls'] = self.openurls + self.oauth_callback_urls
         config_obj['FabricAuth']['oauth_callback_urls'] = self.oauth_callback_urls
         login_template = config_obj['FabricAuth']['login_template']
+        try:
+            template = None
+            self.logger.warning('Login template %s, proj_dir %s', login_template, config_obj['_proj_dir'])
+            if login_template != '':
+                login_template = DirUtils().resolve_path(base_dir=config_obj['_proj_dir'], path=login_template)
+            template = Template(DirUtils().read_file(login_template, None))
+        except ValueError as e:
+            self.logger.warning('Template dir is not within the project root: %s. Ignoring', login_template)
+        except (IOError, Exception) as e:
+            self.logger.warning('Ignoring template file error %s', e)
+            template = None
+            
         logging.getLogger().debug('Open URLs:%s', config_obj['FabricAuth']['open_urls'])
         self.app = SocialAuth(self.app, users=logins, 
                              open_urls=config_obj['FabricAuth']['open_urls'], 
                              session_key=config_obj['FabricAuth']['key'],
-                             oauth_callback_urls=config_obj['FabricAuth']['oauth_callback_urls'])
+                             oauth_callback_urls=config_obj['FabricAuth']['oauth_callback_urls'],
+                             template=template)
         
         # a persistent, cookie based session
         self.app = bkmw.SessionMiddleware(self.app, 
