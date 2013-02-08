@@ -14,7 +14,7 @@ class DBConnectionEndPoint(EndPoint):
     An SQLAlchemy specific database Endpoint
     Current functionality is limited to Engine and session management
     '''
-    def __init__(self, dbtype=None, db_url=None, dbconfig=None, **kargs):
+    def __init__(self, dbtype=None, db_url=None, dbconfig=None, dalclass=None, **kargs):
         '''
         Constructor
         
@@ -23,6 +23,7 @@ class DBConnectionEndPoint(EndPoint):
         :param dbconfig=None: In case a custom :class:`DBConfig` needs to be loaded, the `dburl` and `dbconfig` may be ignored
         :param **kargs: Extra arguments either for the :class:`Endpoint` base class or :class:`DBConfig` to be created 
         '''
+
         dbargs = {}
         argspec = getargspec(DBConfig.__init__)
         for key in argspec.args[len(argspec.args) - len(argspec.defaults):]: 
@@ -33,6 +34,8 @@ class DBConnectionEndPoint(EndPoint):
         self._schema_base = declarative_base(bind=self._engine.engine)
         self._controlled_session = ControlledSession(self)
         
+        if dalclass:
+            self.dal = dalclass(self, self.Base)
 #        class BaseWrapper(_base):
 #            __tablename__ = ""
 #            
