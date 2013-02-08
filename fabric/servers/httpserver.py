@@ -13,7 +13,7 @@ import argparse
 import beaker.middleware as bkmw
 import beaker.cache as bkcache
 import beaker.util as bkutil
-from fabric.servers.helpers.authorize import SparxAuth
+from fabric.servers.helpers.authorize import SocialAuth
 from fabric.servers.server import Server
 import bottle
 import logging
@@ -115,7 +115,7 @@ class HTTPServer(HTTPBaseServer):
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
                  session=False, cache=False, auth=False, handle_exception=False,
-                 openurls=[], **kargs):
+                 openurls=[], oauth_callback_urls=[], **kargs):
         '''
         :params bool session: controls whether sessions based on configuration ini should be instantiated. sessions
             will be available through the HTTPServerEndPoint
@@ -132,10 +132,11 @@ class HTTPServer(HTTPBaseServer):
 #        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
         if session: self.config_callbacks['Session'] = self.session_config_update
         if cache: self.config_callbacks['Caching'] = self.cache_config_update
-        if auth: self.config_callbacks['SPARXAuth'] = self.auth_config_update
+        if auth: self.config_callbacks['FabricAuth'] = self.auth_config_update
         
         self.handle_exception = handle_exception
         self.openurls = openurls
+        self.oauth_callback_urls = oauth_callback_urls
 #        self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
     
@@ -143,18 +144,22 @@ class HTTPServer(HTTPBaseServer):
         '''
         Called by Config to update the Auth Server Configuration.
         
-        SPARXAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
+        FabricAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
         '''
         logins = [('demo', 'igniter0cks')]     #TODO:Get it from a User DB.
-        config_obj['SPARXAuth']['open_urls'] = self.openurls
-        logging.getLogger().debug('Open URLs:%s', config_obj['SPARXAuth']['open_urls'])
-        self.app = SparxAuth(self.app, users=logins, 
-                             open_urls=config_obj['SPARXAuth']['open_urls'], 
-                             session_key=config_obj['SPARXAuth']['key'])
+        config_obj['FabricAuth']['open_urls'] = self.openurls + self.oauth_callback_urls
+        config_obj['FabricAuth']['oauth_callback_urls'] = self.oauth_callback_urls
+        login_template = config_obj['FabricAuth']['login_template']
+        logging.getLogger().debug('Open URLs:%s', config_obj['FabricAuth']['open_urls'])
+        self.app = SocialAuth(self.app, users=logins, 
+                             open_urls=config_obj['FabricAuth']['open_urls'], 
+                             session_key=config_obj['FabricAuth']['key'],
+                             oauth_callback_urls=config_obj['FabricAuth']['oauth_callback_urls'])
         
+        # a persistent, cookie based session
         self.app = bkmw.SessionMiddleware(self.app, 
-                                          config_obj['SPARXAuth']['beaker'], 
-                                          environ_key=config_obj['SPARXAuth']['key'])
+                                          config_obj['FabricAuth']['beaker'], 
+                                          environ_key=config_obj['FabricAuth']['key'])
         
         logging.getLogger().debug('Auth config updated')
     
