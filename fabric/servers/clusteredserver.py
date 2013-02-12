@@ -285,7 +285,7 @@ class ClusteredServer(HybridServer):
 #                value_tuple = self._extract_values_from_keys(sticky_key, paramdict)
 #                stickyvalues += [ server.transform_stickyvalues(value_tuple) ]  if value_tuple else []
         elif hasattr(sticky_keys, '__call__'):
-            val = sticky_keys(paramdict)
+            val = sticky_keys(**paramdict)
             if val is not None:
                 if type(val) is not list:
                     val = [val]
