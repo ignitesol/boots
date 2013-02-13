@@ -375,7 +375,22 @@ class MySQLBinding(DBConnectionEndPoint):
             sess.commit()
         except Exception:
             sess.rollback()
-
+            
+    @dbsessionhandler
+    def update_sticky_value(self, sess,  old, new, server_id, endpoint_name, endpoint_key):
+        '''
+        This will update the sticky value in the db for the correct 
+        '''
+        try:
+            sess.query(StickyMapping).filter(StickyMapping.sticky_value == old).delete(synchronize_session='fetch')
+            sticky_record = StickyMapping(server_id, endpoint_key, endpoint_name, new)
+            sess.add(sticky_record)
+            sess.commit()
+        except IntegrityError as e:
+            pass
+        except Exception as e:
+            logging.getLogger().exception("Exception occured while update sticky value : %s ", e)
+             
         
     
 # Following defined ORM mapping with the relational database

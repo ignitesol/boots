@@ -260,3 +260,13 @@ class DSWrapperObject(Singleton):
 #                logging.getLogger().debug("To be Written values in the object : %s", self.write_stickymappinglist)
         except Exception as e:
             logging.getLogger().debug("Exception in Remove sticky values : %s", e)
+            
+    def update_sticky_value(self, old , new, force=True):
+        '''
+        This will update the old sticky value to new sticky value, This takes effect directly into the db
+        '''
+        if force:
+            self.datastore.update_sticky_value(old, new, self.server_id, self.endpoint_name, self.endpoint_key)
+        self.read_stickymappinglist = [ x for x in self.read_stickymappinglist if x is not old ]
+        self.write_stickymappinglist += [new]
+            
