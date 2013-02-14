@@ -63,6 +63,7 @@ class FabricFilter(logging.Filter):
         if self.regex:
             return 1 
         return 0
+    
     def post_format_filter(self, msg):
         """
         Determine if the specified record is to be logged.

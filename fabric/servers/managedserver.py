@@ -8,14 +8,13 @@ if concurrency == 'gevent':
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock
-    
-import time
-from fabric.servers.httpserver import HTTPServer
-from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute, Hook, Tracer,\
-    template
-import json
 
+from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute, Hook, Tracer, template    
+from fabric.servers.httpserver import HTTPServer
 import logging
+import json
+import time
+
 # since we are a library, let's add null handler to root to allow us logging
 # without getting warnings about no handlers specified
 logging.getLogger().addHandler(logging.NullHandler())
