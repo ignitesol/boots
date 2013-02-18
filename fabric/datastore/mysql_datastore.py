@@ -228,6 +228,7 @@ class MySQLBinding(DBConnectionEndPoint):
                 #logging.getLogger().debug("found existing mapping")
             if server is None:
                 server_ids = set([e.server_id for e in existing_mapping_list])
+                #logging.getLogger().debug("Already Sticky value found for: %s - servertype: %s. Sticky list is : %s", server_ids, servertype, existing_mapping_list)
                 #The server_ids list above will be at most one server of each type even if sticky values for different type of servers are same
                 server = sess.query(Server).filter(and_(Server.server_id.in_(server_ids), Server.server_type==servertype)).one()
             return_dict = {'target_server' : server, 'stickymapping' : existing_mapping_list, 'sticky_found' : sticky_found}
@@ -409,7 +410,7 @@ class Server(Base):
     server_state = Column(LONGTEXT)
     load =  Column(Float)
     
-    __table_args__  = ( saschema.UniqueConstraint("unique_key"), {} ) 
+    __table_args__  = ( saschema.UniqueConstraint("unique_key"), {'mysql_engine':'InnoDB'} ) 
     stickymapping = relationship("StickyMapping",
                 cascade="all, delete-orphan",
                 passive_deletes=True,
@@ -438,7 +439,7 @@ class StickyMapping(Base):
     
 
     __table_args__  = ( saschema.UniqueConstraint("server_id", "sticky_value" ),
-                        saschema.UniqueConstraint("endpoint_name", "sticky_value" ), {} ) 
+                        saschema.UniqueConstraint("endpoint_name", "sticky_value" ), {'mysql_engine':'InnoDB'} ) 
 
     
     @property
