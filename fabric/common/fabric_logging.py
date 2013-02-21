@@ -6,6 +6,7 @@ Created on 26-Oct-2012
 
 import logging
 import re
+from collections import OrderedDict
 
 class FabricFilter(logging.Filter):
     """
@@ -80,9 +81,12 @@ def getLoggerDict(self):
     Creates a dictionary of loggers and their information.
     '''
     d = {}
-    for k in self.loggerDict.keys():
+    for k in self.loggerDict.keys():            #creating the info
         d[k] = logging.getLogger(k).getInfo()
-    return d
+    od = OrderedDict()                          #sorting based on keys
+    for key in sorted(d.iterkeys()):
+        od[key] = d[key]
+    return od
 
 def getInfo(self):
     '''
