@@ -11,6 +11,7 @@ from fabric.datastore.datastore_manager import get_datastore
 from fabric.endpoints.cluster_ep import ClusteredPlugin
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.servers.hybrid import HybridServer
+from sqlalchemy.orm.exc import NoResultFound
 import argparse
 import logging
 import os
@@ -46,7 +47,7 @@ class ClusteredServer(HybridServer):
     ClusteredServer provides inbuilt capabilities over and above HybridServer for clustering
     '''
 
-    def __init__(self, servertype=None, clustered=False, endpoints=None, stickykeys=None, ds='ds', **kargs):
+    def __init__(self, servertype=None, clustered=False, endpoints=None, stickykeys=None, **kargs):
         '''
         
         :param server_adress: defines the the endpoint for the server, this is unique per server #TODO : only needed when clustered
@@ -57,8 +58,6 @@ class ClusteredServer(HybridServer):
                            method that defines the creation of sticky value (the method will take all the parameters passed and will create the sticky 
                            value). If the list of tuple params are given, we form  the sticky value based on whichever we find first and update based 
                            on all the sticky values created from the list of param-tuple
-        :param ds: This is the name of the parameter , which will be used to refer the datastore_wrapper object. This gives the handle to the application
-                        server to manipulate the data.
         '''
         self.clustered = clustered
         endpoints = endpoints or []
@@ -66,9 +65,8 @@ class ClusteredServer(HybridServer):
             self.restart = False
             self.config_callbacks['MySQLConfig'] = self._dbconfig_config_update
             self.servertype = servertype
-            self.server_adress = None
+            self.server_adress = kargs.pop("server_address" , None)
             self.stickykeys = stickykeys
-            self.ds = ds
             self._created_data = False
             endpoints = endpoints #+ [ ClusteredEP()]
         super(ClusteredServer, self).__init__(endpoints=endpoints, **kargs) 
@@ -154,7 +152,7 @@ class ClusteredServer(HybridServer):
         #Adds the clustered plugin only if this is clustered server
         if self.clustered:
 #            logging.getLogger().debug("Adding the clustered plugin")
-            par_plugins += [ ClusteredPlugin(datastore=self.datastore, ds=self.ds) ] 
+            par_plugins += [ ClusteredPlugin(datastore=self.datastore) ] 
         return par_plugins
         
 
@@ -166,13 +164,18 @@ class ClusteredServer(HybridServer):
         assert self.server_adress is not None
         if not self.restart and not self._created_data:
             # delete the previous run's history 
+            #self.logger.debug("deleting server info : %s", self.server_adress)
             self.datastore.remove_server(self.server_adress)
         if force or not self._created_data: 
             #self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
             server_id = self.datastore.createdata(self.server_adress, self.servertype )
             self._created_data = True
         elif self._created_data:
-            server_id = self.datastore.get_server_id(self.server_adress)
+            try:
+                server_id = self.datastore.get_server_id(self.server_adress)
+            except NoResultFound :
+                server_id = self.datastore.createdata(self.server_adress, self.servertype )
+                self._created_data = True
         assert server_id is not None    
         return server_id
         

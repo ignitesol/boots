@@ -636,6 +636,17 @@ class HTTPServerEndPoint(EndPoint):
         return bottle.request.COOKIES
     
     @property
+    def headers(self):
+        '''
+        returns a headers 
+        '''
+        return self.request.headers
+    
+    @headers.setter
+    def headers(self, value_as_dict):
+        self.response.headers.update(value_as_dict)
+    
+    @property
     def host(self):
         '''
         returns the scheme :// actual-host of the request. Note - this returns the host that was part of the original  
@@ -654,6 +665,21 @@ class HTTPServerEndPoint(EndPoint):
         '''
         scheme = bottle.request.urlparts[0] 
         return '://'.join([scheme, self.environ['SERVER_NAME']])
+    
+    @property
+    def http_host(self):
+        '''
+        returns the scheme :// original host of the request. 
+        If you get confusing results, ensure X-Forwarded-Hosts
+        is set properly
+        '''
+        scheme = bottle.request.urlparts[0] 
+        return '://'.join([scheme, self.environ['HTTP_HOST']])
+    
+    @property
+    def server_port(self):
+        scheme = bottle.request.urlparts[0] 
+        return '://'.join([scheme, self.environ['SERVER_PORT']])
     
     @property
     def user(self):

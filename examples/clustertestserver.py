@@ -6,25 +6,34 @@ except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # this is unnecessary if fabric is installed in the site-packages or in PYTHONPATH
 from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute
 from fabric.servers.clusteredserver import ClusteredServer
-
+from fabric.datastore.datawrapper import DSWrapperObject
+import bottle
 class TestEP(HTTPServerEndPoint):
     def __init__(self, *args, **kwargs):
         super(TestEP, self).__init__(*args, **kwargs)
 
-    @methodroute(params=dict(channel=str, host=str, port=int))
-    def register(self, channel=None, host=None, port=None, datastructure = None):
+    @methodroute(params=dict(channel=str, host=str, port=int), method='ANY')
+    def register(self, channel=None, host=None, port=None):
         '''
         This is sample route to test the stickiness.
         '''
         #adds sticky value in the route, It's Application specific logic
-        if channel and host and port:
-            datastructure.add_sticky_value("client")
-        return "Registered at : " + self.server.server_adress   
+        ds = DSWrapperObject.get_instance()
+        if channel:
+            ds.add_sticky_value("client")
+        return "Registered at : " + self.server.server_adress
     
-    @methodroute()
+    @methodroute( method='ANY')
     def register1(self, clientid=None):
-        my_server_address = self.server.server_adress  
+        my_server_address = self.server.server_adress
         return "Registered - 1 at : " + my_server_address
+    
+    @methodroute( method='ANY')
+    def test(self):
+        d = bottle.request.environ.items()
+        for k,v in d:
+            print "%s = %s"%(k, v)
+        
     
 class TestClusterServer(ClusteredServer):
     
@@ -38,10 +47,10 @@ class TestClusterServer(ClusteredServer):
         '''
         return 10
     
-application = TestClusterServer(
-                                'TEST',  clustered=True, \
-                                stickykeys=[ ('channel','host','port'), ('clientid')], \
-                                endpoints=[TestEP()], cache=False, logger=True, ds='datastructure')
 
 if __name__ == '__main__':
+
+    application = TestClusterServer('TEST',  clustered=True, stickykeys=[ ('channel'), ('clientid')], \
+                                endpoints=[TestEP()], cache=False, logger=True)
+    
     application.start_server(standalone=True)

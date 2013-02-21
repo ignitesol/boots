@@ -205,10 +205,14 @@ class MySQLBinding(DBConnectionEndPoint):
                 ParentServer = aliased(Server, name='parent_server')
                 min_loaded_server = sess.query(Server, ParentServer).\
                             outerjoin(ParentServer, and_(Server.server_type==ParentServer.server_type, ParentServer.load < Server.load)).\
-                            filter(and_(Server.server_type==servertype, ParentServer.load==None, Server.load < 100)).first()
+                            filter(and_(Server.server_type==servertype, ParentServer.load==None, Server.load < 100)).all()
                 if min_loaded_server:
-#                    logging.getLogger().debug("min loaded server found are : %s ", min_loaded_server[0])
-                    server = min_loaded_server[0]
+                    #logging.getLogger().debug("min loaded server found type : %s ", type(min_loaded_server))
+                    s = None
+                    for m in min_loaded_server:
+                        if server_address == m[0].unique_key:
+                            s=m[0]
+                    server = s if s else min_loaded_server[0][0]
                     unique_key = server.unique_key
                     if unique_key == server_address:
                         try:

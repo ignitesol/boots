@@ -128,6 +128,9 @@ class Response(object):
                 self._headers[key] = val
 
         return self._headers
+    
+    def info(self):
+        return self.raw_headers
         
     
     def extract_headers(self, keys=None, header=None):
