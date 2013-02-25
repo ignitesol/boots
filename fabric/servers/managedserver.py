@@ -199,6 +199,7 @@ class ManagedServer(HTTPServer):
         self._stats.add(handler_name, time_taken, url, **kargs)
     
     def __init__(self,  endpoints=None, **kargs):
+        self.config_callbacks['Template'] = self.template_config
         endpoints = endpoints or []
         endpoints = [ endpoints ] if type(endpoints) not in [list, tuple] else endpoints
         endpoints = endpoints + [ ManagedEP()]
