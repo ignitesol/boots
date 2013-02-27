@@ -1,11 +1,8 @@
 from sqlalchemy import Column, schema as saschema
 from sqlalchemy.dialects.mysql.base import LONGTEXT
-from sqlalchemy.exc import OperationalError
-
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.types import String, Integer, Float
-
 
 class ClusterORM(object):
     def __init__(self, Base):
@@ -72,14 +69,3 @@ class ClusterORM(object):
 
         self.Server = Server
         self.StickyMapping = StickyMapping
-
-
-def create_tables():
-    try:
-        Base.metadata.create_all(checkfirst=False)
-    except OperationalError:
-        Base.metadata.drop_all(checkfirst=True)
-        Base.metadata.create_all(checkfirst=True)
-
-if __name__ == '__main__':
-    create_tables()

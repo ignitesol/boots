@@ -8,7 +8,6 @@ Also each server has access to common datastore
 from __future__ import division
 from fabric import concurrency
 from fabric.datastore.cluster_db_endpoint import ClusterDatabaseEndPoint
-from fabric.datastore.datastore_manager import get_datastore
 from fabric.datastore.dbengine import DBConfig
 from fabric.endpoints.cluster_ep import ClusteredPlugin
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
