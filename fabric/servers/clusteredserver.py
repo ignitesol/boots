@@ -7,7 +7,8 @@ Also each server has access to common datastore
 '''
 from __future__ import division
 from fabric import concurrency
-from fabric.datastore.datastore_manager import get_datastore
+from fabric.datastore.cluster_db_endpoint import ClusterDatabaseEndPoint
+from fabric.datastore.dbengine import DBConfig
 from fabric.endpoints.cluster_ep import ClusteredPlugin
 from fabric.endpoints.http_ep import methodroute, HTTPServerEndPoint
 from fabric.servers.hybrid import HybridServer
@@ -132,8 +133,14 @@ class ClusteredServer(HybridServer):
         This also checks if this start of the server is a restart, if it is then reads the server_state from server record
         This is set as server object. This state is used by the application to recover its original server state
         '''
-        self.datastore = get_datastore( config_obj['Datastore']['datastore'] , config_obj)
-        self.add_endpoint(self.datastore)
+        clusterdb = config_obj['MySQLConfig']
+        dbtype = clusterdb['dbtype']
+        db_url = dbtype + '://'+ clusterdb['dbuser']+ ':' + clusterdb['dbpassword'] + '@' + clusterdb['dbhost'] + ':' + str(clusterdb['dbport']) + '/' + clusterdb['dbschema']
+        dbconfig =  DBConfig(dbtype, db_url, clusterdb['pool_size'], clusterdb['max_overflow'], clusterdb['connection_timeout']) 
+        db_ep = ClusterDatabaseEndPoint(dbtype=config_obj['Datastore']['datastore'] , dbconfig=dbconfig, name="ClusterDBEP")
+        self.add_endpoint(db_ep)
+        self.datastore = db_ep.dal
+        
         if not self.datastore:
             #the server won't be clustered in-case the datastore configuration is messed
             self.clustered = False
