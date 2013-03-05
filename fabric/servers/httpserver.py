@@ -13,7 +13,7 @@ import argparse
 import beaker.middleware as bkmw
 import beaker.cache as bkcache
 import beaker.util as bkutil
-from fabric.servers.helpers.authorize import SocialAuth
+from fabric.servers.helpers.authorize import FabricSimpleAuth
 from fabric.servers.server import Server
 import bottle
 import logging
@@ -117,7 +117,7 @@ class HTTPServer(HTTPBaseServer):
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
                  session=False, cache=False, auth=False, handle_exception=False,
-                 openurls=[], oauth_callback_urls=[], **kargs):
+                 openurls=[], **kargs):
         '''
         :params bool session: controls whether sessions based on configuration ini should be instantiated. sessions
             will be available through the HTTPServerEndPoint
@@ -137,8 +137,7 @@ class HTTPServer(HTTPBaseServer):
         if auth: self.config_callbacks['FabricAuth'] = self.auth_config_update
         
         self.handle_exception = handle_exception
-        self.openurls = openurls
-        self.oauth_callback_urls = oauth_callback_urls
+        self.openurls = getattr(self, 'openurls', openurls)
 #        self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
     
@@ -148,10 +147,8 @@ class HTTPServer(HTTPBaseServer):
         
         FabricAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
         '''
-        logins = [('demo', 'igniter0cks')]     #TODO:Get it from a User DB.
-        config_obj['FabricAuth']['open_urls'] = self.openurls + self.oauth_callback_urls
-        config_obj['FabricAuth']['oauth_callback_urls'] = self.oauth_callback_urls
-        login_template = config_obj['FabricAuth']['login_template']
+        self.AuthClass = getattr(self, 'AuthClass', FabricSimpleAuth)
+        login_template = config_obj['FabricAuth'].get('login_template', '')
         try:
             template = None
             self.logger.warning('Login template %s, proj_dir %s', login_template, config_obj['_proj_dir'])
@@ -160,21 +157,26 @@ class HTTPServer(HTTPBaseServer):
             template = Template(DirUtils().read_file(login_template, None))
         except ValueError as e:
             self.logger.warning('Template dir is not within the project root: %s. Ignoring', login_template)
+            template = None
         except (IOError, Exception) as e:
             self.logger.warning('Ignoring template file error %s', e)
             template = None
             
         logging.getLogger().debug('Open URLs:%s', config_obj['FabricAuth']['open_urls'])
-        self.app = SocialAuth(self.app, users=logins, 
-                             open_urls=config_obj['FabricAuth']['open_urls'], 
-                             session_key=config_obj['FabricAuth']['key'],
-                             oauth_callback_urls=config_obj['FabricAuth']['oauth_callback_urls'],
-                             template=template)
+        conf = dict(config_obj['FabricAuth']) # make a copy
+        # update some config_obj if not already set
+        conf.setdefault('logins', [('demo', 'demo')])     
+        conf.setdefault('open_urls', self.openurls)
+        conf['template'] = template
+        conf.pop('beaker', None) # remove beaker from the copied conf
+        conf.pop('caching', None) # remove caching from the copied conf
+        conf.pop('key', None) # remove auth cookie key from copied conf
+        self.app = self.AuthClass(self.app, **conf)
         
         # a persistent, cookie based session
         self.app = bkmw.SessionMiddleware(self.app, 
                                           config_obj['FabricAuth']['beaker'], 
-                                          environ_key=config_obj['FabricAuth']['key'])
+                                          environ_key=config_obj['FabricAuth']['session_key'])
         
         logging.getLogger().debug('Auth config updated')
     
@@ -185,11 +187,14 @@ class HTTPServer(HTTPBaseServer):
         self.app = bkmw.SessionMiddleware(self.app, config_obj['Session'])
         logging.getLogger().debug('Session config updated')
     
+    def cache_creator(self, caching_config):
+        return bkcache.CacheManager(**bkutil.parse_cache_config_options(caching_config))
+    
     def cache_config_update(self, action, full_key, new_val, config_obj):
         '''
         Called by Config to update the Cache Configuration.
         '''
-        self.cache = bkcache.CacheManager(**bkutil.parse_cache_config_options(config_obj['Caching']))
+        self.cache = self.cache_creator(config_obj['Caching'])
         logging.getLogger().debug('Cache config updated')
     
     def template_config(self, action, full_key, new_val, config_obj):

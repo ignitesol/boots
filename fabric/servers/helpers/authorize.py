@@ -46,7 +46,7 @@ class FabricSimpleAuth(FormAuth):
 </body>
 </html>
     ''' 
-    def __init__(self, app, users=None, open_urls=None, session_key=None, template=None, oauth_callback_urls=None):
+    def __init__(self, app, logins=None, open_urls=None, session_key='barrel.session', template=None, **kargs):
         '''
         Take the app and template to wrap and optional settings.
 
@@ -73,7 +73,7 @@ class FabricSimpleAuth(FormAuth):
         self.unsecure_compiled_urls = [ re.compile(p) for p in self.unsecure_urls ]
         
         self.app = app
-        super(FabricSimpleAuth, self).__init__(app, users)
+        super(FabricSimpleAuth, self).__init__(app, logins)
         self.session_key = session_key
         self.template = template or Template(self.loginpage)
 
@@ -99,89 +99,15 @@ class FabricSimpleAuth(FormAuth):
             if domain != '.'.join(domain.split('.')[-2:]):
                 session.domain = '.'.join(domain.split('.')[-2:]).split(':')[0]
         
-        path = environ.get('PATH_INFO', '')
+        path = environ.get('SCRIPT_NAME', '') + '/' + environ.get('PATH_INFO', '')
         
         # determine if the url is unsecure
-        if list(filter(None, [ p.match(path) for p in self.unsecure_compiled_urls ])) != []:
+        if list(filter(None, [ p.search(path) for p in self.unsecure_compiled_urls ])) != []:
             return self.app(environ, start_response)
         
         # invoke barrel
         return super(FabricSimpleAuth, self).__call__(environ, start_response)
     
-class SocialAuth(FabricSimpleAuth):
-    
-    _mixin_loginpage = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">
-    <script src="/lib/dojo.minified/dojo.min.js" type="text/javascript" djConfig="parseOnLoad:true"></script>
-    <script src="/oauth.js"></script>
-    <title>Login with your social network</title>
-    <style type="text/css">
-        .btn {
-            border-color: #c5c5c5;
-            display: inline-block;
-            padding: 4px 12px;
-            line-height: 20px;
-            color: #333333;
-            text-align:center;
-            vertical-align: middle;
-            cursor: pointer;
-            text-shadow: 0 1px 1px rgba(255, 255, 255, 0.75);
-            background-color: #f5f5f5;
-            background-image: -webkit-linear-gradient(top, #ffffff, #e6e6e6);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.05);
-            border: 1px solid #bbbbbb;
-        }
-    </style>
-</head>
-
-<body>
-    <div>
-    <br>
-        <center>
-        <br><br>
-        <div class="btn" onclick="SPARXOAuth.authorize(SPARXOAuth.Providers.Twitter, function(resp) { window.open(resp.popup_url); });">Login with Twitter</button>
-        <div class="btn" onclick="SPARXOAuth.authorize(SPARXOAuth.Providers.Facebook, function(resp) { window.open(resp.popup_url); });">Login with Facebook</button>
-        <br>
-        <button onclick="javascript: history.back();">Cancel</button>
-        </center>
-    </div>
-</body>
-</html>
-    '''
-    
-    def __init__(self, app, users=None, open_urls=None, session_key=None, template=None, oauth_callback_urls=None):
-        self.oauth_callback_urls = oauth_callback_urls or []
-        template = template or Template(self._mixin_loginpage)
-        super(SocialAuth, self).__init__(app, users=users, open_urls=open_urls, session_key=session_key, template=template)
-        
-    def authenticate(self, environ):
-        """Is this request from an authenicated user? (True or False)"""
-        
-#        logging.getLogger().debug('Session key %s, session = %s, session_user_key %s, session[session_user_key] = %s', self.session_key, environ.get(self.session_key), self.session_user_key, environ.get(self.session_key).get(self.session_user_key))
-        username = self.get_cached_username(environ)
-        if username is not None:
-            environ[self.environ_user_key] = username
-            self.cache_username(environ, username)
-            return True
-            
-        return False
-       
-    def __call__(self, environ, start_response):
-
-        # if this request is not authenticated and this path is a callback path
-        # set up a method to update the user in the cookie
-        # this has to be called before the return starts being processed so that the cookie
-        # headers can be sent before the body 
-        path_info = environ.get('PATH_INFO', '')
-        if path_info in self.oauth_callback_urls and not self.authenticate(environ):
-            environ['_IGN_SETUSER'] = lambda username: self.cache_username(environ, username)
-        
-        ret = super(SocialAuth, self).__call__(environ, start_response)
-        return ret
-        
 
     
 if __name__ == '__main__':
