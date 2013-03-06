@@ -20,6 +20,7 @@ A typical scenario to create an HTTP Server is to define a subclass of the HTTPS
 Refer to :doc:`tutorial` for further examples.
 '''
 from fabric import concurrency
+import ast
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -181,6 +182,26 @@ class RequestParams(BasePlugin):
         
         self.plugin_post_apply(callback, wrapper)
         return wrapper
+    
+    @staticmethod
+    def boolean(val):       
+        '''
+        Helper Function for params() for converting str to bool. For example, params=dict(force=boolean)
+        '''
+        return bool(ast.literal_eval(val))
+
+    @staticmethod
+    def compose(f, g):
+        '''
+        A helper function to apply two converters. First apply g, then f on the result
+        So for instance, compose(list, json.loads) will create a converter that first
+        dejsonifies the argument, then converts it to list
+        Useful for json_in_requests
+        :param f: A function - typically the final type to convert to for use with request_param
+        :param g: A function - an initial type to convert to
+        '''
+        return lambda *x, **kx: f(g(*x, **kx))
+    
 
 class Hook(BasePlugin):
     '''
