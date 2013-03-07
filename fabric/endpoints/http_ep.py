@@ -622,18 +622,34 @@ class HTTPServerEndPoint(EndPoint):
                 d[k] = d[k][0] # drop the list of single valued params
         return d
     
+    def get_session(self, key='beaker.session'):
+        try:
+            return self.environ.get(key)
+        except AttributeError:
+            return None
+        
+    def delete_session(self, key):
+        try:
+            self.logger.debug('Deleting session key %s', key)
+            self.get_session(key).delete()
+        except AttributeError as e:
+            self.logger.debug('Error in delete session, key %s, message %s', key, e)
+            pass
+        
+    def delete_all_sessions(self, additional_keys=[]):
+        session_keys = [ self.server.config.get(s, {}).get('session.key', s) for s in self.server.session_configs ] + additional_keys
+        [ self.delete_session(key) for key in session_keys ]
+        
+        
     @property
     def session(self):
         '''
         returns a session related to this request if one is configured. Else, returns None
         '''
-         
         try:
-            return self.environ.get(self.server.config['Session']['session.key'])
+            return self.get_session(self.server.config['Session']['session.key'])
         except KeyError:
-            return self.environ.get('beaker.session', None)
-        except AttributeError:
-            return None
+            return self.get_session() # default key
     
     @property
     def response(self):
