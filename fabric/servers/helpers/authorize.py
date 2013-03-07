@@ -46,7 +46,7 @@ class FabricSimpleAuth(FormAuth):
 </body>
 </html>
     ''' 
-    def __init__(self, app, logins=None, open_urls=None, session_key='barrel.session', template=None, **kargs):
+    def __init__(self, app, logins=None, open_urls=None, session_key='barrel.session', template=None, domain_setter=None, **kargs):
         '''
         Take the app and template to wrap and optional settings.
 
@@ -71,12 +71,28 @@ class FabricSimpleAuth(FormAuth):
         '''
         self.unsecure_urls = open_urls or []
         self.unsecure_compiled_urls = [ re.compile(p) for p in self.unsecure_urls ]
+        self.domain_setter = domain_setter
         
         self.app = app
         super(FabricSimpleAuth, self).__init__(app, logins)
         self.session_key = session_key
         self.template = template or Template(self.loginpage)
-
+        
+    @classmethod
+    def root_level_domain(cls, full_domain):
+        ''' 
+        returns a tuple - the last 2 of the domain-name
+        '''
+        if full_domain == None:
+            return ''
+        domain = full_domain
+        #If it seems like an ip address dont change the domain
+        try:
+            map(int, domain.split('.'))
+            return domain
+        except:
+            if domain != '.'.join(domain.split('.')[-2:]):
+                return '.'.join(domain.split('.')[-2:]).split(':')[0]
         
     def __call__(self, environ, start_response):
         '''
@@ -87,17 +103,10 @@ class FabricSimpleAuth(FormAuth):
         # cookie will be passed to all those servers.Only doing this if format is x.y or x.y... 
         #Due to beaker cookie session problems in setting non dotted session domain. 
 
-        session = environ.get(self.session_key)
-        domain = environ.get('SERVER_NAME')
-        session.path = '/'
-#        logging.getLogger().debug('Domain: %s', domain)
-        #If it seems like an ip address dont change the domain
-        try:
-            map(int, domain.split('.'))
-            session.domain = domain
-        except:
-            if domain != '.'.join(domain.split('.')[-2:]):
-                session.domain = '.'.join(domain.split('.')[-2:]).split(':')[0]
+        if self.domain_setter:
+            session = environ.get(self.session_key)
+            session.domain, session.path = self.domain_setter(environ.get('SERVER_NAME'))
+            session.path = '/'
         
         path = environ.get('SCRIPT_NAME', '') + '/' + environ.get('PATH_INFO', '')
         
