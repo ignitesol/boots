@@ -20,6 +20,7 @@ A typical scenario to create an HTTP Server is to define a subclass of the HTTPS
 Refer to :doc:`tutorial` for further examples.
 '''
 from fabric import concurrency
+import ast
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -181,6 +182,26 @@ class RequestParams(BasePlugin):
         
         self.plugin_post_apply(callback, wrapper)
         return wrapper
+    
+    @staticmethod
+    def boolean(val):       
+        '''
+        Helper Function for params() for converting str to bool. For example, params=dict(force=boolean)
+        '''
+        return bool(ast.literal_eval(val))
+
+    @staticmethod
+    def compose(f, g):
+        '''
+        A helper function to apply two converters. First apply g, then f on the result
+        So for instance, compose(list, json.loads) will create a converter that first
+        dejsonifies the argument, then converts it to list
+        Useful for json_in_requests
+        :param f: A function - typically the final type to convert to for use with request_param
+        :param g: A function - an initial type to convert to
+        '''
+        return lambda *x, **kx: f(g(*x, **kx))
+    
 
 class Hook(BasePlugin):
     '''
@@ -601,18 +622,34 @@ class HTTPServerEndPoint(EndPoint):
                 d[k] = d[k][0] # drop the list of single valued params
         return d
     
+    def get_session(self, key='beaker.session'):
+        try:
+            return self.environ.get(key)
+        except AttributeError:
+            return None
+        
+    def delete_session(self, key):
+        try:
+            self.logger.debug('Deleting session key %s', key)
+            self.get_session(key).delete()
+        except AttributeError as e:
+            self.logger.debug('Error in delete session, key %s, message %s', key, e)
+            pass
+        
+    def delete_all_sessions(self, additional_keys=[]):
+        session_keys = [ self.server.config.get(s, {}).get('session.key', s) for s in self.server.session_configs ] + additional_keys
+        [ self.delete_session(key) for key in session_keys ]
+        
+        
     @property
     def session(self):
         '''
         returns a session related to this request if one is configured. Else, returns None
         '''
-         
         try:
-            return self.environ.get(self.server.config['Session']['session.key'])
+            return self.get_session(self.server.config['Session']['session.key'])
         except KeyError:
-            return self.environ.get('beaker.session', None)
-        except AttributeError:
-            return None
+            return self.get_session() # default key
     
     @property
     def response(self):

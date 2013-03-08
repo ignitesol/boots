@@ -113,6 +113,10 @@ class HTTPServer(HTTPBaseServer):
     * :py:class:`Tracer` for request and response tracing/logging of http requests
     '''
     
+    # a list of config sections that pertain to sessions. Defaults to Session.
+    # if more than 1 are provided, beaker middlewares will be created in order passing
+    # the corresponding config section to each
+    session_configs = [ 'Session' ]
     config_callbacks = { }  # we can set these directly out of the class body or in __init__
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
@@ -184,7 +188,9 @@ class HTTPServer(HTTPBaseServer):
         '''
         Called by Config to update the session Configuration.
         '''
-        self.app = bkmw.SessionMiddleware(self.app, config_obj['Session'])
+        for s in self.session_configs:
+            self.app = bkmw.SessionMiddleware(self.app, config_obj[s], environ_key=config_obj[s].get('session.key', s))
+            
         logging.getLogger().debug('Session config updated')
     
     def cache_creator(self, caching_config):

@@ -249,28 +249,23 @@ class HTTPClientEndPoint(EndPoint):
             # FIXME: change logging to warning.warn
             raise
 
-    def request(self, url=None, headers=None, **kargs):
+    def request(self, url=None, headers=None, method='POST', **kargs):
         '''
         a method to make a simple get request. all keyword arguments are converted to the data for the request.
 
         :param headers: an optional dict or Header object
+        :param method: method is POST by default but can be 'GET' by passing method='GET' as a keyword arg
         :param kargs: all keyword arguments are converted to the data for the request
-            method is POST by default but can be 'GET' by passing method='GET' as a keyword arg
         
         **Example**::
         
             HTTPClientEndPoint().get_request('http://www.google.com', q="ignite solutions", method='GET')
 
         '''
-        method = kargs.get('method', 'POST')
-        try:
-            del kargs['method']
-        except KeyError:
-            pass
         return self._request(url, data=kargs, headers=headers, method=method)
     
     @dejsonify_response
-    def json_out_request(self, url, headers=None, **kargs):
+    def json_out_request(self, url, headers=None, method='POST', **kargs):
         '''
         A special case of making a get or post request where the http request is expected to return a JSON encoded return value.
         Handles all marshaling, protocol and basic error processing of a post http request. The return value is converted from a JSON object to 
@@ -278,33 +273,33 @@ class HTTPClientEndPoint(EndPoint):
         
         :param url: the url that is the target for the request. 
         :param headers: a set of headers to be included as part of the request. None implies no headers. 
+        :param method: default POST. if method='GET' is a karg, the request is a GET request.
         :param kargs: a set of keyword arguments that will be converted to the post arguments for the request. 
-            if method='GET' is a karg, the request is a GET request. the method argument is not packaged with the data
         :returns: :py:class:`Response` with response.data as a Python object obtained from loading a JSON string
         '''
-        return self.request(url, headers=headers, **kargs)
+        return self.request(url, headers=headers, method=method, **kargs)
     
     @jsonify_request
-    def json_in_request(self, url, headers=None, **kargs):
+    def json_in_request(self, url, headers=None, method='POST', **kargs):
         '''
         A special case of making a get or post request where each parameter to the request is individually converted to a JSON string.
         Handles all marshaling, protocol and basic error processing of a post http request. 
 
         :param url: the url that is the target for the request. 
         :param headers: a set of headers to be included as part of the request. None implies no headers. 
-        :param kargs: a set of keyword arguments that will be converted to the post arguments for the request. if method='GET' is a karg, the request is a GET request
-            the method argument is not packaged with the data
+        :param method: default POST. if method='GET' is a karg, the request is a GET request.
+        :param kargs: a set of keyword arguments that will be converted to the post arguments for the request. 
         :returns: :py:class:`Response`
         '''
-        return self.request(url, headers=headers, **kargs)
+        return self.request(url, headers=headers, method=method, **kargs)
         
     @jsonify_request
     @dejsonify_response
-    def json_inout_request(self, url, headers=None, **kargs):
+    def json_inout_request(self, url, headers=None, method='POST', **kargs):
         '''
         a combination of :py:meth:`json_in_request` and :py:meth:`json_out_request`
         '''
-        return self.request(url, headers=headers, **kargs)
+        return self.request(url, headers=headers, method=method, **kargs)
          
         
         
