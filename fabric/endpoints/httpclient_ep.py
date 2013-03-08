@@ -221,7 +221,8 @@ class HTTPClientEndPoint(EndPoint):
         data = data or self.data
         method = method or self.method
         if method is None: method = 'POST'
-        if method.upper() != 'POST': method = 'GET'
+        # call a POST or DELETE http method if passed explicity (usecase for DELETE : unlike in facebook)
+        if method.upper() != 'POST' and method.upper() != 'DELETE' : method = 'GET'
 #        logging.getLogger().debug('METHOD:%s', method)
         data = self._safe_urlencode(data, doseq=True)
         if method == 'GET' and data:
