@@ -177,7 +177,11 @@ class ZMQCoupling(ZMQBasePlugin):
             self._other_half = self.__class__._coupled_eps[self.couple_id][0] if self.__class__._coupled_eps[self.couple_id][0] is not self else self.__class__._coupled_eps[self.couple_id][1]
         try: args, kargs = self.__class__._coupled_process.get(self.couple_id)(msg)
         except TypeError: args, kargs = (msg,), {}
-        self._other_half.endpoint.send(*args, **kargs)
+        
+        # Drop the message if it is a None Type message
+        if len(args) > 0 and args[0] is not None: 
+            self._other_half.endpoint.send(*args, **kargs)
+            
         return args, kargs
         
     
