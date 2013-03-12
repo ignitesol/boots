@@ -7,6 +7,12 @@ from fabric.endpoints.endpoint import EndPoint
 from mongoalchemy import session
 from pymongo.connection import Connection
 from pymongo.database import Database
+from pymongo.mongo_client import MongoClient
+
+
+class LibType:
+    mongoalchemy = 'MongoAlchemy'
+    pymongo = "PyMongo"
 
 class MongoConfig(object):
     '''
@@ -42,15 +48,45 @@ class _MongoConnectionFactory(object):
             _MongoConnectionFactory.connection_pool[mongoconfig.connection_string] = connection
         return connection
     
+    
+class _PyMongoConnectionFactory(object):  
+    '''
+    This class is a factory of connection pooling of pymongo connection
+    connection pooling is here per mongodb host and mongodb port
+    '''  
+    # this dict keeps the mapping of the connection pool created per mongodb connection
+    connection_pool = {}
+    
+    def __new__(self, mongoconfig, *args, **kwargs):
+        '''
+        PyMongoFactory connection pool 
+        '''
+        try:
+            connection = _PyMongoConnectionFactory.connection_pool[mongoconfig.connection_string]
+        except KeyError:
+            connection = MongoClient(mongoconfig.connection_string, mongoconfig.port, mongoconfig.pool_size)
+        return connection
+    
+    
+
 class MongoEndPoint(EndPoint):
     '''
     This is the fabric wrapper over the mongoalchemy's session start , end
     It create connection pool to the mongo database with the given user configurations
+    
+    LibType : Defines the whether we use PyMongo or MongoAlchemy. 
+    Its application's responsibility to to be able to use the respective library appropriately. Depneding on 
+    whether it is using PyMongo or MongoAlchemy
     '''
-    def __init__(self, mongoconfig, **kwargs):
-        
-        self._connection = _MongoConnectionFactory(mongoconfig)
-        self._db = Database(self._connection, mongoconfig._db_name)
+    def __init__(self, mongoconfig, libtype=LibType.mongoalchemy, **kwargs):
+        self.libtype = libtype
+        if libtype is LibType.pymongo:
+            self._connection = _PyMongoConnectionFactory(mongoconfig)
+            self._db = mongoconfig._db_name
+        else:
+            #Defaulting to MongoAlchemy
+            self._connection = _MongoConnectionFactory(mongoconfig)
+            self._db = Database(self._connection, mongoconfig._db_name)
         super(MongoEndPoint, self).__init__(**kwargs)
     
     @property
@@ -58,8 +94,12 @@ class MongoEndPoint(EndPoint):
         '''
         Get the mongoalchemy session
         '''
-        return session.Session(self._db, safe=True)
+        return self.get_session()
     
     def get_session(self):
-        return session.Session(self._db, safe=True)
+        if self.libtype is LibType.pymongo:
+            sess = self._connection[self._db]
+        else:
+            sess = session.Session(self._db, safe=True)
+        return sess
     
