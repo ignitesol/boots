@@ -385,6 +385,45 @@ class WrapException(BasePlugin):
         self.plugin_post_apply(callback, wrapper)
         return wrapper
 
+class CrossOriginPlugin(BasePlugin):
+    '''
+    Cross Origin Access Controll Plugin
+    Attaches headers for cross domain resource sharing (CORS)
+    namely:
+    *Access-Control-Allow-Origin
+    *Access-Control-Allow-Methods
+    *Access-Control-Allow-Credentials
+    *Access-Controll-Max-Age
+    '''
+    def __init__(self, origins=None, max_age=300, allow_credentials=True, allow_methods=['GET', 'POST']):
+        '''
+        Constructor method
+        @param origins: List of allowed origins, or None if in promiscous mode
+        @param max_age: Max Age for the lifetime of the preflight options data in seconds, default 300
+        @param allow_credentials: Needed if returning Cookies with the request, or if Cookies were sent wiht the request
+        @param allow_methods: A list allowed HTTP request methods, possibly GET, POST, OPTIONS, HEAD, DELETE, PATCH, PUT
+        '''
+        self.origins = origins
+        self._lambda_origins = lambda self, request_origin: request_origin in self.origins and request_origin if self.origins else request_origin
+        self.max_age = max_age
+        self.allow_credentials = allow_credentials
+        self.allow_methods = ", ".join(allow_methods)
+    
+    def apply(self, callback, context):
+        @wraps(callback)
+        def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
+            ep = self.get_callback_obj(callback)
+            host = ep.environ.get("HTTP_ORIGIN", "") or ep.environ.get("HTTP_REFERER", "")
+            if host:
+                ep.response.add_header('Access-Control-Allow-Origin', self._lambda_origins(self, host))
+                ep.response.add_header('Access-Control-Allow-Methods', self.allow_methods)
+                ep.response.add_header('Access-Control-Max-Age', self.max_age)
+                ep.response.add_header('Access-Control-Allow-Credentials', "true" if self.allow_credentials else "false")
+            return callback(**kargs)
+        self.plugin_post_apply(callback, wrapper)
+        return wrapper
+
+
 # decorators for allowing routes to be setup and handled by instance methods
 # credit to http://stackoverflow.com/users/296069/skirmantas
 def methodroute(path=None, **kargs):
