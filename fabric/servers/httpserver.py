@@ -155,7 +155,6 @@ class HTTPServer(HTTPBaseServer):
         login_template = config_obj['FabricAuth'].get('login_template', '')
         try:
             template = None
-            self.logger.warning('Login template %s, proj_dir %s', login_template, config_obj['_proj_dir'])
             if login_template != '':
                 login_template = DirUtils().resolve_path(base_dir=config_obj['_proj_dir'], path=login_template)
             template = Template(DirUtils().read_file(login_template, None))
@@ -166,7 +165,7 @@ class HTTPServer(HTTPBaseServer):
             self.logger.warning('Ignoring template file error %s', e)
             template = None
             
-        logging.getLogger().debug('Open URLs:%s', config_obj['FabricAuth']['open_urls'])
+        
         conf = dict(config_obj['FabricAuth']) # make a copy
         # update some config_obj if not already set
         conf.setdefault('logins', [('demo', 'demo')])     
@@ -182,7 +181,7 @@ class HTTPServer(HTTPBaseServer):
                                           config_obj['FabricAuth']['beaker'], 
                                           environ_key=config_obj['FabricAuth']['session_key'])
         
-        logging.getLogger().debug('Auth config updated')
+        logging.getLogger().debug('Auth config updated. Open urls %s', self.openurls)
     
     def session_config_update(self, action, full_key, new_val, config_obj):
         '''

@@ -690,8 +690,17 @@ class HTTPServerEndPoint(EndPoint):
         query from the client (before load balancing and proxy manipulation if any)
         If you get confusing results, ensure X-Forwarded-Hosts is set properly
         '''
+        return self.get_host()
+    
+    def get_host(self, no_scheme=False):
+        '''
+        returns the actual-host of the request. Note - this returns the host that was part of the original  
+        query from the client (before load balancing and proxy manipulation if any)
+        If you get confusing results, ensure X-Forwarded-Hosts is set properly
+        :param no_scheme: if no_scheme is True, returns just the host without the http:// or https://
+        '''
         scheme, host, _, _, _ = bottle.request.urlparts
-        return '://'.join([scheme, host])  
+        return '://'.join([scheme, host]) if no_scheme == False else host
         
     @property
     def server_name(self):
