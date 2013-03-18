@@ -21,6 +21,7 @@ Refer to :doc:`tutorial` for further examples.
 '''
 from fabric import concurrency
 import ast
+from pprint import pprint
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -395,14 +396,18 @@ class CrossOriginPlugin(BasePlugin):
     *Access-Control-Allow-Credentials
     *Access-Controll-Max-Age
     '''
-    def __init__(self, origins=None, max_age=300, allow_credentials=True, allow_methods=['GET', 'POST']):
+    def __init__(self, origins=None, max_age=300, allow_credentials=True, allow_methods=['GET', 'POST'], condition=None):
         '''
         Constructor method
-        @param origins: List of allowed origins, or None if in promiscous mode
-        @param max_age: Max Age for the lifetime of the preflight options data in seconds, default 300
-        @param allow_credentials: Needed if returning Cookies with the request, or if Cookies were sent wiht the request
-        @param allow_methods: A list allowed HTTP request methods, possibly GET, POST, OPTIONS, HEAD, DELETE, PATCH, PUT
+        :param origins: List of allowed origins, or None if in promiscous mode
+        :param max_age: Max Age for the lifetime of the preflight options data in seconds, default 300
+        :param allow_credentials: Needed if returning Cookies with the request, or if Cookies were sent wiht the request
+        :param allow_methods: A list allowed HTTP request methods, possibly GET, POST, OPTIONS, HEAD, DELETE, PATCH, PUT
+        :param condition: since CrossOriginPlugin opens a security hole in our system (i.e. other entities can call these routes, we insist on a condition
+        which will be evaluated before setting the cross-origin-allow. The condition is passed the endpoint on which the current route is invoked and the args that 
+        would be passed to the current methodroute handler. To ensure no inadvertent use, condition by default is None implying always False 
         '''
+        self.condition = condition if callable(condition) else lambda ep, **kargs: True if condition is True else lambda ep, **kargs: False
         self.origins = origins
         self._lambda_origins = lambda self, request_origin: request_origin in self.origins and request_origin if self.origins else request_origin
         self.max_age = max_age
@@ -413,8 +418,10 @@ class CrossOriginPlugin(BasePlugin):
         @wraps(callback)
         def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
             ep = self.get_callback_obj(callback)
+            cond = self.condition(ep, **kargs)
+            logging.getLogger().debug('Cross-origin called for %s, condition %s', ep.name, cond)
             host = ep.environ.get("HTTP_ORIGIN", "") or ep.environ.get("HTTP_REFERER", "")
-            if host:
+            if cond and host:
                 ep.response.add_header('Access-Control-Allow-Origin', self._lambda_origins(self, host))
                 ep.response.add_header('Access-Control-Allow-Methods', self.allow_methods)
                 ep.response.add_header('Access-Control-Max-Age', self.max_age)
@@ -765,6 +772,10 @@ class HTTPServerEndPoint(EndPoint):
     def server_port(self):
         scheme = bottle.request.urlparts[0] 
         return '://'.join([scheme, self.environ['SERVER_PORT']])
+    
+    @property
+    def scheme(self):
+        return bottle.request.urlparts[0]
     
     @property
     def user(self):
