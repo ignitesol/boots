@@ -430,6 +430,33 @@ class CrossOriginPlugin(BasePlugin):
         self.plugin_post_apply(callback, wrapper)
         return wrapper
 
+class ConditionalAccess(BasePlugin):
+    '''
+    Conditional Access Plugin
+    Validates that the request meets certain conditions before processing. Else, returns an error
+    '''
+    def __init__(self, condition=None):
+        '''
+        Constructor method
+        :param condition: we execute this condition  which will be evaluated before calling the request. 
+        The condition callable is passed arguments - the endpoint on which the current route is invoked and the args that 
+        would be passed to the current methodroute handler. 
+        To ensure no inadvertent use, condition by default is None implying always False 
+        '''
+        self.condition = condition if callable(condition) else lambda ep, **kargs: True if condition is True else lambda ep, **kargs: False
+    
+    def apply(self, callback, context):
+        @wraps(callback)
+        def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
+            ep = self.get_callback_obj(callback)
+            cond = self.condition(ep, **kargs)
+            ep.logger.debug('Conditional Access called for %s, condition %s', ep.name, cond)
+            if cond:
+                return callback(**kargs)
+            else:
+                ep.abort(401, 'Access denied due to conditional access')
+        self.plugin_post_apply(callback, wrapper)
+        return wrapper
 
 # decorators for allowing routes to be setup and handled by instance methods
 # credit to http://stackoverflow.com/users/296069/skirmantas
