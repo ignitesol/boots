@@ -17,7 +17,7 @@ function ExpressServer(name, endpoints, port, options) {
 	  , app = express()
 	  , http_app = http.createServer(app)
 	  , https_app
-	  , ssl_port = 9999
+	  , ssl_port = (options && options.ssl && options.ssl.port) || 0 
 	  ;
     
     if (options && options.ssl) {
