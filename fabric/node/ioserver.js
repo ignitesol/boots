@@ -1,28 +1,47 @@
 var server = require('./server.js')
   , utils = require('./utils.js')
-  , ioendpoint = require('./ioendpoint.js');
+  , ioendpoint = require('./ioendpoint.js')
+  , http = require('http')
+  , https = require('https')
+  , fs = require('fs')
+  ;
 
 
 // Express based server
-function ExpressServer(name, endpoints, port) {
+/*
+ * ssl_options should have SSL based options for the certificate and key to use
+ */
+function ExpressServer(name, endpoints, port, options) {
 	// private
 	var express = require('express')
-	  , app = express.createServer()
+	  , app = express()
+	  , http_app = http.createServer(app)
+	  , https_app
+	  , ssl_port = 9999
 	  ;
+    
+    if (options && options.ssl) {
+        var ssl_options = {
+            key: fs.readFileSync(options.ssl.key),
+            cert: fs.readFileSync(options.ssl.cert)
+        }
+        https_app = https.createServer(ssl_options, app);
+    }
 	  
 	function _start_main_server() {
 		express_server.Super.start_main_server();
-		app.listen(port);
+		http_app.listen(port);
+		https_app && https_app.listen(ssl_port);
 	}
 	
 	function _get(route, fn) {
-		app.get(route, fn);
+		return app.get(route, fn);
 	}
 	
 	// public
 	var express_server = {
 		start_main_server: _start_main_server,
-		get context() { return app; },
+		get context() { return https_app || http_app || app; },
 		get get() { return _get; }
 	}
 	
@@ -32,7 +51,7 @@ function ExpressServer(name, endpoints, port) {
 }
 
 // Express and socket.io based server
-function WebSocketServer(name, endpoints, port) {
+function WebSocketServer(name, endpoints, port, ssl_options) {
 	// defaults
 	endpoints = endpoints || [];
 	
@@ -124,7 +143,7 @@ function WebSocketServer(name, endpoints, port) {
 	}
 	
 	// inheritance
-	utils.inherit(socket_server, ExpressServer, [name, endpoints, port]);
+	utils.inherit(socket_server, ExpressServer, [name, endpoints, port, ssl_options]);
 	
 	// Add default IO Endpoint
 	// We cannot rely on Super for this, since at that time we dont have the 'server' running

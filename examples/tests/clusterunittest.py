@@ -37,9 +37,8 @@ class TestClusterFunctionality(unittest.TestCase):
     def test_basic_sticky(self):
         # make sure the request returned is same in both case. The response contains the server name from where
         #the response is coming back
-        hp = HTTPClientEndPoint()
-        data1 = hp.request('http://testserver1.ignitelabs.local:4001/register?channel=c').data
-        data2 = hp.request('http://testserver2.ignitelabs.local:4002/register?channel=c').data
+        data1 = HTTPClientEndPoint().request('http://testserver1.ignitelabs.local:4001/register?channel=c').data
+        data2 = HTTPClientEndPoint().request('http://testserver2.ignitelabs.local:4002/register?channel=c').data
         self.assertEqual(data1, data2)
 
 if __name__ == '__main__':
