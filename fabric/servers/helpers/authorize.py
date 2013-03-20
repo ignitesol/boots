@@ -7,6 +7,7 @@ Created on 18-Oct-2011
 from barrel.form import FormAuth
 import re
 from string import Template
+import logging
 
 class FabricSimpleAuth(FormAuth):
     '''
@@ -108,7 +109,7 @@ class FabricSimpleAuth(FormAuth):
             session.domain, session.path = self.domain_setter(environ.get('SERVER_NAME'))
             session.path = '/'
         
-        path = environ.get('SCRIPT_NAME', '') + '/' + environ.get('PATH_INFO', '')
+        path =   environ.get('SCRIPT_NAME', '') + ("" if environ.get('SCRIPT_NAME', '')[-1:] == '/' else '/') + environ.get('PATH_INFO', '')
         
         # determine if the url is unsecure
         if list(filter(None, [ p.search(path) for p in self.unsecure_compiled_urls ])) != []:
