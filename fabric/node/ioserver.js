@@ -9,7 +9,7 @@ var server = require('./server.js')
 
 // Express based server
 /*
- * ssl_options should have SSL based options for the certificate and key to use
+ * ssl_options should have SSL based options for the certificate and key to use, along with its port
  */
 function ExpressServer(name, endpoints, port, options) {
 	// private
