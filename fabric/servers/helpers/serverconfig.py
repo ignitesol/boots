@@ -1,8 +1,16 @@
-from fabric import concurrency
-import warnings
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
+if __name__ == "__main__":
+    
+    import sys
+    import os
 
+    try:
+        import fabric
+    except ImportError:
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))) # Since fabric is not as yet installed into the site-packages
+
+
+
+import warnings
 import logging
 from fabric.common.config import Config
 
@@ -39,11 +47,11 @@ class ServerConfig(Config):
         callbacks = callbacks or {}
         env_config = env_config or {}
         
-        super(ServerConfig, self).__init__()
+        super(ServerConfig, self).__init__(interpolation='template')
 
         # Empty config initialized,Now we will add callbacks before reading the file.
         for key,values in callbacks.items():
-            self.add_callback([key], values)
+            self.add_callback(list(key) if type(key) is tuple else [key], values) #Key can be string or tuple
         
         val = Validator()
         
@@ -57,7 +65,7 @@ class ServerConfig(Config):
             common_config.merge(spec_config)        #Merging configs
             common_configspec.merge(spec_configspec)        #Merging configspecs
         
-        self.merged_configspec = common_configspec
+        self.merged_configspec = common_configspec.dict()
 
         # add the default values for project dirs
         for k, v in env_config.iteritems():
@@ -72,13 +80,13 @@ class ServerConfig(Config):
         if config_test != True:
             warnings.warn('Configuration validation failed on %s and result is %s' % (config_files, config_test))
 
-        self.merge(configuration) # callbacks will be invoked now
+        self.merge(configuration.dict()) # callbacks will be invoked now
         
         if config_test != True:
             logging.getLogger().warning('Configuration validation not completely successful for %s and result is %s',
                                         configfile, config_test)
 
-    def update_config(self, config, overrides=None):
+    def update_config(self, config, overrides=None): #TODO:Testing pending.
         '''
         Updates the current configuration is a safe manner
         @param config: the new (partial) configuration
@@ -87,22 +95,28 @@ class ServerConfig(Config):
         config = config or {}
         overrides = overrides or []
         
-        curr_config = dict(self)
-        curr_config.update(config)
+        curr_config = Config(self.dict())
         configspec = self.merged_configspec
         val = Validator()
         
-        configuration = Config(curr_config, configspec=configspec, interpolation='template')     # Making new object out of merged config and configspec
-        configuration = self.handle_overrides(configuration, overrides)
-        config_test = configuration.validate(val, preserve_errors=True)
+        curr_config["Logging"]["formatters"]["detailed"]["format"] = ""     #TODO:Need to find a proper fix
         
+        configuration = Config(curr_config, configspec=configspec, interpolation='template')     # Making new object out of merged config and configspec
+        configuration.merge(config)
+        configuration = self.handle_overrides(configuration, overrides=[ ('Logging.formatters.detailed.format', '%(levelname)s:%(asctime)s:[%(process)d:%(thread)d]:%(funcName)s: %(message)s'),])
+        config_test = configuration.validate(val, preserve_errors=True)
         if config_test != True:
             logging.getLogger().warning('Update configuration validation not completely successful. Attempting to update with %s. Result is %s',
                                         config, config_test)
-            return # do nothing
+            return #TODO: Return a better error msg.
         else:
+            try:
+                config = config.dict()
+            except AttributeError:
+                config = dict(config)
             self.merge(config) # selected callbacks should be called
-        
+            return None #TODO: return a success msg.
+
     def handle_overrides(self, conf, overrides):
         # adding overrides
         overrides = overrides or []
@@ -114,4 +128,37 @@ class ServerConfig(Config):
                 new_conf = new_conf[k]
             new_conf[key_list[-1]] = val
         return conf
+    
+    
+if __name__ == "__main__":
+    import argparse
+    
+    def logcallback(action, fullkey, val, c):
+        print 'In logcallback', fullkey, val
+    
+    parser = argparse.ArgumentParser(description='Run unit tests on ServerConfig')
+    parser.add_argument('files', metavar='file', type=str, nargs='+',
+                   help='config files to be loaded')    
+    args = parser.parse_args()
+    
+    files = zip(args.files, [ f.replace('.ini', '_configspec.ini') for f in args.files])
+
+    callbacks = { 'Logging': logcallback }
+    sconfig = ServerConfig(files, callbacks=callbacks, env_config={'_proj_dir': '.'})
+    
+    d = {}
+    try:
+        d['Logging'] = sconfig.get('Logging', {}).dict()
+    except AttributeError:
+        d['Logging'] = dict(sconfig.get('Logging', {}))
+    print type(d), type(d['Logging']), type(d['Logging']['handlers']), type(d['Logging']['handlers']['console']), type(d['Logging']['handlers']['console']['level'])
+    d['Logging']['handlers']['console']['level'] = 'ERROR'
+    print ' ABout to update with ', d
+
+    print "____MERGING___"
+    sconfig.update_config(d)
+    
+
+    
+    
     

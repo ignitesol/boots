@@ -5,22 +5,18 @@ through which they communicate (receive and send).
 
  
 '''
-from fabric import concurrency
-
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
-elif concurrency == 'threading':
-    pass
-
-from warnings import warn
-import inspect
 import sys
 import os
+import inspect
+import logging
 import functools
-from fabric.servers.helpers.serverconfig import ServerConfig
+from warnings import warn
 from logging.config import dictConfig
 
-from fabric.common.utils import new_counter
+import fabric
+from fabric.servers.helpers.serverconfig import ServerConfig
+from fabric.common.utils import new_counter, generate_uuid
+from fabric.common.fabric_logging import FabricLogging
 
 class Server(object):
     '''
@@ -72,6 +68,7 @@ class Server(object):
         '''
         self.name = name or self._name_prefix + str(Server._counter()) # _name_prefix will be from subclass if overridden
         self.endpoints = endpoints or []
+        self._addressing = {}
         self.sub_servers = []
         self.parent_server = parent_server
         self.config = {} #: holds the parsed and processed config for this server (based on ini files and other updates)
@@ -80,6 +77,71 @@ class Server(object):
         self._proj_dir = None
         logger = kargs.get('logger', False)
         if logger: self.__class__.config_callbacks['Logging'] = Server._logger_config_update # defined in this class
+        self.uuid = generate_uuid()
+    
+    @property
+    def logger(self):
+        try:
+            #Inititalizing and configuring the logger.
+            logger = logging.getLogger(FabricLogging.root_logger_name).getChild(self.name)
+#            logger = logging.getLogger(self.name)
+            #Setting logger's level so that if we have multiple handlers we can lessen the log level for all using this.
+#            logger.level = logging.DEBUG
+            #Disabling propagate so that the LogRecords are not sent to the parent logger.                
+#            logger.propagate = 0
+            
+#            handler = logging.FileHandler(os.path.join(self.config["Logging"]["logs"], self.name+".log"))   #Inititalizing and configuring the handler.
+#            frmt = logging.Formatter(self.config['Logging']['formatters']['detailed']['format'])
+#            handler.setFormatter(frmt)
+            
+            #Setting handler's level so that if we have multiple handlers we can lessen the log level for individual one using this.
+            #Thus a FileHandler may always be on warning but a PubHandler maybe set to debug as it is not so taxing.
+#            handler.setLevel(logging.DEBUG)
+            
+#            logger.addHandler(handler)          #Adding handler to logger.
+        except:
+            logger = logging.getLogger()
+            logger.exception("Returning root logger")
+        return logger
+    
+    def endpoint(self, addressing=None, name=None, **attr):
+        '''
+        Endpoint addressing
+        Uses the address of an endpoint to retrieve it form a hash
+        else uses any other attribute to iterate the endpoints 
+        and return the first matching endpoint
+        '''
+        ep = None
+        if addressing is not None:
+            ep = self._addressing.get(addressing)
+        if not ep and name is not None:
+            try: ep = filter(lambda e: e.name == name, self.endpoints)[0]
+            except IndexError: pass
+        if not ep and len(attr) > 0:
+            for k, v in attr.iteritems():
+                try: ep = filter(lambda e: getattr(e, k, None) == v, self.endpoints)[0]
+                except IndexError: pass
+                else: break
+        return ep 
+    
+    def add_endpoint(self, endpoint):
+        '''
+        Simply add to the list of endpoints if it does not already exist. assumes an activated endpoint is being added if the server has already been activated
+        '''
+        if endpoint.uuid not in [ e.uuid for e in self.endpoints ]:
+            self.endpoints += [ endpoint ]
+            try: 
+                ep = self._addressing[endpoint.addressing]
+                # self.logger.warn("Same Address Endpoint already exists as %s before %s", ep, endpoint)
+            except KeyError: 
+                self._addressing[endpoint.addressing] = endpoint
+    
+    def remove_endpoint(self, endpoint):
+        '''
+        Remove an endpoint from the list
+        '''
+        self.endpoints = list(filter(lambda e: endpoint.uuid != e.uuid, self.endpoints))
+        self._addressing.pop(endpoint.addressing, None)
         
     def add_sub_server(self, server, mount_prefix=None):
         '''
@@ -121,28 +183,43 @@ class Server(object):
         
         if self.is_master:
             self.cmmd_line_args = self.parse_cmmd_line(description, **kargs)
-                
+            
         if self.is_master:
             self.configure(proj_dir=proj_dir, conf_subdir=conf_subdir, config_files=config_files)
         
+        self.pre_activate_hook()        
         self.activate_endpoints()
         self.start_all_sub_servers()
         
         if self.is_master:
+            Server.main_server = self
             self.start_main_server()
+        self.post_activate_hook() 
             
     # these can be overridden defined by the subclasses
     def activate_endpoints(self):
         '''
         Activate this server's endpoints. This is typically overridden in subclasses
         '''
+        [ e.activate() for e in self.endpoints if not e.activated ]
+    
+    def pre_activate_hook(self):
+        '''
+        This is hook to do pre-start processing
+        '''
+        pass
+    
+    def post_activate_hook(self):
+        '''
+        This is hook to do post-start processing
+        '''
         pass
 
-    def start_all_sub_servers(self):
+    def start_all_sub_servers(self, **kargs):
         ''' starts all added sub_servers. This is **experimental** '''
-        [ server.start_server(parent_server=self) for server in self.sub_servers ]
+        [ server.start_server(parent_server=self, **kargs) for server in self.sub_servers ]
             
-    def start_main_server(self):
+    def start_main_server(self, **kargs):
         ''' Typically run after all endpoints of the master and sub_server are activated. This actually
             runs the main event loop (if any) for the servers. Typically overridden in subclasses '''
         pass
@@ -178,7 +255,10 @@ class Server(object):
             return self._proj_dir
 
         subdir = subdir or 'conf'        
-        root_module = inspect.stack()[-1][1]
+        root_module = getattr(self, "root_module", None)
+        if not root_module:
+            root_module = inspect.stack()[-1][1]
+            warn('Did not find Server.root_module. Using %s' % (root_module,))
         root_module = os.path.abspath(root_module)
         path_subset = [ os.path.abspath(s) for s in sys.path if root_module.startswith(os.path.abspath(s)) and os.path.exists(os.path.join(os.path.abspath(s), '..', subdir)) ]
         try:
@@ -189,7 +269,10 @@ class Server(object):
         
     def _get_config_files(self, conf_dir, config_file='<auto>'):
         if config_file == '<auto>':
-            root_module = inspect.stack()[-1][1]
+            root_module = getattr(self, "root_module", None)
+            if not root_module:
+                root_module = inspect.stack()[-1][1]
+                warn('Did not find Server.root_module. Using %s' % (root_module,))
             stem = os.path.splitext(os.path.basename(root_module))[0]
             config_file_stem = stem.replace('meta_', '')
             ext = '.ini'
@@ -301,6 +384,10 @@ class Server(object):
         '''
         Called by Config to update the logging Configuration.
         '''
+        name = config_obj.get('Fabric', {}).get('root_logger_name', None)
+        if fabric.use_logging == 'fabric' and name:
+            FabricLogging.set_root_logger_name(name)
+        
         try:
             d=config_obj.dict()
             dictConfig(d.get('Logging', {}))
@@ -308,4 +395,8 @@ class Server(object):
             warn('Cannot instantiate logging: %s' % (e,))
         except ValueError as e:
             warn('Incomplete logging configuration: %s' % (e,))
+        except Exception as e:
+            logging.exception(e)
+            warn('Cannot instantiate logging: %s' % (e,))
+        self.logger.debug("Logging Config Updated.")
 

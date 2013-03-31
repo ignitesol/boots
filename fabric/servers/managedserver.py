@@ -3,21 +3,27 @@ ManagedServer provides an abstraction for managing a servers configuration, perf
 '''
 from __future__ import division
 from fabric import concurrency
+import bottle
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock
-    
-import time
-from fabric.servers.httpserver import HTTPServer
-from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute, Hook, Tracer
-import json
 
+from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute, Hook, Tracer, template    
+from fabric.servers.httpserver import HTTPServer
 import logging
+import json
+import time
+
 # since we are a library, let's add null handler to root to allow us logging
 # without getting warnings about no handlers specified
 logging.getLogger().addHandler(logging.NullHandler())
+
+def admin_auth(user, password):
+    print "user:",user, "password:",password
+    if user == "incharge" and password == "1gniter0cks":
+        return True
+    return False
 
 class Stats(Hook):
     
@@ -32,26 +38,82 @@ class Stats(Hook):
                 _, start_time = request_context
                 end_time = time.time()
                 server.stats_collector(callback.__name__, url, end_time - start_time, start_time, end_time, **kargs)
+        return result
 
 class ManagedEP(HTTPServerEndPoint):
     '''
     ManagedEP provides the endpoint for managed server to offer configuration, health and statistics monitoring
     Typically mounted on the servers '/admin' mountppoint
     '''
-        
     def __init__(self, name=None, mountpoint='/admin', plugins=None, server=None, activate=False):
         super(ManagedEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
-
-    @methodroute(params=dict(configuration=json.loads), skip_by_type=[Stats, Tracer])
-    def config(self, configuration=None):
+    
+    @template('adminui')
+    @methodroute(path="/", skip_by_type=[Stats, Tracer])
+#    @bottle.auth_basic(check=admin_auth, realm="admin", text="Admin interface access denied")    #Not working!!
+    def admin(self):
         '''
-        if no configuration is specified, returns the current configuration else updates the current configuration
-        and returns the new configuration. All callbacks that get affected should be called
+        Returns the admin UI and the list of tabs that the UI has to load.
+        '''
+        tabs = self.server.config.keys()
+        tabs.remove("_proj_dir")
+        prefix = self.request.environ.get('REQUEST_URI',"")
+        if tabs:
+            prefix = prefix.split('/admin')[0].replace("//", "/")
+            name = self.server.main_server.name or ""
+            return dict(name=name, prefix=prefix, tabs=tabs)
+        else:
+            return dict(error="Error in getting tabs")
+    
+    @methodroute(params=dict(configuration=str), skip_by_type=[Stats, Tracer], method="POST")
+    def updateconfig(self, configuration=None):
+        '''
+        Updates the current configuration with the new configuration that is received. 
         '''
         if configuration is not None:
-            self.config.update_config(configuration)
-        return self.config
-        
+            try:
+                configuration = json.loads(configuration)
+                self.server.config.update_config(configuration)
+            except Exception as e:
+                self.logger.exception("Exception in update:%s",e)
+                return dict(error="Error in Updating")
+        else:
+            return dict(error="No configuration specified")
+        return dict(status="Success")
+    
+    @template('configui')
+    @methodroute(path="/config/<section>", skip_by_type=[Stats, Tracer], method="GET")
+    def config(self, section="all"):
+        '''
+        Returns the configuration of the specified section.If no section is specified returns whole configuration.
+        '''
+        if section == "all":
+            section_data = self.server.config
+        else:
+            section_data = self.server.config.get(section, None)
+        if section_data:
+            return dict(section=section, handler='', config=json.dumps(section_data))
+        elif section == "all":
+            return dict(error="No configuration found")
+        else:
+            return dict(error="Invalid Section")
+
+    @template('loggingui')
+    @methodroute(skip_by_type=[Stats, Tracer], method="ANY")
+    def config__Logging(self):
+        '''
+        Returns the configuration of the 'Logging' section.
+        '''
+        section = "Logging"
+        try: #@UndefinedVariable
+            ret = logging.Logger.manager.getLoggerDict()   #@UndefinedVariable
+        except Exception as e:
+            self.logger.exception(e)
+            ret = {"Error in loading loggers": {}}
+        log_ret = self.server.config[section].dict()
+        log_ret["loggers"] = ret
+        return dict(section=section, config=json.dumps(log_ret))
+    
     @methodroute(skip_by_type=[Stats, Tracer])
     def stats(self):
         '''
@@ -136,12 +198,13 @@ class ManagedServer(HTTPServer):
         '''
         self._stats.add(handler_name, time_taken, url, **kargs)
     
-    def __init__(self,  endpoints=None, *args, **kargs):
+    def __init__(self,  endpoints=None, **kargs):
+        self.config_callbacks['Template'] = self.template_config
         endpoints = endpoints or []
         endpoints = [ endpoints ] if type(endpoints) not in [list, tuple] else endpoints
         endpoints = endpoints + [ ManagedEP()]
         self._stats = StatsCollection()
-        super(ManagedServer, self).__init__(*args, endpoints=endpoints, **kargs)
+        super(ManagedServer, self).__init__(endpoints=endpoints, **kargs)
 
     def get_standard_plugins(self, plugins):
         '''

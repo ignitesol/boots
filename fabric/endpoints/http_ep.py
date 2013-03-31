@@ -21,23 +21,29 @@ Refer to :doc:`tutorial` for further examples.
 '''
 from fabric import concurrency
 from fabric.endpoints.httpclient_ep import Header
+import ast
 
 if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock
- 
-import logging
-import bottle
-import re
-import inspect
-from functools import wraps
+
 from fabric.endpoints.endpoint import EndPoint
 from fabric.common.utils import new_counter
+from functools import wraps
 import traceback
+import inspect
+import logging
+import bottle
 import sys
 import os
+import re
+
+try: from collections import MutableMapping as DictMixin
+except ImportError: # pragma: no cover
+    from UserDict import DictMixin
+
+template = bottle.view
 
 # leverages bottle.
 
@@ -67,6 +73,7 @@ class BasePlugin(object):
         '''
         wrapper._signature = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
         wrapper._callback_obj = callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        pass
         
     def get_callback_obj(self, callback):
         '''
@@ -76,7 +83,11 @@ class BasePlugin(object):
         :param callback: A reference to the current callback within a plugin wrapper
         :returns: object whose method was wrapped with @methodroute
         '''
-        return callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        try:
+            return callback.im_self if not hasattr(callback, '_callback_obj') else callback._callback_obj
+        except Exception as e:
+            logging.getLogger().exception("Callback object : %s", callback)
+            raise
         
 
 class RequestParams(BasePlugin):
@@ -167,10 +178,31 @@ class RequestParams(BasePlugin):
                     missing_params += [m]
             if len(missing_params) != 0:
                 bottle.abort(400, 'Missing parameters: {}'.format(", ".join(missing_params)))
+            #logging.getLogger().debug("id of cluster_ds just before callback  : %s", id(kargs.get('cluster_ds')) if kargs.get('cluster_ds') else None )
             return callback(*args, **kargs)
         
         self.plugin_post_apply(callback, wrapper)
         return wrapper
+    
+    @staticmethod
+    def boolean(val):       
+        '''
+        Helper Function for params() for converting str to bool. For example, params=dict(force=boolean)
+        '''
+        return bool(ast.literal_eval(val))
+
+    @staticmethod
+    def compose(f, g):
+        '''
+        A helper function to apply two converters. First apply g, then f on the result
+        So for instance, compose(list, json.loads) will create a converter that first
+        dejsonifies the argument, then converts it to list
+        Useful for json_in_requests
+        :param f: A function - typically the final type to convert to for use with request_param
+        :param g: A function - an initial type to convert to
+        '''
+        return lambda *x, **kx: f(g(*x, **kx))
+    
 
 class Hook(BasePlugin):
     '''
@@ -219,14 +251,16 @@ class Hook(BasePlugin):
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             request_context = self.create_request_context(callback=callback, url=bottle.request.url, **kargs)
             exception = None 
+            # ignore return value in before case
             self.handler(before_or_after='before', request_context=request_context, callback=callback, url=bottle.request.url, **kargs)
             try:
+#                logging.getLogger().debug("args:%s, kargs:%s", args, kargs)
                 result = callback(*args, **kargs)
             except Exception as e:
                 exception = e
                 result=None
             finally:
-                self.handler(before_or_after='after', request_context=request_context, callback=callback, url=bottle.request.url, 
+                result = self.handler(before_or_after='after', request_context=request_context, callback=callback, url=bottle.request.url, 
                              result=result, exception=exception, **kargs)
                 if exception:
                     raise
@@ -256,6 +290,7 @@ class Tracer(Hook):
                 logging.getLogger().debug('Response: %s. Exception = %s. [ url = %s, %s ]', req_count, exception, url, kargs)
             else:
                 logging.getLogger().debug('Response: %s. Result = %s. [ url = %s, %s ]', req_count, result, url, kargs)
+        return result # just return what we got as result so it can be passed on
         
     def __init__(self, tracer_paths=['.*'], handler=None):
         '''
@@ -266,6 +301,25 @@ class Tracer(Hook):
             tracer_paths =  [ tracer_paths ]
         self.tracer_paths = map(re.compile, tracer_paths or [])
         super(Tracer, self).__init__(handler=handler)
+        
+class View(Hook):
+    def handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
+        if before_or_after == 'after' and isinstance(result, (dict, DictMixin)):
+            tplvars = self.defaults.copy()
+            tplvars.update(result)
+            endpoint = callback.im_self
+            tpl = os.path.join(endpoint.server.config["_proj_dir"], self.tpl_name)
+            result = bottle.template(tpl, result)
+        return result
+        
+    def __init__(self, tpl_name, **defaults):
+        '''
+        :param tracer_paths: a list of regular expressions that will be matched with the url. None or empty list indicates match nothing. defaults to match everything. 
+        :param handler: if required, a handler that will be invoked to trace the requests/responses
+        '''
+        self.defaults = defaults
+        self.tpl_name = tpl_name
+        super(View, self).__init__(handler=self.handler)
     
 class WrapException(BasePlugin):
     '''
@@ -318,7 +372,7 @@ class WrapException(BasePlugin):
                     errstr += "{}:{} in {}: {}<br/>".format(file, line, f, text)
     
                 if handler:
-                    err_ret=handler(errstr, qstr, *args, **kargs)
+                    err_ret = handler(errstr, qstr, exception=err, *args, **kargs)
                 for f in cleanup_funcs:
                     try:
                         f(qstr, *args, **kargs)
@@ -331,8 +385,78 @@ class WrapException(BasePlugin):
 
         self.plugin_post_apply(callback, wrapper)
         return wrapper
-       
 
+class CrossOriginPlugin(BasePlugin):
+    '''
+    Cross Origin Access Controll Plugin
+    Attaches headers for cross domain resource sharing (CORS)
+    namely:
+    *Access-Control-Allow-Origin
+    *Access-Control-Allow-Methods
+    *Access-Control-Allow-Credentials
+    *Access-Controll-Max-Age
+    '''
+    def __init__(self, origins=None, max_age=300, allow_credentials=True, allow_methods=['GET', 'POST'], condition=None):
+        '''
+        Constructor method
+        :param origins: List of allowed origins, or None if in promiscous mode
+        :param max_age: Max Age for the lifetime of the preflight options data in seconds, default 300
+        :param allow_credentials: Needed if returning Cookies with the request, or if Cookies were sent wiht the request
+        :param allow_methods: A list allowed HTTP request methods, possibly GET, POST, OPTIONS, HEAD, DELETE, PATCH, PUT
+        :param condition: since CrossOriginPlugin opens a security hole in our system (i.e. other entities can call these routes, we insist on a condition
+        which will be evaluated before setting the cross-origin-allow. The condition is passed the endpoint on which the current route is invoked and the args that 
+        would be passed to the current methodroute handler. To ensure no inadvertent use, condition by default is None implying always False 
+        '''
+        self.condition = condition if callable(condition) else lambda ep, **kargs: True if condition is True else lambda ep, **kargs: False
+        self.origins = origins
+        self._lambda_origins = lambda self, request_origin: request_origin in self.origins and request_origin if self.origins else request_origin
+        self.max_age = max_age
+        self.allow_credentials = allow_credentials
+        self.allow_methods = ", ".join(allow_methods)
+    
+    def apply(self, callback, context):
+        @wraps(callback)
+        def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
+            ep = self.get_callback_obj(callback)
+            cond = self.condition(ep, **kargs)
+            logging.getLogger().debug('Cross-origin called for %s, condition %s', ep.name, cond)
+            host = ep.environ.get("HTTP_ORIGIN", "") or ep.environ.get("HTTP_REFERER", "")
+            if cond and host:
+                ep.response.add_header('Access-Control-Allow-Origin', self._lambda_origins(self, host))
+                ep.response.add_header('Access-Control-Allow-Methods', self.allow_methods)
+                ep.response.add_header('Access-Control-Max-Age', self.max_age)
+                ep.response.add_header('Access-Control-Allow-Credentials', "true" if self.allow_credentials else "false")
+            return callback(**kargs)
+        self.plugin_post_apply(callback, wrapper)
+        return wrapper
+
+class ConditionalAccess(BasePlugin):
+    '''
+    Conditional Access Plugin
+    Validates that the request meets certain conditions before processing. Else, returns an error
+    '''
+    def __init__(self, condition=None):
+        '''
+        Constructor method
+        :param condition: we execute this condition  which will be evaluated before calling the request. 
+        The condition callable is passed arguments - the endpoint on which the current route is invoked and the args that 
+        would be passed to the current methodroute handler. 
+        To ensure no inadvertent use, condition by default is None implying always False 
+        '''
+        self.condition = condition if callable(condition) else lambda ep, **kargs: True if condition is True else lambda ep, **kargs: False
+    
+    def apply(self, callback, context):
+        @wraps(callback)
+        def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
+            ep = self.get_callback_obj(callback)
+            cond = self.condition(ep, **kargs)
+            ep.logger.debug('Conditional Access called for %s, condition %s', ep.name, cond)
+            if cond:
+                return callback(**kargs)
+            else:
+                ep.abort(401, 'Access denied due to conditional access')
+        self.plugin_post_apply(callback, wrapper)
+        return wrapper
 
 # decorators for allowing routes to be setup and handled by instance methods
 # credit to http://stackoverflow.com/users/296069/skirmantas
@@ -423,10 +547,10 @@ class HTTPServerEndPoint(EndPoint):
         
         for kw in dir(self): # for all varnames
             try:
-                callback = getattr(self, kw)  # get the var value
+                callback = getattr(self, kw) if type(getattr(self.__class__, kw, None)) is not property else None # get the var value
             except AttributeError:
                 callback = None
-            if hasattr(callback, '_methodroute'): # only methodroute decorated methods will have this
+            if hasattr(callback, '_methodroute') and hasattr(callback, '_route_kargs') and isinstance(callback._route_kargs, dict): # only methodroute decorated methods will have this
                 route_kargs = callback._route_kargs  # additional kargs passed on the decorator
                 
                 # implement skip by type and update skip for the route
@@ -439,7 +563,7 @@ class HTTPServerEndPoint(EndPoint):
                 
                 # explicitly find route combinations and remove :self - else bottle includes self in the routes
                 path = callback._methodroute if callback._methodroute is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
-                self.app.route(path=path, callback=callback, **route_kargs)
+                self._endpoint_app.route(path=path, callback=callback, **route_kargs)
                     
                 
     def __init__(self, name=None, mountpoint='/', plugins=None, server=None, activate=False):
@@ -455,14 +579,13 @@ class HTTPServerEndPoint(EndPoint):
         :param bool activate: whether to activate this endpoint on creation or later through an explicit 
             :py:meth:`activate` call
         '''
-
+        super(HTTPServerEndPoint, self).__init__(server=server)
         self.name = name = name or self._name_prefix + str(HTTPServerEndPoint._counter())
         self.mountpoint = mountpoint
         self.plugins = getattr(self, 'plugins', []) + (plugins or []) # in case plugins have already been set up
         if type(self.plugins) != list: self.plugins = [ self.plugins ]
         self.server = server
         self.mount_prefix = ''
-        self.activated = False
         
         with self.lock:
             if self.http_server_end_points.get(self.name, None):
@@ -471,7 +594,16 @@ class HTTPServerEndPoint(EndPoint):
         
         if activate:
             self.activate()
-            
+    
+    @property
+    def logger(self):
+        try:
+            logger = self.server.logger.getChild(self.name)
+        except:
+            logger = logging.getLogger()
+            logger.exception("Returning root logger")
+        return logger
+    
     def activate(self, server=None, mount_prefix=None):
         '''
         activate an endpoint. This is typically invoked in start_server and it sets up the endpoint to start reciveing requests
@@ -482,7 +614,7 @@ class HTTPServerEndPoint(EndPoint):
             mount_prefix + mountpoint + individual route paths
         '''
         
-        if self.activated:
+        if self.activated:  
             return
 
         self.mount_prefix = mount_prefix or self.mount_prefix
@@ -490,20 +622,19 @@ class HTTPServerEndPoint(EndPoint):
         
         mountpoint = self.mount_prefix + self.mountpoint
         if mountpoint != '/':
-            self.app = bottle.Bottle()
-            bottle.default_app().mount(mountpoint, self.app)
+            self._endpoint_app = bottle.Bottle()
+            bottle.default_app().mount(mountpoint, self._endpoint_app)
         else:
-            self.app = bottle.default_app()
-            self.server.app = self.app
+            self._endpoint_app = bottle.default_app()
         
         # apply all plugins
         self.std_plugins = self.server.get_standard_plugins(self.plugins)
         self.plugins = self.std_plugins + self.plugins
-        [ self.app.install(plugin) for plugin in self.plugins ]
-
+        [ self._endpoint_app.install(plugin) for plugin in self.plugins ]
+        #logging.getLogger().debug("plugins : %s", self.plugins)
         self.routeapp() # establish any routes that have been setup by the @methodroute decorator
-        self.activated = True
-
+        super(HTTPServerEndPoint, self).activate()
+        
     
     def abort(self, code, text):
         '''
@@ -529,17 +660,46 @@ class HTTPServerEndPoint(EndPoint):
         return bottle.request.POST if bottle.request.method == 'POST' or bottle.request.method == 'ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
     
     @property
+    def request_params_as_dict(self):
+        '''
+        returns request params as a dict instead of multidict. Multi-valued items will be returned as a list
+        '''
+        params = self.request_params
+        d = {}
+        for k in params.keys():
+            d[k] = params.getall(k)
+            if len(d[k]) == 1:
+                d[k] = d[k][0] # drop the list of single valued params
+        return d
+    
+    def get_session(self, key='beaker.session'):
+        try:
+            return self.environ.get(key)
+        except AttributeError:
+            return None
+        
+    def delete_session(self, key):
+        try:
+            self.logger.debug('Deleting session key %s', key)
+            self.get_session(key).delete()
+        except AttributeError as e:
+            self.logger.debug('Error in delete session, key %s, message %s', key, e)
+            pass
+        
+    def delete_all_sessions(self, additional_keys=[]):
+        session_keys = [ self.server.config.get(s, {}).get('session.key', s) for s in self.server.session_configs ] + additional_keys
+        [ self.delete_session(key) for key in session_keys ]
+        
+        
+    @property
     def session(self):
         '''
         returns a session related to this request if one is configured. Else, returns None
         '''
-         
         try:
-            return self.environ.get(self.server.config['Session']['session.key'])
+            return self.get_session(self.server.config['Session']['session.key'])
         except KeyError:
-            return self.environ.get('beaker.session', None)
-        except AttributeError:
-            return None
+            return self.get_session() # default key
     
     @property
     def response(self):
@@ -567,3 +727,87 @@ class HTTPServerEndPoint(EndPoint):
             for key in keys:
                 headers['Cookie'] = '%s=%s'%(key, bottle.request.COOKIES.get(key,''))
         return headers
+
+    @property
+    def cookies(self):
+        ''' 
+        returns a dict of cookies that were obtained as part of this request. (refer bottle_)
+        '''
+        return bottle.request.COOKIES
+    
+    @property
+    def headers(self):
+        '''
+        returns a headers 
+        '''
+        return self.request.headers
+    
+    @headers.setter
+    def headers(self, value_as_dict):
+        self.response.headers.update(value_as_dict)
+    
+    @property
+    def host(self):
+        '''
+        returns the scheme :// actual-host of the request. Note - this returns the host that was part of the original  
+        query from the client (before load balancing and proxy manipulation if any)
+        If you get confusing results, ensure X-Forwarded-Hosts is set properly
+        '''
+        return self.get_host()
+    
+    def get_host(self, no_scheme=False):
+        '''
+        returns the actual-host of the request. Note - this returns the host that was part of the original  
+        query from the client (before load balancing and proxy manipulation if any)
+        If you get confusing results, ensure X-Forwarded-Hosts is set properly
+        :param no_scheme: if no_scheme is True, returns just the host without the http:// or https://
+        '''
+        scheme, host, _, _, _ = bottle.request.urlparts
+        return '://'.join([scheme, host]) if no_scheme == False else host
+        
+    @property
+    def server_name(self):
+        '''
+        returns the scheme :// original host of the request. 
+        If you get confusing results, ensure X-Forwarded-Hosts
+        is set properly
+        '''
+        scheme = bottle.request.urlparts[0] 
+        return '://'.join([scheme, self.environ['SERVER_NAME']])
+    
+    @property
+    def http_host(self):
+        '''
+        returns the scheme :// original host of the request. 
+        If you get confusing results, ensure X-Forwarded-Hosts
+        is set properly
+        '''
+        scheme = bottle.request.urlparts[0] 
+        return '://'.join([scheme, self.environ['HTTP_HOST']])
+    
+    @property
+    def server_port(self):
+        scheme = bottle.request.urlparts[0] 
+        return '://'.join([scheme, self.environ['SERVER_PORT']])
+    
+    @property
+    def scheme(self):
+        return bottle.request.urlparts[0]
+    
+    @property
+    def user(self):
+        '''
+        Get the user from the environ.
+        '''
+        return self.environ.get('REMOTE_USER', 'unknown')
+    
+    def selected_cookies(self, keys=None):
+        '''
+        returns a dict of selected cookies that match keys. keys can be a string, a regular expression, a list of strings or regular expressions
+        if keys is None, returns all cookies
+        
+        :param keys: (default None which implies all cookies). A string/re or a list of string/re to match the cookie keys
+        '''
+        if not keys: keys = [ '.*' ] # match all
+        if not hasattr(keys, '__iter__'): keys = [ keys ] # make a list if one does not exist
+        return dict([ (ck, cv) for k in keys for (ck, cv) in self.cookies.iteritems() if re.match(k, ck, flags=re.IGNORECASE)])

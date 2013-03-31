@@ -43,13 +43,14 @@ class EP(HTTPServerEndPoint):
     @methodroute(params=dict(b=int, c=[str]))
     def index(self, a, b=None, c=''):
         b = b or 0
-        if b:
-            yield 'Waiting %s seconds<br/>' % (b,)   # to test gevent
-            time.sleep(b)  # to test gevent
-        yield 'Call # %d to this endpoint. a = %s, b = %s, c = %s' % (self.count(), a, b, c) # this count is end-point count
+        return "called %s times got a = %s , b=%s , c=%s"% (self.count(),a,b,c) 
+#        if b:
+#            yield 'Waiting %s seconds<br/>' % (b,)   # to test gevent
+#            time.sleep(b)  # to test gevent
+#        yield 'Call # %d to this endpoint. a = %s, b = %s, c = %s' % (self.count(), a, b, c) # this count is end-point count
 
-ep1 = EP(plugins=[ RequestParams() ] )
-ep2 = EP(mountpoint='/second', plugins=[ RequestParams() ])
+ep1 = EP()
+ep2 = EP(mountpoint='/second')
 
 class MainServer(HTTPServer):
     @classmethod
@@ -88,4 +89,4 @@ main_server.add_sub_server(mgmt_server, '/mgmt')
 
 
 if __name__ == "__main__":
-    main_server.start_server(description="A test server for the fabric framework")
+    main_server.start_server(standalone=True, description="A test server for the fabric framework")

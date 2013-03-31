@@ -6,19 +6,19 @@ including basic argument processing, activating all endpoints and starting up th
 basic exception handling for requests, session, cache and authorization for the server.
 '''
 from fabric import concurrency
-from fabric.endpoints.http_ep import Tracer, WrapException, RequestParams
-if concurrency == 'gevent':
-    from gevent import monkey; monkey.patch_all()
+from fabric.endpoints.http_ep import Tracer, WrapException, RequestParams,\
+    HTTPServerEndPoint
 
 import argparse
 import beaker.middleware as bkmw
 import beaker.cache as bkcache
 import beaker.util as bkutil
-from fabric.servers.helpers.authorize import SparxAuth
+from fabric.servers.helpers.authorize import FabricSimpleAuth
 from fabric.servers.server import Server
 import bottle
-
 import logging
+from fabric.common.dirutils import DirUtils
+from string import Template
 
 # since we are a library, let's add null handler to root to allow us logging
 # without getting warnings about no handlers specified
@@ -32,7 +32,7 @@ class HTTPBaseServer(Server):
     The :py:data:`fabric.concurrency` controls whether the default server is *gevent* based or WSGIReference  
     '''
 
-    def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='', 
+    def __init__(self,  name="", endpoints=None, parent_server=None, mount_prefix='', 
                  **kargs):
         '''
         Most arguments have the same interpretation as :py:class:`fabric.servers.Server`. The additional parameters 
@@ -47,6 +47,11 @@ class HTTPBaseServer(Server):
         '''
         self.app = bottle.default_app() # this will get overridden by the callback handlers as appropriate
         super(HTTPBaseServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
+        
+    # make the object act like a WSGI server
+    def __call__(self, environ, start_response):
+        assert(self.app is not None)
+        return self.app(environ, start_response)
 
     @classmethod
     def get_arg_parser(cls, description='', add_help=False, parents=[], 
@@ -82,15 +87,17 @@ class HTTPBaseServer(Server):
             host = kargs.get('default_host', None) or self.cmmd_line_args['host'] or '127.0.0.1'
             port = kargs.get('default_port', None) or self.cmmd_line_args['port'] or '9000'
             server = kargs.get('server', 'wsgiref')
+            quiet = kargs.get('quiet', True)
             if concurrency == 'gevent': server = 'gevent'
-    #        bottle.debug(True)
-            bottle.run(host=host, port=port, server=server)
+            bottle.debug(True)
+            bottle.run(app=self, host=host, port=port, server=server)
 
     def activate_endpoints(self):
         '''
         Activate this server's endpoints
         '''
-        [ endpoint.activate(server=self, mount_prefix=self.mount_prefix) for endpoint in self.endpoints ]
+        [ endpoint.activate(server=self, mount_prefix=self.mount_prefix) for endpoint in self.endpoints if isinstance(endpoint, HTTPServerEndPoint)]
+        super(HTTPBaseServer, self).activate_endpoints()
 
 
 class HTTPServer(HTTPBaseServer):
@@ -106,10 +113,15 @@ class HTTPServer(HTTPBaseServer):
     * :py:class:`Tracer` for request and response tracing/logging of http requests
     '''
     
+    # a list of config sections that pertain to sessions. Defaults to Session.
+    # if more than 1 are provided, beaker middlewares will be created in order passing
+    # the corresponding config section to each
+    session_configs = [ 'Session' ]
     config_callbacks = { }  # we can set these directly out of the class body or in __init__
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
-                 **kargs):
+                 session=False, cache=False, auth=False, handle_exception=False,
+                 openurls=[], **kargs):
         '''
         :params bool session: controls whether sessions based on configuration ini should be instantiated. sessions
             will be available through the HTTPServerEndPoint
@@ -123,51 +135,83 @@ class HTTPServer(HTTPBaseServer):
         self.mount_prefix = mount_prefix or ''
         
         # setup the callbacks for configuration
-        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
+#        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
         if session: self.config_callbacks['Session'] = self.session_config_update
         if cache: self.config_callbacks['Caching'] = self.cache_config_update
-        if auth: self.config_callbacks['Auth'] = self.auth_config_update
+        if auth: self.config_callbacks['FabricAuth'] = self.auth_config_update
         
-        self.handle_exception = kargs.get('handle_exception', False)
+        self.handle_exception = handle_exception
+        self.openurls = getattr(self, 'openurls', openurls)
+#        self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
-        
-    # make the object act like a WSGI server
-    def __call__(self, environ, start_response):
-        assert(self.app is not None)
-        return self.app(environ, start_response)
-        
     
     def auth_config_update(self, action, full_key, new_val, config_obj):
         '''
         Called by Config to update the Auth Server Configuration.
         
-        SPARXAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
+        FabricAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
         '''
-        logins = [('demo', 'demo')]     #TODO:Get it from a User DB.
-    
-        self.app = SparxAuth(self.app, users=logins, 
-                             open_urls=config_obj['Auth']['open_urls'], 
-                             session_key=config_obj['Auth']['key'])
+        self.AuthClass = getattr(self, 'AuthClass', FabricSimpleAuth)
+        login_template = config_obj['FabricAuth'].get('login_template', '')
+        try:
+            template = None
+            if login_template != '':
+                login_template = DirUtils().resolve_path(base_dir=config_obj['_proj_dir'], path=login_template)
+            template = Template(DirUtils().read_file(login_template, None))
+        except ValueError as e:
+            self.logger.warning('Template dir is not within the project root: %s. Ignoring', login_template)
+            template = None
+        except (IOError, Exception) as e:
+            self.logger.warning('Ignoring template file error %s', e)
+            template = None
+            
         
+        conf = dict(config_obj['FabricAuth']) # make a copy
+        # update some config_obj if not already set
+        conf.setdefault('logins', [('demo', 'demo')])     
+        conf.setdefault('open_urls', self.openurls)
+        conf['template'] = template
+        conf.pop('beaker', None) # remove beaker from the copied conf
+        conf.pop('caching', None) # remove caching from the copied conf
+        conf.pop('key', None) # remove auth cookie key from copied conf
+        self.app = self.AuthClass(self.app, **conf)
+        
+        # a persistent, cookie based session
         self.app = bkmw.SessionMiddleware(self.app, 
-                                          config_obj['Auth']['beaker'], 
-                                          environ_key=config_obj['Auth']['key'])
+                                          config_obj['FabricAuth']['beaker'], 
+                                          environ_key=config_obj['FabricAuth']['session_key'])
         
-        logging.getLogger().debug('Auth config updated')
+        logging.getLogger().debug('Auth config updated. Open urls %s', self.openurls)
     
     def session_config_update(self, action, full_key, new_val, config_obj):
         '''
         Called by Config to update the session Configuration.
         '''
-        self.app = bkmw.SessionMiddleware(self.app, config_obj['Session'])
-        logging.getLogger().debug('Server config updated')
+        for s in self.session_configs:
+            self.app = bkmw.SessionMiddleware(self.app, config_obj[s], environ_key=config_obj[s].get('session.key', s))
+            
+        logging.getLogger().debug('Session config updated')
+    
+    def cache_creator(self, caching_config):
+        return bkcache.CacheManager(**bkutil.parse_cache_config_options(caching_config))
     
     def cache_config_update(self, action, full_key, new_val, config_obj):
         '''
         Called by Config to update the Cache Configuration.
         '''
-        self.cache = bkcache.CacheManager(**bkutil.parse_cache_config_options(config_obj['Caching']))
+        self.cache = self.cache_creator(config_obj['Caching'])
         logging.getLogger().debug('Cache config updated')
+    
+    def template_config(self, action, full_key, new_val, config_obj):
+        self.logger.debug("Template Config updated for %s", full_key)
+        sub_config_obj = config_obj
+        for key in full_key:
+            sub_config_obj = config_obj[key]
+        for path in sub_config_obj.get("template_paths", []):
+            self.add_template_path(path)
+            
+    def social_config(self, action, full_key, new_val, config_obj):
+        pass
         
     def get_standard_plugins(self, plugins):
         '''
@@ -192,3 +236,8 @@ class HTTPServer(HTTPBaseServer):
         exception_handler = [ WrapException() ] if WrapException not in plugins and self.handle_exception else []
         
         return exception_handler + [ RequestParams() ] + tracer_plugin  # outermost to innermost
+    
+    def add_template_path(self, template_path):
+#        self.logger.debug("Adding template path:%s",template_path)
+        bottle.TEMPLATE_PATH.append(template_path)
+#        self.logger.debug("Added template path:%s",bottle.TEMPLATE_PATH)

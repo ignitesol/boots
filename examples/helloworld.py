@@ -8,6 +8,7 @@ In this example, we demonstrate a simple http server with one endpoint and one r
 '''
 import sys
 import os
+import logging
 try:
     import fabric
 except ImportError:
@@ -28,12 +29,24 @@ class EP(HTTPServerEndPoint):
         matches /hello or /hello/anyname since we have a keyword argument that takes a default value
         '''
         name = name or 'world'  # the name is passed as an argument
-        return 'hello %s' % (name,)
+        logging.getLogger().debug('hello called with %s', name)
+        return 'hello %s' % name
 
+class EP_SUB(EP):
+    @methodroute()
+    def hello(self, name=None):
+        ''' 
+        @methodroute converts this method to a route handler which 
+        matches /hello or /hello/anyname since we have a keyword argument that takes a default value
+        '''
+        name = name or 'world'  # the name is passed as an argument
+        logging.getLogger().debug('HELLO called with %s', name)
+        return 'HELLO %s' % name
+    
 # create an endpoint
 ep1 = EP()
 # associate the endpoint with a server
-main_server = HTTPServer(endpoints=[ep1])
+main_server = HTTPServer(endpoints=[ep1], logger=True)
 
 if __name__ == '__main__':
     main_server.start_server(defhost='localhost', defport=9999, standalone=True, description="A test server for the fabric framework")
