@@ -67,7 +67,11 @@ class InstancedScheduler(NamespaceSingleton, threading.Thread):
                 
     
     def cancel(self, idn):
-        with self._lock: self._cancelled[idn] = True
+        with self._lock:
+            for _, _, iden in self._task_heap:
+                if iden == idn:
+                    self._cancelled[idn] = True
+                    break
     
     def timer(self, delay, fn, *args, **kargs):
         '''
@@ -101,7 +105,9 @@ class InstancedScheduler(NamespaceSingleton, threading.Thread):
                 heappush(self._task_heap, event)
                 
             except Queue.Empty: # timeout ran
-                _, callback, idn = heappop(self._task_heap)
+                t, callback, idn = heappop(self._task_heap)
+                if (time.time() - t > 0.1):
+                    logging.getLogger().debug("Over slept for %s", time.time() - t)
                 if idn in self._cancelled:
                     logging.getLogger().debug("cancelled %s", idn)
                     self._cancelled.pop(idn)

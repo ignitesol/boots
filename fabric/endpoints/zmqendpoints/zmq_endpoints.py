@@ -9,8 +9,8 @@ if concurrency == 'gevent':
 else:
     import zmq
 
-from fabric.endpoints.zmqendpoints.zmq_base import ZMQBasePlugin,\
-    ZMQListenEndPoint, ioloop_instance
+from fabric.endpoints.zmqendpoints.zmq_base import ZMQBasePlugin
+#    ZMQListenEndPoint, ioloop_instance
 from functools import wraps
 from fabric.common.messenger import ZMQSPARXMessage
 import re
@@ -191,44 +191,3 @@ class ZMQCoupling(ZMQBasePlugin):
             cls._coupled_process[couple_id] = fn
             return fn
         return decorator
-    
-# Very incomplete
-class ZMQRequestEndPoint(ZMQListenEndPoint):
-    
-    def __init__(self, address, **kargs):
-        super(ZMQRequestEndPoint, self).__init__(zmq.REQ, address, **kargs)
-        self.poller = None
-    
-    def setup(self, extended_setup=[]):
-        def _setup():
-            self.poller = zmq.Poller()
-            
-        extended_setup.append(_setup)
-        super(ZMQRequestEndPoint, self).setup(extended_setup=extended_setup)
-    
-    def start(self, extended_start=[]):
-        def _start():
-            self.poller.register(self.socket, zmq.POLLIN|zmq.POLLOUT)
-        
-        extended_start.append(_start)
-        super(ZMQRequestEndPoint, self).start(extended_start=extended_start)
-    
-    def send(self, *args, **kargs):
-        def _send():
-            p = dict(self.poller.poll(timeout=1)) #immediate
-            if self.socket in p and p[self.socket] is zmq.POLLOUT:
-                super(ZMQRequestEndPoint, self).send(*args, **kargs)
-            # Do queueing
-            
-        ioloop_instance().add_callback(_send)
-    
-class ZMQSubscribeEndPoint(ZMQListenEndPoint):
-    """
-    Special ZMQListenEndpoint that creates a SUBSCRIBE Socket
-    Subscribe sockets require filters to function
-    """
-    
-    def __init__(self, address, bind=False, callback_hash={}, server=None, **kargs):
-        super(ZMQSubscribeEndPoint, self).__init__(zmq.SUB, address, bind=bind, 
-                                                   plugins=[ZMQJsonReply(), ZMQCallbackPattern(callback_hash=callback_hash, callback_context=server)], **kargs)
-    
