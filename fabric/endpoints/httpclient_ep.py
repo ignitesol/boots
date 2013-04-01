@@ -222,11 +222,14 @@ class HTTPClientEndPoint(EndPoint):
         method = method or self.method
         if method is None: method = 'POST'
         # call a POST or DELETE http method if passed explicity (usecase for DELETE : unlike in facebook)
-#        if method.upper() != 'POST' and method.upper() != 'DELETE' : method = 'GET'
-        data = self._safe_urlencode(data, doseq=True)
-        if method == 'GET' and data:
-            url += '?' + data
-            data = None
+        if method.upper() != 'POST' and method.upper() != 'DELETE' : method = 'GET'
+        if headers.get('Content-Type', None) in [ "application/json"]:
+            data = json.dumps(data)
+        else:
+            data = self._safe_urlencode(data, doseq=True)
+            if method == 'GET' and data:
+                url += '?' + data
+                data = None
         parsed = urlparse.urlparse(url)      #Making the path URL Quoted
         url = urlparse.urlunparse(parsed[:2]+(urllib2.quote(parsed.path.encode("utf8")),)+parsed[3:])
         return url, data, headers, method
