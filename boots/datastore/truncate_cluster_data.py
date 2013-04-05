@@ -35,7 +35,7 @@ if __name__ == '__main__':
     try:
         ep = ClusterDatabaseEndPoint(dbtype='mysql', db_url='mysql://cluster:cluster@localhost:3306/cluster', name="cluster_db_ep")
         server = Server(name="ClusterFakeServer", endpoints=[ep])
-        server.root_module = root_module
+        server.root_module = FILE
         server.start_server(standalone=True)
         ep.create_tables(clean=True)
         
