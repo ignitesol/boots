@@ -4,20 +4,20 @@
 API Reference
 ==========================
 	
-This is an auto-generated API Reference documentation. If you are new to :doc:`fabric <intro>` you might want to read the :doc:`intro`
+This is an auto-generated API Reference documentation. If you are new to :doc:`boots <intro>` you might want to read the :doc:`intro`
 
 .. _Servers:
 
 Servers
 =======
-.. automodule:: fabric.servers.server
+.. automodule:: boots.servers.server
 
 .. autoclass:: Server
 	:members: 
 	
 HTTPServer
 ----------
-.. automodule:: fabric.servers.httpserver
+.. automodule:: boots.servers.httpserver
 
 .. autoclass:: HTTPServer
 	:members: 
@@ -25,7 +25,7 @@ HTTPServer
 
 ManangedServer
 ---------------
-.. automodule:: fabric.servers.managedserver
+.. automodule:: boots.servers.managedserver
 
 .. autoclass:: ManagedServer
 	:members: 
@@ -36,7 +36,7 @@ ManangedServer
 
 ZMQServer
 ---------------
-.. automodule:: fabric.servers.zmqserver
+.. automodule:: boots.servers.zmqserver
     :members:
 
 .. autoclass:: ZMQServer
@@ -44,19 +44,19 @@ ZMQServer
         
  HybridServer
  --------------
- -- automodule:: fabric.servers.hybrid
+ -- automodule:: boots.servers.hybrid
  	:members:
 
 Endpoints
 =========
-.. automodule:: fabric.endpoints.endpoint
+.. automodule:: boots.endpoints.endpoint
 
 .. autoclass:: EndPoint
 .. autoclass:: EndPointException
 
 HTTP Server End Points
 -----------------------
-.. automodule:: fabric.endpoints.http_ep
+.. automodule:: boots.endpoints.http_ep
 
 .. autoclass:: HTTPServerEndPoint
 	:members: activate, request, request_params, environ, response, abort, session
@@ -83,7 +83,7 @@ Handy Plugins
 
 ZMQ Server End Points
 -----------------------
-.. automodule:: fabric.endpoints.zmqendpoints.zmq_base
+.. automodule:: boots.endpoints.zmqendpoints.zmq_base
 
 .. autoclass:: ZMQBaseEndPoint
 	:members:
@@ -99,7 +99,7 @@ Handy Plugins
 .. autoclass:: ZMQBasePlugin
     :members: 
     
-.. automodule:: fabric.endpoints.zmqendpoints.zmq_endpoints
+.. automodule:: boots.endpoints.zmqendpoints.zmq_endpoints
 
 .. autoclass:: ZMQJsonReply
     :members:
@@ -115,7 +115,7 @@ Handy Plugins
 
 HTTP Client End Points
 -----------------------
-.. automodule:: fabric.endpoints.httpclient_ep
+.. automodule:: boots.endpoints.httpclient_ep
 
 .. autoclass:: HTTPClientEndPoint
 	:members:

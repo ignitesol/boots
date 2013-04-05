@@ -1,12 +1,12 @@
 import os
 import sys
 try:
-    import fabric
+    import boots
 except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # this is unnecessary if fabric is installed in the site-packages or in PYTHONPATH
-from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute
-from fabric.servers.clusteredserver import ClusteredServer
-from fabric.datastore.datawrapper import DSWrapperObject
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # this is unnecessary if boots is installed in the site-packages or in PYTHONPATH
+from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute
+from boots.servers.clusteredserver import ClusteredServer
+from boots.datastore.datawrapper import DSWrapperObject
 import bottle
 class TestEP(HTTPServerEndPoint):
     def __init__(self, *args, **kwargs):

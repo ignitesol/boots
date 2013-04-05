@@ -1,5 +1,5 @@
 '''
-This is an example of the basic usage of the server and http endpoint components of the fabric framework
+This is an example of the basic usage of the server and http endpoint components of the boots framework
 
 * Servers are entities that provide specific functionality and capability
 * Servers consist of one or more endpoints (source or destinations of communication) and optionally sub-servers (more on this later)
@@ -10,12 +10,12 @@ import sys
 import os
 import logging
 try:
-    import fabric
+    import boots
 except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # this is unnecessary if fabric is installed in the site-packages or in PYTHONPATH
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # this is unnecessary if boots is installed in the site-packages or in PYTHONPATH
 
-from fabric.servers.httpserver import HTTPServer
-from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute    
+from boots.servers.httpserver import HTTPServer
+from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute    
     
 class EP(HTTPServerEndPoint):
     
@@ -49,4 +49,4 @@ ep1 = EP()
 main_server = HTTPServer(endpoints=[ep1], logger=True)
 
 if __name__ == '__main__':
-    main_server.start_server(defhost='localhost', defport=9999, standalone=True, description="A test server for the fabric framework")
+    main_server.start_server(defhost='localhost', defport=9999, standalone=True, description="A test server for the boots framework")
