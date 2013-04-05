@@ -1,5 +1,5 @@
 '''
-this is an example of the basic usage of the server and http endpoint components of the fabric framework
+this is an example of the basic usage of the server and http endpoint components of the boots framework
 * Servers are entities that provide specific functionality and capability
 * Servers consist of endpoints (source or destinations of communication) and optionally subservers
 * this way, the main server is an arbitrary nesting of servers. Each server consist of one or more endpoints
@@ -20,12 +20,12 @@ Created on Mar 18, 2012
 import sys
 import os
 try:
-    import fabric
+    import boots
 except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # Since fabric is not as yet installed into the site-packages
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # Since boots is not as yet installed into the site-packages
 
-from fabric import concurrency
-from fabric.servers.managedserver import ManagedServer
+from boots import concurrency
+from boots.servers.managedserver import ManagedServer
 import time
 
 if concurrency == 'gevent':
@@ -33,8 +33,8 @@ if concurrency == 'gevent':
 elif concurrency == 'threading':
     pass
 
-from fabric.servers.httpserver import HTTPServer
-from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute    
+from boots.servers.httpserver import HTTPServer
+from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute    
 def another_handler(errstr):
     return 'Another error handler %s' % (errstr)
     
@@ -76,5 +76,5 @@ ep1 = EP()
 # associate the endpoint with a server
 standalone = __name__ == '__main__'
 main_server = ManagedServer(mount_prefix="/testing", endpoints=[ep1], logger=True)
-main_server.start_server(defport=9999, standalone=standalone, description="A test server for the fabric framework")
+main_server.start_server(defport=9999, standalone=standalone, description="A test server for the boots framework")
 application = main_server

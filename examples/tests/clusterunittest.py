@@ -1,6 +1,6 @@
-from fabric.datastore.dbengine import DBConfig
-from fabric.datastore.mysql_datastore import MySQLBinding, Server, StickyMapping
-from fabric.endpoints.httpclient_ep import HTTPClientEndPoint
+from boots.datastore.dbengine import DBConfig
+from boots.datastore.mysql_datastore import MySQLBinding, Server, StickyMapping
+from boots.endpoints.httpclient_ep import HTTPClientEndPoint
 import unittest
 
 
@@ -11,8 +11,8 @@ class TestClusterFunctionality(unittest.TestCase):
     127.0.0.1     testserver1.ignitelabs.local     testserver2.ignitelabs.local
     
     2)start following servers
-    cd ~workspace/fabric/examples;     python clustertestserver.py -i testserver1.ignitelabs.local -p 4001
-    cd ~workspace/fabric/examples;     python clustertestserver.py -i testserver2.ignitelabs.local -p 4002
+    cd ~workspace/boots/examples;     python clustertestserver.py -i testserver1.ignitelabs.local -p 4001
+    cd ~workspace/boots/examples;     python clustertestserver.py -i testserver2.ignitelabs.local -p 4002
     
     '''
 

@@ -1,5 +1,5 @@
 '''
-this is an example of the basic usage of the server and http endpoint components of the fabric framework
+this is an example of the basic usage of the server and http endpoint components of the boots framework
 * Servers are entities that provide specific functionality and capability
 * Servers consist of endpoints (source or destinations of communication) and optionally subservers
 * this way, the main server is an arbitrary nesting of servers. Each server consist of one or more endpoints
@@ -15,15 +15,15 @@ Created on Mar 18, 2012
 
 @author: AShah
 '''
-from fabric import concurrency
+from boots import concurrency
 
 if concurrency == 'gevent':
     from gevent import monkey; monkey.patch_all()
 elif concurrency == 'threading':
     pass
 
-from fabric.servers.httpserver import HTTPServer
-from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute,\
+from boots.servers.httpserver import HTTPServer
+from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute,\
     RequestParams, WrapException
 
     
@@ -52,4 +52,4 @@ ep1 = EP(plugins=[ WrapException(default_handler=simple_exception_handler), Requ
 main_server = HTTPServer(endpoints=[ep1])
 
 if __name__ == "__main__":
-    main_server.start_server(file=__file__, defport=9999, description="A test server for the fabric framework")
+    main_server.start_server(file=__file__, defport=9999, description="A test server for the boots framework")

@@ -1,5 +1,5 @@
 '''
-This example illustrates the use of session and caching in fabric
+This example illustrates the use of session and caching in boots
 
 * It builds on the example helloworld
 
@@ -10,12 +10,12 @@ import os
 import logging
 import pprint
 try:
-    import fabric
+    import boots
 except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # this is unnecessary if fabric is installed in the site-packages or in PYTHONPATH
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # this is unnecessary if boots is installed in the site-packages or in PYTHONPATH
 
-from fabric.servers.httpserver import HTTPServer
-from fabric.endpoints.http_ep import HTTPServerEndPoint, methodroute    
+from boots.servers.httpserver import HTTPServer
+from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute    
     
 class EP(HTTPServerEndPoint):
     
@@ -46,4 +46,4 @@ ep1 = EP()
 main_server = HTTPServer(endpoints=[ep1], session=True, logger=True)
 
 if __name__ == '__main__':
-    main_server.start_server(defhost='localhost', defport=9998, standalone=True, description="A test server for the fabric framework")
+    main_server.start_server(defhost='localhost', defport=9998, standalone=True, description="A test server for the boots framework")
