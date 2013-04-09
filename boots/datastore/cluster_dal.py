@@ -92,8 +92,7 @@ class ClusterDAL(ClusterORM):
             except IntegrityError:
                 #This error will occur when we are in start mode. We will clear server_state by updating it to empty dict
                 sess.rollback()
-                sess.query(self.Server).filter(self.Server.unique_key == server_adress)\
-                        .update({self.Server.load:0, self.Server.server_type:servertype, self.Server.server_state:json.dumps({})}, synchronize_session=False)
+                sess.query(self.Server).filter(self.Server.unique_key == server_adress).update({self.Server.server_type:servertype}, synchronize_session=False)
                 sess.commit()
             return server.server_id
 
@@ -351,20 +350,32 @@ class ClusterDAL(ClusterORM):
             min_loaded_server = sess.query(self.Server).filter(self.Server.load == min_load[0] ).first()
         return min_loaded_server
     
-    
+    @Retry(3)
     @dbsessionhandler
-    def remove_server(self, sess, server_address):
+    def remove_server(self, sess, server_address, recreate=False):
         '''
         This clear the history of the server
         '''
+        sess.flush()
         assert server_address is not None
+        server_id = None
         try:
             server = sess.query(self.Server).filter(self.Server.unique_key == server_address).one()
             server_id = server.server_id
+            server_type = server.server_type
             sess.query(self.Server).filter(self.Server.server_id == server_id).delete(synchronize_session='fetch')
+            if recreate:
+                server = self.Server(server_type, server_address, json.dumps({}), 0)
+                sess.add(server)
             sess.commit()
-        except Exception:
+            server_id = server.server_id if hasattr(server, 'server_id') else server_id
+        except OperationalError as e:
+            raise e
+        except Exception as e1:
+            print e1
             sess.rollback()
+        return server_id
+        
             
     @dbsessionhandler
     def update_sticky_value(self, sess,  old, new, server_id, endpoint_name, endpoint_key):

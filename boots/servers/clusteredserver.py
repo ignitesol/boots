@@ -172,17 +172,15 @@ class ClusteredServer(HybridServer):
         if not self.restart and not self._created_data:
             # delete the previous run's history 
             #self.logger.debug("deleting server info : %s", self.server_adress)
-            self.datastore.remove_server(self.server_adress)
+            self._created_data = server_id = self.datastore.remove_server(self.server_adress, recreate=True)
         if force or not self._created_data: 
             #self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
-            server_id = self.datastore.createdata(self.server_adress, self.servertype )
-            self._created_data = True
+            self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype )
         elif self._created_data:
             try:
                 server_id = self.datastore.get_server_id(self.server_adress)
             except NoResultFound :
-                server_id = self.datastore.createdata(self.server_adress, self.servertype )
-                self._created_data = True
+                self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype )
         assert server_id is not None    
         return server_id
         
