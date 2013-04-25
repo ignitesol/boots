@@ -38,11 +38,16 @@ function ExpressServer(name, endpoints, port, options) {
 		return app.get(route, fn);
 	}
 	
+	function _app() {
+	    return app;
+	}
+	
 	// public
 	var express_server = {
 		start_main_server: _start_main_server,
 		get context() { return https_app || http_app || app; },
-		get get() { return _get; }
+		get get() { return _get; },
+		get app() { return _app(); }
 	}
 	
 	utils.inherit(express_server, server.Server, [name, endpoints]);

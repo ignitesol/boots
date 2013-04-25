@@ -17,8 +17,16 @@ function IOConnectionEndpoint(_context, _onconnect) {
 	 	io.set('log level', 2);
 	 	
 	 	/* Testing purposes */
-	 	// io.set('heartbeat interval', 3);
-	 	// io.set('heartbeat timeout', 9);
+	 	// io.set('heartbeat interval', 2);
+	 	// io.set('heartbeat timeout', 20);
+	 	
+	 	io.set('transports', [
+                 'websocket'
+              // , 'flashsocket'
+              // , 'htmlfile'
+              // , 'xhr-polling'
+              // , 'jsonp-polling'
+            ]);
 	 	
 	 	io.sockets.on('connection', connection_callback);
 	 	io_conn.Super.activate(server);
