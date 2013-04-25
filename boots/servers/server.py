@@ -264,7 +264,7 @@ class Server(object):
         try:
             return os.path.abspath(os.path.join(path_subset[0], '..'))
         except IndexError:
-            warn('Cannot determine project directory automatically. Defaulting to curr dir %s' % (os.getcwd()))
+            logging.getLogger().debug('Cannot determine project directory automatically. Defaulting to curr dir %s' % (os.getcwd()))
             return '.'
         
     def _get_config_files(self, conf_dir, config_file='<auto>'):
