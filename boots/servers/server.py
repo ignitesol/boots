@@ -20,7 +20,7 @@ from boots.common.boots_logging import BootsLogging
 
 class Server(object):
     '''
-    :py:class:`Server` is the base class for Server based functionality. Subclasses include :py:class:`HTTPServer`
+    :py:class:`Server` :py:module:`ServerDoc` is the base class for Server based functionality. Subclasses include :py:class:`HTTPServer`
     which adds functionality for HTTP based servers and :py:class:`ManagedServer` which offers additional capabilities
     for configuring and administering servers. Our intent is to add *ClusteredServer* and other subclasses.
     
@@ -33,7 +33,7 @@ class Server(object):
     
     * command line parameter parsing
     * configuration through config .ini file processing
-    * associating callbacks that are invokved when specific sections of the configuration are instantiated or modified
+    * associating callbacks that are invoked when specific sections of the configuration are instantiated or modified
     '''
     _name_prefix = "Server_"
     _counter = new_counter()
@@ -304,11 +304,11 @@ class Server(object):
                 
     def configure(self, skip_overrides=False, proj_dir=None, conf_subdir='conf', config_files=None, standalone=False, **kargs):
         '''
-        runs the configuration processes. If config is None, will read the default config files which are common and the stem of the file
+        runs the configuration processes. If config_files is None, will read the default config files which are common and the stem of the file
         
         :param proj_dir: an optional argument. If specified, this is taken to be the root of the project directory.
-            If not specified, this is infered through introspection
-        :param conf_subdir: the configuration subdirectory within the proj_dir where configuration files may be obtained
+            If not specified, this is infered through introspection as the directory in the os.path which has an existing conf_subdir
+        :param conf_subdir: the configuration subdirectory within the proj_dir where configuration files may be obtained. Defaults to 'conf'
         :param list config_files: a list of filename stems (i.e without the .ini extension) that contain the configuration for this server.
             If mulitple files are given, the order is important and files on the right may overwrite config options specified in files on the left
             A special token *<auto>* is replaced with the name of the main file that was invoked to launch this app (determined through introspection)
@@ -316,7 +316,7 @@ class Server(object):
         :param bool skip_overrides: controls if override processing should be skipped
         '''
         self._proj_dir = proj_dir or self._get_proj_dir(conf_subdir) or '.'
-        conf_dir = os.path.join(self._proj_dir, 'conf') if self._proj_dir is not '.' else self._proj_dir
+        conf_dir = os.path.join(self._proj_dir, conf_subdir)
         
         config_files = [] if config_files is None else [config_files] if type(config_files) not in [list, tuple] else config_files
         
@@ -330,6 +330,7 @@ class Server(object):
             config_overrides = list(reduce(lambda x,y: x+y, self._mro_classattribute_get('config_overrides'), []))
         
         config_files = [ self._get_config_files(conf_dir, f) for f in config_files ]
+        print config_files, config_overrides
         
         self.config = ServerConfig(config_files=config_files, 
                                    overrides=config_overrides, callbacks=config_callbacks,
