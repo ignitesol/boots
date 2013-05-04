@@ -9,7 +9,7 @@ build a few examples that exercise many of the features of the boots framework.
    :maxdepth: 2
    
    tutorial/helloworld
-
+   tutorial/http_server
 
 
 		
