@@ -1,0 +1,8 @@
+WARNING:2013-05-03 12:28:45,168:[5659:139986637227776]:__init__: Configuration validation not completely successful for ./conf/simple_log.ini and result is {'Caching': True, 'Session': True, 'Logging': True, 'SPARXAuth': False}
+DEBUG:2013-05-03 12:28:47,520:[5669:139692162094848]:_logger_config_update: Logging Config Updated.
+WARNING:2013-05-03 12:28:47,520:[5669:139692162094848]:__init__: Configuration validation not completely successful for ./conf/simple_log.ini and result is {'Caching': True, 'Session': True, 'Logging': True, 'SPARXAuth': False}
+DEBUG:2013-05-03 12:28:51,264:[5669:139692162094848]:hello: hello called with world
+DEBUG:2013-05-03 12:28:56,866:[5669:139692162094848]:hello: hello called with sai
+DEBUG:2013-05-03 12:28:58,295:[5669:139692162094848]:hello: hello called with sai
+DEBUG:2013-05-03 12:28:58,471:[5669:139692162094848]:hello: hello called with sai
+DEBUG:2013-05-03 12:28:58,609:[5669:139692162094848]:hello: hello called with sai
