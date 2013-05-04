@@ -1,7 +1,7 @@
-Our first boots program: Hello World
+Quickstart: Hello World
 ======================================
 
-This is an example of the basic usage of the server and http endpoint components of the boots framework
+This example demonstrates the basic usage of a server and http endpoint components of the boots framework.
 
 * Servers are entities that provide specific functionality and capability
 * Servers consist of one or more endpoints (source or destinations of communication) and optionally sub-servers (more on this later)
@@ -11,7 +11,7 @@ In this example, we demonstrate a simple http server that handles one request (/
 An endpoint to handle HTTP requests
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A server needs an :py:class:`HTTPServerEndPoint` to be able to serve HTTP requests. We
+A server needs a :py:class:`HTTPServerEndPoint` to be able to serve HTTP requests. We
 first define our endpoint::
 
     from boot.endpoints.http_ep import HTTPServerEndPoint, methodroute 

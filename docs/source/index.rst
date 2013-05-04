@@ -9,9 +9,14 @@ Welcome to Boots: Distributed Systems Framework's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    
    intro
+   installation
+   server/server
+   http_server/http_server
+   zmq_server/zmq_server
+   managed_server/managed_server
    tutorial
    api
 

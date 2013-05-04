@@ -38,4 +38,4 @@ ep1 = EP()
 main_server = HTTPServer(endpoints=[ep1], logger=True)
 
 if __name__ == '__main__':
-    main_server.start_server(defhost='localhost', defport=9999, standalone=True, description="A test server for the boots framework")
+    main_server.start_server(defhost='localhost', proj_dir='.', defport=9996, standalone=True, description="A test server for the boots framework")

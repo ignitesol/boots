@@ -8,44 +8,14 @@ This is an auto-generated API Reference documentation. If you are new to :doc:`b
 
 .. _Servers:
 
-Servers
-=======
-.. automodule:: boots.servers.server
-
-.. autoclass:: Server
-	:members: 
-	
-HTTPServer
-----------
-.. automodule:: boots.servers.httpserver
-
-.. autoclass:: HTTPServer
-	:members: 
 
 
-ManangedServer
----------------
-.. automodule:: boots.servers.managedserver
+.. toctree::
+   :maxdepth: 3
+   
+   servers
+   
 
-.. autoclass:: ManagedServer
-	:members: 
-	
-.. autoclass:: ManagedEP
-	:members:
-
-
-ZMQServer
----------------
-.. automodule:: boots.servers.zmqserver
-    :members:
-
-.. autoclass:: ZMQServer
-    :members:
-        
- HybridServer
- --------------
- -- automodule:: boots.servers.hybrid
- 	:members:
 
 Endpoints
 =========
@@ -143,3 +113,23 @@ These decorators may be composed.
 .. autofunction:: dejsonify_response
 
 .. autofunction:: jsonify_request
+
+
+Plugins
+========
+.. autoclass:: boots.endpoints.http_ep.BasePlugin
+	:members:
+	
+.. autoclass:: boots.endpoints.http_ep.RequestParams
+	:members:
+	
+.. autoclass:: boots.endpoints.http_ep.WrapException
+	:members:
+	
+.. autoclass:: boots.endpoints.http_ep.Tracer
+	:members:
+
+.. autoclass:: boots.endpoints.http_ep.Hook
+	:members:
+		
+	

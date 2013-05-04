@@ -2,7 +2,7 @@
 HTTP Servers are served through HTTPServerEndPoints. These end-points offer flexibility of adding routes (urls where HTTP can be served from), providing
 parameter processing and validation capabilities, handling exceptions generically and other hooks that can be applied before and after each request. 
 
-These endpoints also provide access the the http :py:meth:`request`, :py:meth:`environ` and :py:meth:`response` objects, in addition to the ability to :py:meth:`abort`
+These endpoints also provide access to the the http :py:meth:`request`, :py:meth:`environ` and :py:meth:`response` objects, in addition to the ability to :py:meth:`abort`
 requests. Currently these endpoints are based on the bottle web microframework (http://bottlepy.org)
 
 A typical scenario to create an HTTP Server is to define a subclass of the HTTPServerEndPoint and to define routes using the :py:func:`methodroute` decorator.
