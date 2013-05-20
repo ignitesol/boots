@@ -368,7 +368,7 @@ if __name__ == '__main__':
     temp['Section3']['sec3_var3'] = 401
     temp.write()
     
-    cfg = ConfigSingleton()
+    cfg = Config()
     cfg.add_callback([ 'Section1', 'sec1_var_1' ], callback)
     cfg.add_callback([ 'Section1' ], callback)
     cfg.add_callback([ 'Section2' ], callback)
