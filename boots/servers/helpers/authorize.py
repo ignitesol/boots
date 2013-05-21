@@ -47,7 +47,7 @@ class SimpleAuth(FormAuth):
 </body>
 </html>
     ''' 
-    def __init__(self, app, logins=None, open_urls=None, session_key='barrel.session', template=None, domain_setter=None, **kargs):
+    def __init__(self, app, logins=None, open_urls=None, session_key='barrel.session', template=None, domain_setter=None, remote_user_key='REMOTE_USER', **kargs):
         '''
         Take the app and template to wrap and optional settings.
 
@@ -66,6 +66,8 @@ class SimpleAuth(FormAuth):
         @param session_key: - The key used to store the session in.
         @type session_key: str
         
+        :param remote_user_key: optional. If specified, indicates the environ key in which the authenticated user information is stored. Defaults to REMOTE_USER 
+        
         @param oauth_callback_urls: A list of paths (optional) that are special since these obtain the response
         from the social network callbacks and will put the REMOTE_USER into the environment. 
         If this parameter is not specified, the OAuthMixin does not do anything and the basic FormAuth processing takes place
@@ -73,12 +75,33 @@ class SimpleAuth(FormAuth):
         self.unsecure_urls = open_urls or []
         self.unsecure_compiled_urls = [ re.compile(p) for p in self.unsecure_urls ]
         self.domain_setter = domain_setter
+        self.remote_user_key = remote_user_key
         
         self.app = app
         super(SimpleAuth, self).__init__(app, logins)
         self.session_key = session_key
         self.template = template or Template(self.loginpage)
         
+    def cache_username(self, environ, username):
+        '''
+        this wrapper to cache_username is used to allow multiple levels of auth. The BasicAuth object always sets REMOTE_USER
+        We may not want REMOTE_USER to be set for secondary auths. So, if remote_user_key was specifed, we save the current value of REMOTE_USER
+        and reset it after the call to super. We also 
+        ''' 
+        if self.remote_user_key is not 'REMOTE_USER': 
+            remote_user = environ.pop('REMOTE_USER', None) # get the original REMOTE_USER and clear it
+            
+        # let super set REMOTE_USER
+        retval = super(SimpleAuth, self).cache_username(environ, username)
+        
+        if self.remote_user_key is not 'REMOTE_USER':
+            # save the set REMOTE_USER in self.remote_user_key
+            environ[self.remote_user_key] = environ.pop('REMOTE_USER', None)
+            # reset the orig REMOTE_USER
+            if remote_user is not None: environ['REMOTE_USER'] = remote_user
+            
+        return retval
+    
     @classmethod
     def root_level_domain(cls, full_domain):
         ''' 

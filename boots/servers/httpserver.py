@@ -113,10 +113,7 @@ class HTTPServer(HTTPBaseServer):
     * :py:class:`Tracer` for request and response tracing/logging of http requests
     '''
     
-    # a list of config sections that pertain to sessions. Defaults to Session.
-    # if more than 1 are provided, beaker middlewares will be created in order passing
-    # the corresponding config section to each
-    session_configs = [ 'Session' ]
+    auth_classes = { '--no-key-specified': SimpleAuth } # subclasses should ADD to (NOT OVERWRITE) this dict
     config_callbacks = { }  # we can set these directly out of the class body or in __init__
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
@@ -124,10 +121,16 @@ class HTTPServer(HTTPBaseServer):
                  openurls=[], **kargs):
         '''
         :params bool session: controls whether sessions based on configuration ini should be instantiated. sessions
-            will be available through the HTTPServerEndPoint
-        :params bool cache: controls whether cache based on configuration ini should be instantiated. cache is available
-            through self.cache
-        :params bool auth: controls whether sessions based on configuration ini should be instantiated 
+            will be available through the HTTPServerEndPoint. If a string, implies the name of the config section. If session is a list of strings, 
+            implies list of names of config sections identifying session configurations
+        :params bool cache: controls whether cache based on configuration ini should be instantiated. 
+            If a string, implies the name of the config section. If cache is a list of strings, 
+            implies list of names of config sections identifying cache configurations
+            A special member of each configuration section (cache_name) should be a string. The resulting cache is available as
+            through self.<cache_name> (defaults to self.cache)
+        :params bool auth: controls whether sessions based on configuration ini should be instantiated. Can be False (no auth) or True (using BootsAuth from the config file)
+            or it can be a list of config sections that will be auth related (allowing multiple auth layers). Note, the last entry will challenge the user the 1st (i.e. it is 
+            the outermost auth layer) 
         :params handle_exception: controls whether a default exception handler should be setup
         '''
 
@@ -135,11 +138,38 @@ class HTTPServer(HTTPBaseServer):
         self.mount_prefix = mount_prefix or ''
         
         # setup the callbacks for configuration
-#        session, cache, auth = kargs.get('session', False), kargs.get('cache', False), kargs.get('auth', False)
-        if session: self.config_callbacks['Session'] = self.session_config_update
-        if cache: self.config_callbacks['Caching'] = self.cache_config_update
-        if auth: self.config_callbacks['BootsAuth'] = self.auth_config_update
+        if type(session) is not bool and session: # implies session_configs are being passed
+            self.session_configs = session if type(session) in [ list, tuple ] else [ session ]
+        elif session:
+            self.session_configs = getattr(self, 'session_configs', [ 'Session' ])
+        if session:
+            for s in self.session_configs:
+                self.config_callbacks[s] = self.session_config_update
+        else:
+            self.session_configs = []
+                
+        if type(cache) is not bool and cache: # implies cache_configs are being passed
+            self.cache_configs = cache if type(cache) in [ list, tuple]  else [ cache ]
+        elif cache:
+            self.cache_configs = getattr(self, 'cache_configs', [ 'Caching' ])
+        if cache:
+            for s in self.cache_configs:
+                self.config_callbacks[s] = self.cache_config_update
+        else:
+            self.cache_configs = []
+
+        if type(auth) is bool: # i.e. if auth=True was passed, set the default BootsAuth
+            auth = [ 'BootsAuth' ] if auth else False 
+        elif type(auth) not in [ list, tuple ] :
+            auth = [ auth ]
+        if auth:
+            self.auth_configs = auth
+            for auth_config_section in self.auth_configs:
+                self.config_callbacks[auth_config_section] = self.auth_config_update
+        else:
+            self.auth_configs = []
         
+        self.login_templates = {}
         self.handle_exception = handle_exception
         self.openurls = getattr(self, 'openurls', openurls)
 #        self.handle_exception = kargs.get('handle_exception', False)
@@ -151,13 +181,14 @@ class HTTPServer(HTTPBaseServer):
         
         BootsAuth relies on a session management middleware(i.e.Beaker) upfront in the stack. 
         '''
-        self.AuthClass = getattr(self, 'AuthClass', SimpleAuth)
-        login_template = config_obj['BootsAuth'].get('login_template', '')
+        auth_class_key = new_val.get('auth_class_key', '--no-key-specified--')
+        self.AuthClass = self.auth_classes.get(auth_class_key) or SimpleAuth
+        login_template = new_val.get('login_template', '')
         try:
             template = None
             if login_template != '':
                 login_template = DirUtils().resolve_path(base_dir=config_obj['_proj_dir'], path=login_template)
-            self._login_template = template = Template(DirUtils().read_file(login_template, None))
+            self.login_templates['.'.join(full_key)] = template = Template(DirUtils().read_file(login_template, None))
         except ValueError as e:
             self.logger.warning('Template dir is not within the project root: %s. Ignoring', login_template)
             template = None
@@ -165,32 +196,29 @@ class HTTPServer(HTTPBaseServer):
             self.logger.warning('Ignoring template file error %s', e)
             template = None
             
-        
-        conf = dict(config_obj['BootsAuth']) # make a copy
+        self.logger.debug("auth-config %s", new_val)
+        conf = dict(new_val) # make a copy
         # update some config_obj if not already set
         conf.setdefault('logins', [('demo', 'demo')])     
-        conf.setdefault('open_urls', self.openurls)
+        self.openurls = conf['open_urls'] = list(set(conf.setdefault('open_urls', []) + self.openurls)) # this will be additive for all auth sections. Making them unique
         conf['template'] = template
+        conf.pop('auth_class_key')
         conf.pop('beaker', None) # remove beaker from the copied conf
         conf.pop('caching', None) # remove caching from the copied conf
         conf.pop('key', None) # remove auth cookie key from copied conf
         self.app = self.AuthClass(self.app, **conf)
         
         # a persistent, cookie based session
-        self.app = bkmw.SessionMiddleware(self.app, 
-                                          config_obj['BootsAuth']['beaker'], 
-                                          environ_key=config_obj['BootsAuth']['session_key'])
+        self.app = bkmw.SessionMiddleware(self.app, new_val['beaker'], environ_key=new_val['session_key'])
         
-        logging.getLogger().debug('Auth config updated. Open urls %s', self.openurls)
+        logging.getLogger().debug('Auth config updated for %s. Open urls %s', '.'.join(full_key), self.openurls)
     
     def session_config_update(self, action, full_key, new_val, config_obj):
         '''
         Called by Config to update the session Configuration.
         '''
-        for s in self.session_configs:
-            self.app = bkmw.SessionMiddleware(self.app, config_obj[s], environ_key=config_obj[s].get('session.key', s))
-            
-        logging.getLogger().debug('Session config updated')
+        self.app = bkmw.SessionMiddleware(self.app, new_val, environ_key=new_val.get('session.key', full_key[-1]))
+        logging.getLogger().debug('Session config updated for %s', '.'.join(full_key))
     
     def cache_creator(self, caching_config):
         return bkcache.CacheManager(**bkutil.parse_cache_config_options(caching_config))
@@ -199,8 +227,10 @@ class HTTPServer(HTTPBaseServer):
         '''
         Called by Config to update the Cache Configuration.
         '''
-        self.cache = self.cache_creator(config_obj['Caching'])
-        logging.getLogger().debug('Cache config updated')
+        sanitized_config = dict(new_val)
+        cache_name = sanitized_config.pop('cache_name', 'cache')
+        setattr(self, cache_name, self.cache_creator(sanitized_config))
+        logging.getLogger().debug('Cache config updated for %s available in self.%s with type %s', '.'.join(full_key), cache_name, type(getattr(self, cache_name)))
     
     def template_config(self, action, full_key, new_val, config_obj):
         self.logger.debug("Template Config updated for %s", full_key)
@@ -210,9 +240,6 @@ class HTTPServer(HTTPBaseServer):
         for path in sub_config_obj.get("template_paths", []):
             self.add_template_path(path)
             
-    def social_config(self, action, full_key, new_val, config_obj):
-        pass
-        
     def get_standard_plugins(self, plugins):
         '''
         get_standard_plugins returns a list of plugins that will be associated with every HTTPServerEndPoint 
