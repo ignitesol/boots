@@ -196,10 +196,10 @@ class HTTPServer(HTTPBaseServer):
             self.logger.warning('Ignoring template file error %s', e)
             template = None
             
-        self.logger.debug("auth-config %s", new_val)
         conf = dict(new_val) # make a copy
-        # update some config_obj if not already set
-        conf.setdefault('logins', [('demo', 'demo')])     
+        conf['logins'] = [ tuple(s.split(':', 1)) for s in conf.get('logins', [])]
+        self.logger.debug("auth-config login %s", conf['logins'])
+        
         self.openurls = conf['open_urls'] = list(set(conf.setdefault('open_urls', []) + self.openurls)) # this will be additive for all auth sections. Making them unique
         conf['template'] = template
         conf.pop('auth_class_key')
