@@ -372,7 +372,6 @@ class ClusterDAL(ClusterORM):
         except OperationalError as e:
             raise e
         except Exception as e1:
-            print e1
             sess.rollback()
         return server_id
         

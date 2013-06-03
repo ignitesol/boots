@@ -21,7 +21,6 @@ Refer to :doc:`tutorial` for further examples.
 '''
 from boots import concurrency
 import ast
-from pprint import pprint
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -145,7 +144,7 @@ class RequestParams(BasePlugin):
         f_args, _, _, f_defaults = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
         if f_defaults is None: f_defaults = []
         f_args = list(filter(lambda x: x != 'self', f_args))
-        mandatory_args, optional_args = f_args[:-len(f_defaults)], f_args[-len(f_defaults):]
+        mandatory_args, optional_args = (f_args[:-len(f_defaults)], f_args[-len(f_defaults):]) if len(f_defaults) is not 0 else (f_args, [])
         method = context['method']
 
         @wraps(callback)
@@ -178,7 +177,6 @@ class RequestParams(BasePlugin):
                     missing_params += [m]
             if len(missing_params) != 0:
                 bottle.abort(400, 'Missing parameters: {}'.format(", ".join(missing_params)))
-            #logging.getLogger().debug("id of cluster_ds just before callback  : %s", id(kargs.get('cluster_ds')) if kargs.get('cluster_ds') else None )
             return callback(*args, **kargs)
         
         self.plugin_post_apply(callback, wrapper)

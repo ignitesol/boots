@@ -53,8 +53,8 @@ class Server(object):
     #: Each element of the dot.seperated.key forms a Section/Subsection of the config structure.
     #: For example ( 'Logging.formatters.detailed.format', '%(message)s' ) implies
     #: changing config['Logging']['formatters']['detailed']['format'] = '%(message)s'
-    config_overrides = [ ('Logging.formatters.detailed.format', '%(levelname)s:%(asctime)s:[%(process)d:%(thread)d]:%(funcName)s: %(message)s'),
-                        ] # override the logging format 
+#    config_overrides = [ ('Logging.formatters.detailed.format', '%(levelname)s:%(asctime)s:[%(process)d:%(thread)d]:%(funcName)s: %(message)s'),
+#                        ] # override the logging format 
     
     def __init__(self, name=None, endpoints=None, parent_server=None, **kargs):
         '''
@@ -258,7 +258,7 @@ class Server(object):
         root_module = getattr(self, "root_module", None)
         if not root_module:
             root_module = inspect.stack()[-1][1]
-            warn('Did not find Server.root_module. Using %s' % (root_module,))
+#            warn('Did not find Server.root_module. Using %s' % (root_module,))
         root_module = os.path.abspath(root_module)
         path_subset = [ os.path.abspath(s) for s in sys.path if root_module.startswith(os.path.abspath(s)) and os.path.exists(os.path.join(os.path.abspath(s), '..', subdir)) ]
         try:
@@ -272,7 +272,7 @@ class Server(object):
             root_module = getattr(self, "root_module", None)
             if not root_module:
                 root_module = inspect.stack()[-1][1]
-                warn('Did not find Server.root_module. Using %s' % (root_module,))
+#                warn('Did not find Server.root_module. Using %s' % (root_module,))
             stem = os.path.splitext(os.path.basename(root_module))[0]
             config_file_stem = stem.replace('meta_', '')
             ext = '.ini'
@@ -330,7 +330,6 @@ class Server(object):
             config_overrides = list(reduce(lambda x,y: x+y, self._mro_classattribute_get('config_overrides'), []))
         
         config_files = [ self._get_config_files(conf_dir, f) for f in config_files ]
-        print config_files, config_overrides
         
         self.config = ServerConfig(config_files=config_files, 
                                    overrides=config_overrides, callbacks=config_callbacks,
