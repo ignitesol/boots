@@ -18,6 +18,7 @@ import re
     
 import logging
 from boots.endpoints.endpoint import EndPoint
+import cookielib
 
 class Header(dict):
     ''' Header is a helper class to allow easy additions of headers. Primarily, this formats multi-value headers 
@@ -95,19 +96,43 @@ class Response(object):
     *data* and *headers* (this is a Headers object) and *raw_headers* which provides headers as returned
     by the request
     '''
-    def __init__(self, data, headers):
+    def __init__(self, response):
         '''
-        :param data: The data given by response.read()
+        :param response: The data returned by the request
         
         :param headers: The response info given by response.info()
         '''
         
-        #: self.data: contains the response (already read()) 
-        self.data = data
-        
-        #: self.headers: contain the headers of the response
-        self.raw_headers = headers
+        self.response = response
+        self._data = None
+        self._raw_headers = None
         self._headers = None
+        self._cookies = None
+        
+    def duplicate(self):
+        ret = Response(None)
+        ret._data = self.data()
+        ret._raw_headers = self.info()
+        ret._cookies = self.cookies()
+        return ret
+    
+    @property
+    def data(self):
+        if self._data is None:
+            self._data = self.response.read()
+        return self._data
+    
+    @data.setter
+    def data(self, value):
+        self._data = value
+        
+    def read(self):
+        return self.data
+    
+    def info(self):
+        if self._raw_headers is None:
+            self._raw_headers = self.response.info()
+        return self._raw_headers
     
     def __repr__(self, *args, **kwargs):
         return "Data:{}, Headers:{}".format(self.data, self.headers)
@@ -119,7 +144,7 @@ class Response(object):
         trailing \r and \n are removed from each header
         '''
         if self._headers == None:
-            head = StringIO.StringIO(self.raw_headers)
+            head = StringIO.StringIO(self.info())
             self._headers = Header()
             
             for s in head:
@@ -129,9 +154,11 @@ class Response(object):
 
         return self._headers
     
-    def info(self):
-        return self.raw_headers
-        
+#    @property
+#    def cookies(self):
+#        if self._cookies is None:
+#            self._cookies = cookielib.CookieJar()
+#        return self._cookies.make_cookies(self.response, None)
     
     def extract_headers(self, keys=None, header=None):
         '''
@@ -144,7 +171,7 @@ class Response(object):
         if not keys:
             header.update(self.headers)
         else:
-            if not hasattr(keys, '__iter__'): keys = [ keys ]  # if single key specified, make it a list
+            if type(keys) is str: keys = [ keys ]  # if single key specified, make it a list
             for k in keys:
                 regexp = re.compile(k, flags=re.IGNORECASE)
                 header.update(filter(lambda item: regexp.match(item[0]), self.headers.iteritems()))
@@ -157,7 +184,10 @@ class Response(object):
         can also be a single key, i.e not a list
         '''
         cookies = self.extract_headers('Set-Cookie')
-        # TODO: obtain the cookies by splitting, extract the correct keys
+        # TODO: obtain the cookies by splitting, extract the correct keys]
+        return cookies
+            
+
             
 def dejsonify_response(func):
     '''
@@ -210,7 +240,10 @@ class HTTPClientEndPoint(EndPoint):
         self.headers = Header(headers or {})
         self.method = method.upper()
         self.origin_req_host = origin_req_host
-        
+        self.server = server
+        self.cj = cookielib.CookieJar()
+        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj))
+
     def _construct_url(self, url=None, data=None, headers=None, method=None):
         '''
         Constructs the url from the given url, data, headers and method.
@@ -242,9 +275,11 @@ class HTTPClientEndPoint(EndPoint):
             # urllib2 doesn't support DELETE/PUT, so we are patching this object instance of request to support it
             if method.upper() not in ['POST', 'GET']:
                 request.get_method = lambda: method
-            with closing(urllib2.urlopen(request)) as req:
-                rv = Response(data=req.read(), headers=req.info())
-                return rv
+#            with closing(self.opener.open(request)) as req:
+#                rv = Response(req)
+#                return rv
+            req = self.opener.open(request) # not closing it right away since the response would have got closed
+            return Response(req)
         except urllib2.HTTPError as err:
             logging.getLogger().exception('HTTPError: %d, url:%s, data:%s, headers:%s, origin_req_host:%s', err.code, url, data, headers, self.origin_req_host)
             # FIXME: change logging to warning.warn
@@ -445,6 +480,7 @@ class HTTPAsyncClient(HTTPClientEndPoint, threading.Thread):
             
 if __name__ == '__main__':
     
+    import pprint
     def success(rv): 
         print rv
         
@@ -452,15 +488,24 @@ if __name__ == '__main__':
         print err
     
     headers = Header()
-    headers['Cookie'] = 'helloworld=123'
-    headers['Cookie'] = 'shakesphere=123456'
+    req = HTTPClientEndPoint(method='GET')
+    for i in range(5):
+        print 'making request to localhost:9999', i
+        resp = req.request('http://localhost:9999/index')
+        print 'got response', resp.data
+        print 'got cookies', resp.extract_cookies()
+    
+    resp = HTTPClientEndPoint(method='GET').request('http://anand.ignitelabs.local')
+    print 'got response', resp.data
+    print 'got cookies', resp.extract_cookies()
+    
 #    print 'get_request', HTTPClientEndPoint(method='GET').request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
 #    print 'post_request', HTTPClientEndPoint().request('http://localhost:9000/poster', headers=headers, a=10, b='hello', c=1.2)
 #    print 'json_in_request', HTTPClientEndPoint().json_in_request('http://localhost:9000/jsonin', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
 #    print 'json_out_request', HTTPClientEndPoint().json_out_request('http://localhost:9000/jsonout', headers=headers, a=10, b='hello', c=1.2)
 #    print 'json_inout_request', HTTPClientEndPoint().json_inout_request('http://localhost:9000/jsoninout', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
 #    
-    for i in range(5):
-        HTTPAsyncClient(method='GET', onsuccess=success, onerror=error).request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
-        print 'done', i
-        
+#    for i in range(5):
+#        HTTPAsyncClient(method='GET', onsuccess=success, onerror=error).request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
+#        print 'done', i
+#        

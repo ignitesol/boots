@@ -117,8 +117,7 @@ class HTTPServer(HTTPBaseServer):
     config_callbacks = { }  # we can set these directly out of the class body or in __init__
 
     def __init__(self,  name=None, endpoints=None, parent_server=None, mount_prefix='',
-                 session=False, cache=False, auth=False, handle_exception=False,
-                 openurls=[], **kargs):
+                 session=False, cache=False, auth=False, handle_exception=False, **kargs):
         '''
         :params bool session: controls whether sessions based on configuration ini should be instantiated. sessions
             will be available through the HTTPServerEndPoint. If a string, implies the name of the config section. If session is a list of strings, 
@@ -171,7 +170,6 @@ class HTTPServer(HTTPBaseServer):
         
         self.login_templates = {}
         self.handle_exception = handle_exception
-        self.openurls = getattr(self, 'openurls', openurls)
 #        self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
     
@@ -200,7 +198,7 @@ class HTTPServer(HTTPBaseServer):
         conf['logins'] = [ tuple(s.split(':', 1)) for s in conf.get('logins', [])]
         self.logger.debug("auth-config login %s", conf['logins'])
         
-        self.openurls = conf['open_urls'] = list(set(conf.setdefault('open_urls', []) + self.openurls)) # this will be additive for all auth sections. Making them unique
+        conf['open_urls'] = list(set(conf.setdefault('open_urls', []))) # Making them unique
         conf['template'] = template
         conf.pop('auth_class_key')
         conf.pop('beaker', None) # remove beaker from the copied conf
@@ -211,7 +209,7 @@ class HTTPServer(HTTPBaseServer):
         # a persistent, cookie based session
         self.app = bkmw.SessionMiddleware(self.app, new_val['beaker'], environ_key=new_val['session_key'])
         
-        logging.getLogger().debug('Auth config updated for %s. Open urls %s', '.'.join(full_key), self.openurls)
+        logging.getLogger().debug('Auth config updated for %s. Open urls %s', '.'.join(full_key), conf['open_urls'])
     
     def session_config_update(self, action, full_key, new_val, config_obj):
         '''

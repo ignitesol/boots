@@ -6,12 +6,17 @@ from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute
 
 class EP(HTTPServerEndPoint):
     
+    @methodroute(path='/index', param=dict(name=str))
+    def index(self, name):
+        return "hello %s" % (name or 'world')
+    
 #We can specify request parameters and their data types in @methodroute
 #val=bool evaluates to True for any non empty value and False otherwise.
 #RequestParams is available implicitly with HTTPServer and it uses 'params' from @methodroute to get parameters.
-    @methodroute(path="/params", params=dict(name=str, val=bool))
-    def params(self, name, val):
+    @methodroute(params=dict(name=str, val=bool))
+    def echo(self, name, val):
         print name, val
+        return dict(name=name, val=val)
  
 #We are able to add two integer parameters without parsing and splitting the url to get parameter values
 #Also, the data type is specified in @methodroute. 

@@ -1,9 +1,3 @@
-'''
-Created on 18-Oct-2011
-
-@author: harsh
-'''
-    
 from barrel.form import FormAuth
 import re
 from string import Template
@@ -67,10 +61,7 @@ class SimpleAuth(FormAuth):
         @type session_key: str
         
         :param remote_user_key: optional. If specified, indicates the environ key in which the authenticated user information is stored. Defaults to REMOTE_USER 
-        
-        @param oauth_callback_urls: A list of paths (optional) that are special since these obtain the response
-        from the social network callbacks and will put the REMOTE_USER into the environment. 
-        If this parameter is not specified, the OAuthMixin does not do anything and the basic FormAuth processing takes place
+
         '''
         self.unsecure_urls = open_urls or []
         self.unsecure_compiled_urls = [ re.compile(p) for p in self.unsecure_urls ]
@@ -136,6 +127,7 @@ class SimpleAuth(FormAuth):
         
         # determine if the url is unsecure
         if list(filter(None, [ p.search(path) for p in self.unsecure_compiled_urls ])) != []:
+            logging.getLogger().debug('Authenticator %s: Skipping open url %s', type(self), path)
             return self.app(environ, start_response)
         
         # invoke barrel
