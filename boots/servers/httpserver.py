@@ -186,7 +186,7 @@ class HTTPServer(HTTPBaseServer):
             template = None
             if login_template != '':
                 login_template = DirUtils().resolve_path(base_dir=config_obj['_proj_dir'], path=login_template)
-            self.login_templates['.'.join(full_key)] = template = Template(DirUtils().read_file(login_template, None))
+                self.login_templates['.'.join(full_key)] = template = Template(DirUtils().read_file(login_template, None))
         except ValueError as e:
             self.logger.warning('Template dir is not within the project root: %s. Ignoring', login_template)
             template = None

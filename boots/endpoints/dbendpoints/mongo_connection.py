@@ -65,6 +65,7 @@ class _PyMongoConnectionFactory(object):
             connection = _PyMongoConnectionFactory.connection_pool[mongoconfig.connection_string]
         except KeyError:
             connection = MongoClient(mongoconfig.connection_string, mongoconfig.port, mongoconfig.pool_size)
+            _PyMongoConnectionFactory.connection_pool[mongoconfig.connection_string] = connection
         return connection
     
     
@@ -75,7 +76,7 @@ class MongoEndPoint(EndPoint):
     It create connection pool to the mongo database with the given user configurations
     
     LibType : Defines the whether we use PyMongo or MongoAlchemy. 
-    Its application's responsibility to to be able to use the respective library appropriately. Depneding on 
+    Its application's responsibility to to be able to use the respective library appropriately. Depending on 
     whether it is using PyMongo or MongoAlchemy
     '''
     def __init__(self, mongoconfig, libtype=LibType.mongoalchemy, **kwargs):
