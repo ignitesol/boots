@@ -64,6 +64,7 @@ class InstancedScheduler(NamespaceSingleton, threading.Thread):
             for tm, cb, idn in self._task_heap:
                 if idn is job_id: 
                     return (tm, cb, idn)
+            return (None, None, None)
                 
     
     def cancel(self, idn):

@@ -125,6 +125,8 @@ class SimpleAuth(FormAuth):
         
         path =   environ.get('SCRIPT_NAME', '') + ("" if environ.get('SCRIPT_NAME', '')[-1:] == '/' else '/') + environ.get('PATH_INFO', '')
         
+        #logging.getLogger().debug('Authenticator %s: checking open url %s against %s', type(self), path, self.unsecure_urls)
+        
         # determine if the url is unsecure
         if list(filter(None, [ p.search(path) for p in self.unsecure_compiled_urls ])) != []:
             logging.getLogger().debug('Authenticator %s: Skipping open url %s', type(self), path)

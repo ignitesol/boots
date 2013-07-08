@@ -138,6 +138,18 @@ class RequestParams(BasePlugin):
         for other in app.plugins:
             if isinstance(other, RequestParams):
                 raise bottle.PluginError("Found another RequestParams plugin")
+            
+    @staticmethod
+    def boolean(val):
+        '''
+        Helper Function for params() for converting str to bool. For example, params=dict(force=boolean)
+        '''
+        value = False
+        try:
+            value = bool(ast.literal_eval(val))
+        except Exception:
+            pass
+        return value
 
     def apply(self, callback, context):
         params = context['config'].get('params', {})
@@ -166,6 +178,7 @@ class RequestParams(BasePlugin):
                     value = req_params.get(arg)
                     try:
                         if value is not None:
+                            if converter == bool: converter = self.boolean
                             value = converter(value)
                     except ValueError, Exception: 
                         bottle.abort(400, 'Wrong parameter format for: {}'.format(arg))
@@ -181,13 +194,6 @@ class RequestParams(BasePlugin):
         
         self.plugin_post_apply(callback, wrapper)
         return wrapper
-    
-    @staticmethod
-    def boolean(val):       
-        '''
-        Helper Function for params() for converting str to bool. For example, params=dict(force=boolean)
-        '''
-        return bool(ast.literal_eval(val))
 
     @staticmethod
     def compose(f, g):
