@@ -24,8 +24,8 @@ function IOConnectionEndpoint(_context, _onconnect) {
                  'websocket'
               // , 'flashsocket'
               // , 'htmlfile'
-              // , 'xhr-polling'
-              // , 'jsonp-polling'
+               , 'xhr-polling'
+               , 'jsonp-polling'
             ]);
 	 	
 	 	io.sockets.on('connection', connection_callback);
