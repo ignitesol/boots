@@ -160,6 +160,7 @@ function IORoomEndpoint(_io, _name) {
 	var io = _io
 	  , name = _name
 	  , clients = {}
+      , _data = {}
 	  ;
 	
 	/**
@@ -223,6 +224,7 @@ function IORoomEndpoint(_io, _name) {
 	  , get clients() { return _clients(); }
 	  , get close() { return _close; }
 	  , get has() { return _has_client; }
+      , get data() { return _data; }
 	}
 	
 	// inheritance
