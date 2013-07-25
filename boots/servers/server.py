@@ -335,7 +335,6 @@ class Server(object):
                                    overrides=config_overrides, callbacks=config_callbacks,
                                    env_config=dict(_proj_dir=self._get_proj_dir()))
         
-        
     def stats(self):
         ''' default handlers for stats. Does nothing and returns an empty dict. Typically overridden by 
         ManagedServer
@@ -400,5 +399,4 @@ class Server(object):
             logging.exception(e)
             warn('Cannot instantiate logging: %s' % (e,))
         self.logger.debug("Logging Config Updated.")
-
 

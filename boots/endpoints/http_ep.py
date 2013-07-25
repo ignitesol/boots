@@ -21,6 +21,7 @@ Refer to :doc:`tutorial` for further examples.
 '''
 from boots import concurrency
 import ast
+from boots.endpoints.httpclient_ep import Header
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -603,29 +604,6 @@ class HTTPServerEndPoint(EndPoint):
     def logger(self):
         try:
             logger = self.server.logger.getChild(self.name)
-#            try:
-#                if callable(logger.getInfo):
-#                    logger.critical("Logger Info:%s", logger.getInfo())
-#            except Exception as e:
-#                logger.exception("%s",e)
-
-#            logger.level = logging.DEBUG
-#            logger.propagate = 0
-#            handler = logging.FileHandler(os.path.join(self.server.config["Logging"]["logs"], self.name+".log"))
-#            frmt = logging.Formatter(self.server.config['Logging']['formatters']['detailed']['format'])
-#            handler.setFormatter(frmt)
-#            logger.addHandler(handler)
-#            logger.debug("Repo Server Loggers:%s",logging.Logger.manager.loggerDict) #@UndefinedVariable
-
-#            try:
-#                logger.debug("All Loggers:%s",logging.Logger.manager.getLoggerDict()) #@UndefinedVariable
-#                logger.debug("All Loggers Config:%s",self.server.config['Logging']['loggers']) #@UndefinedVariable
-#                logger.debug("Server Logger:%s, type:%s, name:%s",str(self.server.logger.getInfo()), type(self.server.logger), self.server.logger.name) #@UndefinedVariable
-#                logger.debug("Real Server Config:%s", self.server.config['Logging']['loggers'].get(self.server.logger.name, "Not Present"))
-#                logger.debug("Endpoint Logger:%s, type:%s, name:%s",str(logger.getInfo()), type(logger), logger.name) #@UndefinedVariable
-#                logger.debug("Real Endpoint Config:%s", self.server.config['Logging']['loggers'].get(logger.name, "Not Present"))
-#            except:
-#                logger.debug("Logger info printing failed")
         except:
             logger = logging.getLogger()
             logger.exception("Returning root logger")
@@ -742,6 +720,19 @@ class HTTPServerEndPoint(EndPoint):
         '''
         return bottle.request.environ
     
+    def get_cookies(self, keys, header=None):
+        '''
+        Adds a authentication cookie to the Header object and return it.
+        
+        :param keys: a list of keys that na 
+        :return: Header object
+        '''
+        headers = header or Header()
+        if keys:
+            for key in keys:
+                headers['Cookie'] = '%s=%s'%(key, bottle.request.COOKIES.get(key,''))
+        return headers
+
     @property
     def cookies(self):
         ''' 

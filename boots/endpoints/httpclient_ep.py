@@ -26,7 +26,9 @@ class Header(dict):
         
         Header supports all standard dict operations
     '''
-        
+       
+    #FIXME: do we need __eq__ and __hash__?
+     
     def __init__(self, *args, **kargs):
         self.update(*args, **kargs)
 
@@ -236,7 +238,7 @@ class HTTPClientEndPoint(EndPoint):
         
         super(HTTPClientEndPoint, self).__init__(server=server)
         self.url = url
-        self.data = data
+        self.data = data or {}
         self.headers = Header(headers or {})
         self.method = method.upper()
         self.origin_req_host = origin_req_host
