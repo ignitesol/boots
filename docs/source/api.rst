@@ -4,59 +4,29 @@
 API Reference
 ==========================
 	
-This is an auto-generated API Reference documentation. If you are new to :doc:`fabric <intro>` you might want to read the :doc:`intro`
+This is an auto-generated API Reference documentation. If you are new to :doc:`boots <intro>` you might want to read the :doc:`intro`
 
 .. _Servers:
 
-Servers
-=======
-.. automodule:: fabric.servers.server
-
-.. autoclass:: Server
-	:members: 
-	
-HTTPServer
-----------
-.. automodule:: fabric.servers.httpserver
-
-.. autoclass:: HTTPServer
-	:members: 
 
 
-ManangedServer
----------------
-.. automodule:: fabric.servers.managedserver
+.. toctree::
+   :maxdepth: 3
+   
+   servers
+   
 
-.. autoclass:: ManagedServer
-	:members: 
-	
-.. autoclass:: ManagedEP
-	:members:
-
-
-ZMQServer
----------------
-.. automodule:: fabric.servers.zmqserver
-    :members:
-
-.. autoclass:: ZMQServer
-    :members:
-        
- HybridServer
- --------------
- -- automodule:: fabric.servers.hybrid
- 	:members:
 
 Endpoints
 =========
-.. automodule:: fabric.endpoints.endpoint
+.. automodule:: boots.endpoints.endpoint
 
 .. autoclass:: EndPoint
 .. autoclass:: EndPointException
 
 HTTP Server End Points
 -----------------------
-.. automodule:: fabric.endpoints.http_ep
+.. automodule:: boots.endpoints.http_ep
 
 .. autoclass:: HTTPServerEndPoint
 	:members: activate, request, request_params, environ, response, abort, session
@@ -83,7 +53,7 @@ Handy Plugins
 
 ZMQ Server End Points
 -----------------------
-.. automodule:: fabric.endpoints.zmqendpoints.zmq_base
+.. automodule:: boots.endpoints.zmqendpoints.zmq_base
 
 .. autoclass:: ZMQBaseEndPoint
 	:members:
@@ -99,7 +69,7 @@ Handy Plugins
 .. autoclass:: ZMQBasePlugin
     :members: 
     
-.. automodule:: fabric.endpoints.zmqendpoints.zmq_endpoints
+.. automodule:: boots.endpoints.zmqendpoints.zmq_endpoints
 
 .. autoclass:: ZMQJsonReply
     :members:
@@ -115,7 +85,7 @@ Handy Plugins
 
 HTTP Client End Points
 -----------------------
-.. automodule:: fabric.endpoints.httpclient_ep
+.. automodule:: boots.endpoints.httpclient_ep
 
 .. autoclass:: HTTPClientEndPoint
 	:members:
@@ -143,3 +113,23 @@ These decorators may be composed.
 .. autofunction:: dejsonify_response
 
 .. autofunction:: jsonify_request
+
+
+Plugins
+========
+.. autoclass:: boots.endpoints.http_ep.BasePlugin
+	:members:
+	
+.. autoclass:: boots.endpoints.http_ep.RequestParams
+	:members:
+	
+.. autoclass:: boots.endpoints.http_ep.WrapException
+	:members:
+	
+.. autoclass:: boots.endpoints.http_ep.Tracer
+	:members:
+
+.. autoclass:: boots.endpoints.http_ep.Hook
+	:members:
+		
+	
