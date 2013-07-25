@@ -238,7 +238,7 @@ class HTTPClientEndPoint(EndPoint):
         
         super(HTTPClientEndPoint, self).__init__(server=server)
         self.url = url
-        self.data = data or {}
+        self.data = data
         self.headers = Header(headers or {})
         self.method = method.upper()
         self.origin_req_host = origin_req_host
