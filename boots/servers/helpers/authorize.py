@@ -129,7 +129,7 @@ class SimpleAuth(FormAuth):
         
         # determine if the url is unsecure
         if list(filter(None, [ p.search(path) for p in self.unsecure_compiled_urls ])) != []:
-            logging.getLogger().debug('Authenticator %s: Skipping open url %s', type(self), path)
+            #logging.getLogger().debug('Authenticator %s: Skipping open url %s', type(self), path)
             return self.app(environ, start_response)
         
         # invoke barrel

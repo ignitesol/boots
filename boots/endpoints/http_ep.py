@@ -22,6 +22,7 @@ Refer to :doc:`tutorial` for further examples.
 from boots import concurrency
 import ast
 from boots.endpoints.httpclient_ep import Header
+from datetime import datetime
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -216,7 +217,7 @@ class Hook(BasePlugin):
     is provided context such as the url, arguments, the callback method/function and a request context to correlate inbound requests with their corresponding
     responses.
     '''
-    request_counter = new_counter() # allows requests and responses to be correlated
+    
     
     def create_request_context(self, callback, url, **kargs):
         return (self.request_counter(), getattr(callback, '_callback_obj', None) or getattr(callback, 'imself', None))
@@ -244,6 +245,7 @@ class Hook(BasePlugin):
         @param handler: a function that should have a signature similar to :py:meth:`handler`. If none, the hook invokes
             self.handler. The handling method may be overridden by overriding it in a subclass or explicitly passing it as an argument        
         '''
+        self.request_counter = new_counter() # allows requests and responses to be correlated
         if handler:
             self.handler = handler
                
@@ -282,7 +284,7 @@ class Tracer(Hook):
     
     Multiple instances of Tracer may be instantiated and will be called in callback plugin order 
 
-    With HTTPServers, Tracer is automatically instantiated if enabled in configuraiton files and can directly be used. 
+    With HTTPServers, Tracer is automatically instantiated if enabled in configuration files and can directly be used. 
     It is governed by specific configuration settings (see :py:class:`HTTPServer`)
     '''
     
@@ -290,11 +292,15 @@ class Tracer(Hook):
         req_count, _ = request_context
         if filter(None, [ regex.match(url) for regex in self.tracer_paths ]) != []:
             if before_or_after == 'before':
+                self.local_context[req_count] = datetime.now()
                 logging.getLogger().debug('Request: %s. url = %s, %s', req_count, url, kargs)
             elif exception:
-                logging.getLogger().debug('Response: %s. Exception = %s. [ url = %s, %s ]', req_count, exception, url, kargs)
+                delta = datetime.now() - self.local_context.pop(req_count)
+                logging.getLogger().debug('Response: %s. Time Taken: %s sec, %s millisec. Exception = %s. [ url = %s, %s ]', 
+                                          req_count, delta.seconds, delta.microseconds * 1.0/1000, exception, url, kargs)
             else:
-                logging.getLogger().debug('Response: %s. Result = %s. [ url = %s, %s ]', req_count, result, url, kargs)
+                delta = datetime.now() - self.local_context.pop(req_count)
+                logging.getLogger().debug('Response: %s. Time Taken: %s sec, %s millisec. [ url = %s, %s ]', req_count, delta.seconds, delta.microseconds*1.0/1000, url, kargs)
         return result # just return what we got as result so it can be passed on
         
     def __init__(self, tracer_paths=['.*'], handler=None):
@@ -305,6 +311,7 @@ class Tracer(Hook):
         if tracer_paths and type(tracer_paths) not in [ list, tuple ]:
             tracer_paths =  [ tracer_paths ]
         self.tracer_paths = map(re.compile, tracer_paths or [])
+        self.local_context = {}
         super(Tracer, self).__init__(handler=handler)
         
 class View(Hook):
