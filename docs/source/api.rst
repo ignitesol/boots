@@ -4,49 +4,33 @@
 API Reference
 ==========================
 	
-This is an auto-generated API Reference documentation. If you are new to :doc:`fabric <intro>` you might want to read the :doc:`intro`
+This is an auto-generated API Reference documentation. If you are new to :doc:`boots <intro>` you might want to read the :doc:`intro`
 
 .. _Servers:
 
-Servers
-=======
-.. automodule:: fabric.servers.server
-
-.. autoclass:: Server
-	:members: 
-	
-HTTPServer
-----------
-.. automodule:: fabric.servers.httpserver
-
-.. autoclass:: HTTPServer
-	:members: 
 
 
-ManangedServer
----------------
-.. automodule:: fabric.servers.managedserver
+.. toctree::
+   :maxdepth: 3
+   
+   servers
+   
 
-.. autoclass:: ManagedServer
-	:members: 
-	
-.. autoclass:: ManagedEP
-	:members:
 
 Endpoints
 =========
-.. automodule:: fabric.endpoints.endpoint
+.. automodule:: boots.endpoints.endpoint
 
 .. autoclass:: EndPoint
 .. autoclass:: EndPointException
 
 HTTP Server End Points
 -----------------------
-.. automodule:: fabric.endpoints.http_ep
+.. automodule:: boots.endpoints.http_ep
 
 .. autoclass:: HTTPServerEndPoint
 	:members: activate, request, request_params, environ, response, abort, session
-
+ 
 Route Decorator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -67,14 +51,51 @@ Handy Plugins
 	
 .. autoclass:: Tracer
 
+ZMQ Server End Points
+-----------------------
+.. automodule:: boots.endpoints.zmqendpoints.zmq_base
+
+.. autoclass:: ZMQBaseEndPoint
+	:members:
+	
+.. autoclass:: ZMQEndPoint
+	:members:
+
+.. autoclass:: ZMQListenEndPoint
+	:members:
+
+Handy Plugins
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: ZMQBasePlugin
+    :members: 
+    
+.. automodule:: boots.endpoints.zmqendpoints.zmq_endpoints
+
+.. autoclass:: ZMQJsonReply
+    :members:
+ 
+.. autoclass:: ZMQJsonRequest
+    :members:
+
+.. autoclass:: ZMQCoupling
+    :members:
+
+.. autoclass:: ZMQCallbackPattern
+	:members:
+
 HTTP Client End Points
 -----------------------
-.. automodule:: fabric.endpoints.httpclient_ep
+.. automodule:: boots.endpoints.httpclient_ep
 
-.. autoclass:: HTTPClient
+.. autoclass:: HTTPClientEndPoint
 	:members:
 
 .. autoclass:: HTTPAsyncClient
+
+.. autoclass:: Header
+
+.. autoclass:: HTTPUtils
+	:members:
 
 Related Classes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -92,3 +113,23 @@ These decorators may be composed.
 .. autofunction:: dejsonify_response
 
 .. autofunction:: jsonify_request
+
+
+Plugins
+========
+.. autoclass:: boots.endpoints.http_ep.BasePlugin
+	:members:
+	
+.. autoclass:: boots.endpoints.http_ep.RequestParams
+	:members:
+	
+.. autoclass:: boots.endpoints.http_ep.WrapException
+	:members:
+	
+.. autoclass:: boots.endpoints.http_ep.Tracer
+	:members:
+
+.. autoclass:: boots.endpoints.http_ep.Hook
+	:members:
+		
+	
