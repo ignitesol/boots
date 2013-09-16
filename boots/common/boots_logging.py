@@ -8,6 +8,23 @@ import logging
 import re
 from collections import OrderedDict
 
+import logging
+
+# For verbose level logging
+class VerboseLogger(logging.Logger):
+    VERBOSE = 5
+    
+    def __init__(self, name, *args, **kargs):
+        super(VerboseLogger, self).__init__(name, *args, **kargs)
+    
+    # How can we get this to use the formatted logging
+    def verbose(self, message, *args, **kws):
+        self.log(self.VERBOSE, message, *args, **kws) 
+
+logging.addLevelName(VerboseLogger.VERBOSE, 'VERBOSE')
+logging.setLoggerClass(VerboseLogger)
+
+
 class BootsFilter(logging.Filter):
     """
     BootsFilter is a more powerful version of the logging.Filter class.
