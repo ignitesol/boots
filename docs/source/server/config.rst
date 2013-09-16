@@ -1,11 +1,11 @@
 =====================
 Configuration Files 
 =====================
-|  Configuration files are used for server process settings. Boots utilizes config files as specified by ConfigObj_
+Configuration files are used for server process settings. Boots utilizes config files as specified by ConfigObj_
 Config files are searched in project's root directory. 
 ${_proj_dir} can be used in config files to specify a relative path from project's root directory. 
 
- .. _ConfigObj: http://www.voidspace.org.uk/python/configobj.html
+.. _ConfigObj: http://www.voidspace.org.uk/python/configobj.html
  
 
 Location of config files

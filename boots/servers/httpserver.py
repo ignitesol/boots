@@ -1,6 +1,6 @@
 '''
 :py:class:`HTTPBaseServer` provides the appropriate execution environment for :py:class:`HTTPServerEndPoints`
-including basic argument processing, activating all endpoints and starting up the server (using bottle_)
+including basic argument processing, activating all endpoints and starting up the server (using bottle)
 
 :py:class:`HTTPServer` builds on HTTPServer to provide HTTP parameter processing,
 basic exception handling for requests, session, cache and authorization for the server.

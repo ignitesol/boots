@@ -11,8 +11,8 @@ Adding before start of server
 ------------------------------
 
 Endpoints can be added while instantiating a server as shown below.
-This enables the endpoint to receive requests at start of the server itself. 
-::
+This enables the endpoint to receive requests at start of the server itself::
+
 	class EP(HTTPServerEndPoint):
 		pass
 	

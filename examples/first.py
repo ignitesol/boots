@@ -9,11 +9,7 @@ In this example, we demonstrate a simple http server with one endpoint and one r
 import sys
 import os
 import logging
-try:
-    import boots
-except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # this is unnecessary if boots is installed in the site-packages or in PYTHONPATH
-
+import boots
 from boots.servers.httpserver import HTTPServer
 from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute    
     
