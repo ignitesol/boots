@@ -65,12 +65,11 @@ class EP(HTTPServerEndPoint):
         name = name or self.session.get('name', None) or 'world'  # the name is passed as an argument or obtained from the session
         self.session['name'] = name
         self.session['count'] = self.session.get('count', 0) + 1
-        print self.session
 
         return 'hello %s - you have called me %d times' % (capitalize(name), self.session['count'])
     
 
-main_server = HTTPServer(endpoints=[EP()], session=True, cache=True, logger=True)
+main_server = HTTPServer(endpoints=[EP()], session=['Session'], cache=['Caching'], logger=True)
 
 if __name__ == '__main__':
     main_server.start_server(defhost='localhost', proj_dir=".", defport=9999, standalone=True, description="A test server for the boots framework")

@@ -712,7 +712,8 @@ class HTTPServerEndPoint(EndPoint):
         returns a session related to this request if one is configured. Else, returns None
         '''
         try:
-            return self.get_session(self.server.config['Session']['session.key'])
+            primary_session = self.server.primary_session
+            return self.get_session(self.server.config.get(primary_session, {}).get('session.key'))
         except KeyError:
             return self.get_session() # default key
     

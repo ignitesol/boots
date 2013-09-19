@@ -235,6 +235,9 @@ class HTTPClientEndPoint(EndPoint):
         :param origin_req_host: refer urllib2.Request
         :param str method: one of 'GET' or 'POST'
         :param Server server: (defaults None). A reference to the server object to which this endpoint belongs to
+        
+        Cookies obtained as a response to the request are stored for subsequent calls allowing easy stateful calling to servers.
+        
         '''
         
         super(HTTPClientEndPoint, self).__init__(server=server)
@@ -302,7 +305,7 @@ class HTTPClientEndPoint(EndPoint):
         
         **Example**::
         
-            HTTPClientEndPoint().get_request('http://www.google.com', q="ignite solutions", method='GET')
+            HTTPClientEndPoint().request('http://www.google.com', q="ignite solutions", method='GET')
 
         '''
         return self._request(url, data=kargs, headers=headers, method=method)

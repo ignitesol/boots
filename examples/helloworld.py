@@ -95,3 +95,5 @@ application = HTTPServer(endpoints=[EP()])
 
 if __name__ == '__main__':
     application.start_server(defhost='localhost', defport=9999, standalone=True, description="A hello world server for the boots framework")
+
+
