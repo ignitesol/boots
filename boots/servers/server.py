@@ -266,14 +266,16 @@ class Server(object):
         root_module = getattr(self, "root_module", None)
         if not root_module:
             root_module = inspect.stack()[-1][1]
-#            warn('Did not find Server.root_module. Using %s' % (root_module,))
+
         root_module = os.path.abspath(root_module)
-        path_subset = [ os.path.abspath(s) for s in sys.path if root_module.startswith(os.path.abspath(s)) and os.path.exists(os.path.join(os.path.abspath(s), '..', subdir)) ]
+
+        path_subset = [ os.path.abspath(s) for s in sys.path if root_module.startswith(os.path.abspath(s)) and 
+                                                                os.path.exists(os.path.join(os.path.abspath(s), '..', subdir)) ]
         try:
             return os.path.abspath(os.path.join(path_subset[0], '..'))
         except IndexError:
-            logging.getLogger().debug('Cannot determine project directory automatically. Defaulting to curr dir %s' % (os.getcwd()))
-            return '.'
+            logging.getLogger().error('Cannot determine project directory automatically. Defaulting to curr dir %s' % (os.getcwd()))
+            return os.path.abspath('.')
         
     def _get_config_files(self, conf_dir, config_file='<auto>'):
         if config_file == '<auto>':
@@ -324,7 +326,7 @@ class Server(object):
         :param bool skip_overrides: controls if override processing should be skipped
         '''
         self.conf_subdir = conf_subdir
-        self._proj_dir = proj_dir or self._get_proj_dir(conf_subdir) or '.'
+        self._proj_dir = os.path.abspath(proj_dir or self._get_proj_dir(conf_subdir) or '.')
         conf_dir = os.path.join(self._proj_dir, conf_subdir)
         
         config_files = [] if config_files is None else [config_files] if type(config_files) not in [list, tuple] else config_files

@@ -152,7 +152,7 @@ class Response(object):
             
             for s in head:
                 key, val = s.split(':', 1) # split at the 1st :
-                val = val.rstrip('\r\n')
+                val = val.rstrip('\r\n').strip()
                 self._headers[key] = val
 
         return self._headers

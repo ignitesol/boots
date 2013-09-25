@@ -374,8 +374,11 @@ class WrapException(BasePlugin):
             qstr = bottle.request.POST if method == 'POST' or method == 'ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
             try:
                 return callback(*args, **kargs)
-            except (bottle.HTTPError, Exception) as err: # let's not handle HTTPError
+            except (bottle.HTTPError): # let's not handle bottle.HTTPError. This means an abort was called
+                raise
+            except (Exception) as err: 
                 logging.getLogger().exception('Exception: %s', err)
+                print err, __file__
                 
                 # FOR DEBUG
                 tb = traceback.extract_tb(sys.exc_info()[2], 2)

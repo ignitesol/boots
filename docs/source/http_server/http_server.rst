@@ -36,7 +36,9 @@ Command Line Arguments
 Using GEvent
 ============
 
-..note:: Needs to be written
+For highly concurrent applications, gevent provides a microthreading library. Boots can easily utilize gevent. To use gevent instead of another python middleware, make sure you do the following as the first line in your primary python file::
+	
+	from boots.use_gevent
 
    http_ep
    methodroute
