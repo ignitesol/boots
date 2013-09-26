@@ -6,10 +6,10 @@ It is best to start learning the *boots* framework through some examples. In thi
 build a few examples that exercise many of the features of the boots framework.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    
    tutorial/helloworld
-   tutorial/http_server
+   tutorial/configrelated
 
 
 		

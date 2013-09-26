@@ -98,12 +98,9 @@ class ServerConfig(Config):
         curr_config = Config(self.dict())
         configspec = self.merged_configspec
         val = Validator()
-        
-        curr_config["Logging"]["formatters"]["detailed"]["format"] = ""     #TODO:Need to find a proper fix
-        
+                
         configuration = Config(curr_config, configspec=configspec, interpolation='template')     # Making new object out of merged config and configspec
         configuration.merge(config)
-        configuration = self.handle_overrides(configuration, overrides=[ ('Logging.formatters.detailed.format', '%(levelname)s:%(asctime)s:[%(process)d:%(thread)d]:%(funcName)s: %(message)s'),])
         config_test = configuration.validate(val, preserve_errors=True)
         if config_test != True:
             logging.getLogger().warning('Update configuration validation not completely successful. Attempting to update with %s. Result is %s',

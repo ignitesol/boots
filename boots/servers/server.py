@@ -3,6 +3,20 @@ Servers are the logical entity that provides services to
 the rest of the system. Servers contain :py:class:`EndPoint`
 through which they communicate (receive and send). 
 
+:py:class:`Server` is the base class for Server based functionality. Subclasses include :py:class:`HTTPServer`
+which adds functionality for HTTP based servers and :py:class:`ManagedServer` which offers additional capabilities
+for configuring and administering servers. Other servers exists or may be added by applications.
+
+An actual server may (but need not) define a subclass of one or more of the Server subclasses. The actual server
+would (to achieve any work) need to instantiate one or more endpoints through which it receives requests.
+
+The Server class provides additional **experimental** capabilities to compose other servers (called sub_servers).
+
+Some of the capabilities provided by the Server include
+
+* command line parameter parsing
+* configuration through config .ini file processing
+* associating callbacks that are invoked when specific sections of the configuration are instantiated or modified
  
 '''
 import sys
@@ -20,20 +34,7 @@ from boots.common.boots_logging import BootsLogging
 
 class Server(object):
     '''
-    :py:class:`Server` :py:module:`ServerDoc` is the base class for Server based functionality. Subclasses include :py:class:`HTTPServer`
-    which adds functionality for HTTP based servers and :py:class:`ManagedServer` which offers additional capabilities
-    for configuring and administering servers. Our intent is to add *ClusteredServer* and other subclasses.
-    
-    An actual server may (but need not) define a subclass of one or more of the Server subclasses. The actual server
-    would (to achieve any work) need to instantiate one or more endpoints through which it receives requests.
-    
-    The Server class provides additional **experimental** capabilities to compose other servers (called sub_servers).
-    
-    Some of the capabilities provided by the Server include
-    
-    * command line parameter parsing
-    * configuration through config .ini file processing
-    * associating callbacks that are invoked when specific sections of the configuration are instantiated or modified
+    The superclass that defines a boots server.
     '''
     _name_prefix = "Server_"
     _counter = new_counter()
@@ -63,8 +64,8 @@ class Server(object):
         :param endpoints: A list of :py:class:`EndPoint` (or subclass of EndPoint) that become the endpoints
             of this server (Note - additional endpoints may be automatically added by superclasses of the Server
         :param parent_server: A link back to the parent_server when this server is a composed sub_server.
-        :param kargs: Additional parameters required for the server. 
         :param bool logger: An optional parameter to determine if logging needs to be configured for this server.
+        :param kargs: Additional parameters required for the server. 
         '''
         self.name = name or self._name_prefix + str(Server._counter()) # _name_prefix will be from subclass if overridden
         self.endpoints = endpoints or []
@@ -81,6 +82,12 @@ class Server(object):
     
     @property
     def logger(self):
+        '''
+        instantiates a logger as a child of boots' logger. The name of the logger is the same as the name passed to this server
+        i.e. self.name
+        
+        :returns: a new logger object. If there is an exception, a default root logger object is returned.
+        '''
         try:
             #Inititalizing and configuring the logger.
             logger = logging.getLogger(BootsLogging.root_logger_name).getChild(self.name)
@@ -126,7 +133,8 @@ class Server(object):
     
     def add_endpoint(self, endpoint):
         '''
-        Simply add to the list of endpoints if it does not already exist. assumes an activated endpoint is being added if the server has already been activated
+        Simply add to the list of endpoints if it does not already exist. assumes an activated endpoint is being added 
+        if the server has already been activated
         '''
         if endpoint.uuid not in [ e.uuid for e in self.endpoints ]:
             self.endpoints += [ endpoint ]
@@ -147,6 +155,8 @@ class Server(object):
         '''
         Add sub_servers to support a model of server composition. Allows servers to be independently developed
         but run as an integrated unit. **experimental**
+        
+        **WARNING** subservers do not work currently. Do not use.
         '''
         if mount_prefix is not None: server.mount_prefix = mount_prefix 
         self.sub_servers += [ server ]
@@ -159,13 +169,13 @@ class Server(object):
         ideally callbacks of the configuration are called.
         Finally, the start_main_server is invoked.
         
-        start_server is invoked by the master server with parent_server = None (default).  
+        start_server is invoked by the master server (i.e. the server whose parent_server = None) (default).  
         It activates all its endpoints, then starts all its sub-servers.
         
         :param parent_server: a reference to this server's parent server (None implies outermost i.e. the final subclass)
         :param proj_dir: an optional argument. If specified, this is taken to be the root of the project directory.
-            If not specified, this is infered through introspection
-        :param conf_subdir: the configuration subdirectory within the proj_dir where configuration files may be obtained
+            If not specified, this is infered through introspection. ${_proj_dir} is available for use in the configuration files.
+        :param conf_subdir: the configuration subdirectory within the proj_dir where configuration files may be obtained. Defaults to conf.
         :param list config_files: a list of filename stems (i.e without the .ini extension) that contain the configuration for this server.
             If mulitple files are given, the order is important and files on the right may overwrite config options specified in files on the left
             A special token *<auto>* is replaced with the name of the main file that was invoked to launch this app (determined through introspection)
@@ -246,26 +256,26 @@ class Server(object):
         '''
         return the project root dir (i.e. the parent of the src dir) by expecting 
         Note - this will not work if the current file is the __main__ since we cannot get the module name
+        
+        :params subdir: determines the proj dir by ensuring that subdir exists within it.
         '''
-        # assumption - this module (boots.server.server) always hangs off the root src dir)
-#        nested_depth = len(__name__.split('.')) # note this will include the module
-#        return  os.path.abspath(os.path.join(os.path.dirname(__file__), os.sep.join(['..'] * nested_depth)))
-
         if self._proj_dir is not None:
             return self._proj_dir
 
-        subdir = subdir or 'conf'        
+        subdir = subdir or self.conf_subdir       
         root_module = getattr(self, "root_module", None)
         if not root_module:
             root_module = inspect.stack()[-1][1]
-#            warn('Did not find Server.root_module. Using %s' % (root_module,))
+
         root_module = os.path.abspath(root_module)
-        path_subset = [ os.path.abspath(s) for s in sys.path if root_module.startswith(os.path.abspath(s)) and os.path.exists(os.path.join(os.path.abspath(s), '..', subdir)) ]
+
+        path_subset = [ os.path.abspath(s) for s in sys.path if root_module.startswith(os.path.abspath(s)) and 
+                                                                os.path.exists(os.path.join(os.path.abspath(s), '..', subdir)) ]
         try:
             return os.path.abspath(os.path.join(path_subset[0], '..'))
         except IndexError:
-            logging.getLogger().debug('Cannot determine project directory automatically. Defaulting to curr dir %s' % (os.getcwd()))
-            return '.'
+            logging.getLogger().error('Cannot determine project directory automatically. Defaulting to curr dir %s' % (os.getcwd()))
+            return os.path.abspath('.')
         
     def _get_config_files(self, conf_dir, config_file='<auto>'):
         if config_file == '<auto>':
@@ -315,7 +325,8 @@ class Server(object):
             Defaults to [ 'common', '<auto'> ]
         :param bool skip_overrides: controls if override processing should be skipped
         '''
-        self._proj_dir = proj_dir or self._get_proj_dir(conf_subdir) or '.'
+        self.conf_subdir = conf_subdir
+        self._proj_dir = os.path.abspath(proj_dir or self._get_proj_dir(conf_subdir) or '.')
         conf_dir = os.path.join(self._proj_dir, conf_subdir)
         
         config_files = [] if config_files is None else [config_files] if type(config_files) not in [list, tuple] else config_files
@@ -333,7 +344,7 @@ class Server(object):
         
         self.config = ServerConfig(config_files=config_files, 
                                    overrides=config_overrides, callbacks=config_callbacks,
-                                   env_config=dict(_proj_dir=self._get_proj_dir()))
+                                   env_config=dict(_proj_dir=self._get_proj_dir(conf_subdir)))
         
     def stats(self):
         ''' default handlers for stats. Does nothing and returns an empty dict. Typically overridden by 
