@@ -135,8 +135,26 @@ class SimpleAuth(FormAuth):
         # invoke barrel
         return super(SimpleAuth, self).__call__(environ, start_response)
     
-
+    def not_authenticated(self, environ, start_response):
+        '''
+        Overridden so that Cache-Control can be added,
+        Copied from barrel/form.py
+        '''
+        start_response('200 OK', [('Content-Type', 'text/html'), ('Cache-Control', 'no-cache')])
+        username = environ.get(self.environ_user_key, '')
+        if username:
+            message = self.failed_message
+        else:
+            message = self.first_message
+        return [self.template.safe_substitute(user_field=self.user_field,
+                                              pass_field=self.pass_field,
+                                              button=self.button,
+                                              username=username,
+                                              message=message,
+                                              **environ)]
     
+    
+
 if __name__ == '__main__':
     import bottle
     import beaker.middleware as bkmw
