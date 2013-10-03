@@ -89,7 +89,10 @@ class Config(ConfigObj):
             return self._orig_getitem(attr, *args, **kargs) # just invoke the original getitem
         else:
             with self.main.lock:
-                return self._orig_getitem(attr, *args, **kargs) # just invoke the original getitem
+                try:
+                    return self._orig_getitem(attr, *args, **kargs) # just invoke the original getitem
+                except Exception as exception:
+                    raise exception
     
     def _new_setitem(self, attr, val, *args, **kargs):
         '''
