@@ -40,7 +40,7 @@ class Server(object):
     _counter = new_counter()
     
     ## settings for configuration and callbacks. Override or add in subclasses
-    #: config_callbacks is a class level attribute that provides a consistent method for the server (and all 
+    #: config_callbacks is a class level attribute that provides a consistent method for the server (and all
     #: subclasses) to setup up callback functions (as per ServerConfig class specifications)
     #: Subclasses can override specific callbacks or add additional callbacks.
     #: config_callbacks is initialized outside the class (see below) so as to allow reference to class instance methods 
@@ -409,5 +409,4 @@ class Server(object):
         except Exception as e:
             logging.exception(e)
             warn('Cannot instantiate logging: %s' % (e,))
-        self.logger.debug("Logging Config Updated.")
 
