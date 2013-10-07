@@ -28,6 +28,38 @@ var utils = {
 		for(var i = 0; i < frames; i ++) uuid.push((Math.random()*10000000 + 10000).toString(16).split('.')[0]);
 		return uuid.join('-');
 	},
+    
+    parseCookie: function(ck) {
+        var cks = (ck && ck.split(/[;,] */)) || []
+            , data = {}
+            ;
+        cks.forEach(function(d) {
+            var s = d.split('=', 2);
+            data[s[0]] = s[1];
+        });
+        return data;
+    },
+    
+    clone: function(x) {
+        if (x === null || x === undefined) return x;
+        if (x.clone) return x.clone();
+        if (x.constructor == Array) {
+            var r = [];
+            for (var i=0,n=x.length; i<n; i++)
+                r.push(utils.clone(x[i]));
+            return r;
+        }
+        if (x.constructor === Object) {
+            var _x = {};
+            for (var k in x) {
+                if (x.hasOwnProperty(k)) {
+                    _x[k] = utils.clone(x[k]);
+                }
+            }
+            return _x;
+        }
+        return x.valueOf();
+    },
 	
 	inherit: function(self, parent, args) {
 		parent = (parent instanceof Array)? parent : [parent];
