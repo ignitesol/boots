@@ -148,7 +148,7 @@ class RequestParams(BasePlugin):
         '''
         value = False
         try:
-            value = bool(ast.literal_eval(val))
+            value = bool(ast.literal_eval(val.capitalize() if type(val) is str else val))
         except Exception:
             pass
         return value
@@ -172,7 +172,7 @@ class RequestParams(BasePlugin):
                     converter = converter[0] if len(converter) > 0 else lambda x: x # obtain the conversion function if any from the 1st ele
                     try:
                         values = [ converter(val) for val in filter(lambda x: x != '', req_params.getall(arg)) ]
-                    except ValueError, Exception: 
+                    except (ValueError, Exception): 
                         bottle.abort(400, 'Wrong parameter format for: {}'.format(arg))
                     if len(values) != 0:  # not adding empty lists since either the default gets it or it should be flagged as error for mandatory
                         kargs[arg] = values
@@ -182,7 +182,7 @@ class RequestParams(BasePlugin):
                         if value is not None:
                             if converter == bool: converter = self.boolean
                             value = converter(value)
-                    except ValueError, Exception: 
+                    except (ValueError, Exception): 
                         bottle.abort(400, 'Wrong parameter format for: {}'.format(arg))
                     if value is not None: # checking again after converter is applied
                         kargs[arg] = value
@@ -527,8 +527,12 @@ def methodroute(path=None, **kargs):
     '''
   
     def decorator(f):
-        f._methodroute = path
-        f._route_kargs = kargs
+        if hasattr(f, '_methodroute'): f._methodroute.append(path)
+        else: f._methodroute = [path]
+        
+        if not hasattr(f, '_route_kargs'): f._route_kargs = dict()
+        f._route_kargs[path] = kargs
+        
         f._signature = inspect.getargspec(f)
         return f
 #    return decorator if type(route) in [ type(None), str ] else decorator(route)
@@ -562,20 +566,24 @@ class HTTPServerEndPoint(EndPoint):
                 callback = getattr(self, kw) if type(getattr(self.__class__, kw, None)) is not property else None # get the var value
             except AttributeError:
                 callback = None
-            if hasattr(callback, '_methodroute') and hasattr(callback, '_route_kargs') and isinstance(callback._route_kargs, dict): # only methodroute decorated methods will have this
-                route_kargs = callback._route_kargs  # additional kargs passed on the decorator
                 
-                # implement skip by type and update skip for the route
-                skip_by_type = route_kargs.setdefault('skip_by_type', [])
-                skip_by_type = bottle.makelist(skip_by_type)
-                skip = [ p for p in self.plugins if p.__class__ in skip_by_type ]
-                route_kargs.setdefault('skip', [])
-                route_kargs['skip'] += skip
-                del route_kargs['skip_by_type']
-                
-                # explicitly find route combinations and remove :self - else bottle includes self in the routes
-                path = callback._methodroute if callback._methodroute is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
-                self._endpoint_app.route(path=path, callback=callback, **route_kargs)
+            # only methodroute decorated methods will have this
+            if hasattr(callback, '_methodroute') and hasattr(callback, '_route_kargs') \
+                and isinstance(callback._route_kargs, dict) and isinstance(callback._methodroute, list):
+                for path in callback._methodroute:
+                    route_kargs = callback._route_kargs.get(path, dict())  # additional kargs passed on the decorator
+                    
+                    # implement skip by type and update skip for the route
+                    skip_by_type = route_kargs.setdefault('skip_by_type', [])
+                    skip_by_type = bottle.makelist(skip_by_type)
+                    skip = [ p for p in self.plugins if p.__class__ in skip_by_type ]
+                    route_kargs.setdefault('skip', [])
+                    route_kargs['skip'] += skip
+                    del route_kargs['skip_by_type']
+                    
+                    # explicitly find route combinations and remove :self - else bottle includes self in the routes
+                    path = path if path is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
+                    self._endpoint_app.route(path=path, callback=callback, **route_kargs)
                     
                 
     def __init__(self, name=None, mountpoint='/', plugins=None, server=None, activate=False):
