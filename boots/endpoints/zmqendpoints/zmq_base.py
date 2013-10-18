@@ -3,22 +3,20 @@ Created on 19-Jun-2012
 
 @author: anand
 '''
+import functools
+import logging
 from threading import Thread, RLock
-from boots import concurrency
 from zmq.eventloop import ioloop
+
+from boots import concurrency
 if concurrency == 'gevent':
     import zmq.green as zmq
     ioloop.Poller = zmq.Poller
 else:
     import zmq
-import functools
+    
 from boots.common.threadpool import ThreadPool
-import sys
-import traceback
-
 from boots.endpoints.endpoint import EndPoint
-import logging
-from zmq.log.handlers import PUBHandler
 
 class Locker(object):
     loop_lock = RLock()
@@ -38,6 +36,7 @@ def iolooper():
     loop.start()
     # This should execute once the start loop has ended
     # Which happens after its stop() method is called
+    logging.getLogger().debug('ioloop Stopped')
     try: loop.close(True)
     except ValueError: pass 
     
@@ -206,7 +205,7 @@ class ZMQEndPoint(ZMQBaseEndPoint):
             elif type(s) is tuple and len(s) == 2: self.ioloop.add_callback(functools.partial(s[0], *s[1]))
             elif type(s) is tuple and len(s) == 3: self.ioloop.add_callback(functools.partial(s[0], *s[1], **s[2]))
             
-        self.ioloop.add_callback(functools.partial(super(ZMQEndPoint, self).close, (linger,), **kargs))
+        self.ioloop.add_callback(functools.partial(super(ZMQEndPoint, self).close, *(linger,), **kargs))
 
 class ZMQListenEndPoint(ZMQEndPoint):
     """
@@ -247,16 +246,22 @@ class ZMQListenEndPoint(ZMQEndPoint):
     def close(self, linger=1, extended_close=[]):
         """
         """
-        def _remove_handler():
-            self.ioloop.remove_handler(self.socket)
-        extended_close.append(_remove_handler)
+        #def _remove_handler():
+        #    self.ioloop.remove_handler(self.socket)
+        #extended_close.append(_remove_handler)
         super(ZMQListenEndPoint, self).close(linger=linger, extended_close=extended_close)
     
     def _recv_callback(self, socket, event):
         '''
         This will receive all messages
         '''
-        assert event == zmq.POLLIN
+        # Ignore message that are not POLLIN
+        if event is not zmq.POLLIN:
+            return
+        
+        # Ignore messages on closed sockets
+        if self.socket.closed:
+            return
         
         try:
             n = self._threads
