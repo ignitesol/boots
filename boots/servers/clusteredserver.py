@@ -118,37 +118,6 @@ class ClusteredServer(HybridServer):
         return par_plugins
         
 
-    def get_data(self, force=False):
-        '''
-        This finds DataStructure in Persistent data store
-        '''
-        server_id = None
-        assert self.server_adress is not None
-        try:
-            server_id = self.datastore.get_server_id(self.server_adress)
-        except NoResultFound :
-            pass # this should not happen. Managed server should have created the server entry in db
-            #self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype )
-        assert server_id is not None    
-        return server_id
-        
-    def get_server_state(self):
-        '''
-        This returns the server state, which was stored in the Server record.
-        This is jsoned data. 
-        The server state is used for storing all the information that is used by the server to recover 
-        in case it crashed and came up and trying to regain its state.
-        The Server instance  should write its logic using this data , so as how it will recover
-        '''
-        return self.datastore.get_server_state(self.server_adress)
-    
-    def set_server_state(self, server_state):
-        '''
-        This sets the server state as provided by the Server itself
-        '''
-        self.datastore.set_server_state(self.server_adress, server_state)
-    
-
     def get_new_load(self):
         '''
         This method defines how the load gets updated which each new request being served or completed
