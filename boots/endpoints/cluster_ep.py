@@ -48,7 +48,7 @@ class ClusteredPlugin(BasePlugin):
             
             server.server_adress = ep.http_host
 #            logging.getLogger().debug("The server name is : %s", ep.server_name)
-            server_id = server.create_data()
+            server_id = server.get_data()
             ds_wrapper = DSWrapperObject(self.datastore, server.server_adress, server_id, ep.uuid, ep.name)
 #            logging.getLogger().debug("DSWrapperObject id in apply %s. Server address : %s", id(ds_wrapper), ds_wrapper.server_address)
             try:
@@ -120,3 +120,33 @@ class ClusteredPlugin(BasePlugin):
             raise
         #logging.getLogger().debug("Proxy call returned : %s ", ret_val.data)
         return ret_val
+
+class ManagedPlugin(BasePlugin):
+    '''
+    ManagedPlugin is used to create entry of the server on first request
+    '''
+  
+    def __init__(self, datastore=None):
+        '''
+        :param datastore: The datastore object that is used to communicate with datastore
+        '''
+        self.datastore = datastore
+        
+    def setup(self, app):
+        for other in app.plugins:
+            if isinstance(other, ManagedPlugin):
+                raise bottle.PluginError("Found another ManagedPlugin plugin")
+            
+    def apply(self, callback, context):
+        '''
+        This plugin only creates entry in the server table.
+        '''
+        @wraps(callback)
+        def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
+            ep = self.get_callback_obj(callback)
+            server = ep.server
+            server.server_adress = ep.http_host
+            _server_id = server.create_data()
+            return callback(*args, **kargs)
+        self.plugin_post_apply(callback, wrapper)
+        return wrapper

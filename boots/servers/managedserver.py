@@ -3,7 +3,9 @@ ManagedServer provides an abstraction for managing a servers configuration, perf
 '''
 from __future__ import division
 from boots import concurrency
-import bottle
+from boots.datastore.cluster_db_endpoint import ClusterDatabaseEndPoint
+from boots.datastore.dbengine import DBConfig
+import argparse
 if concurrency == 'gevent':
     from gevent.coros import RLock
 elif concurrency == 'threading':
@@ -11,6 +13,8 @@ elif concurrency == 'threading':
 
 from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute, Hook, Tracer, template    
 from boots.servers.httpserver import HTTPServer
+from boots.endpoints.cluster_ep import ManagedPlugin
+from sqlalchemy.orm.exc import NoResultFound
 import logging
 import json
 import time
@@ -47,6 +51,7 @@ class ManagedEP(HTTPServerEndPoint):
     '''
     def __init__(self, name=None, mountpoint='/admin', plugins=None, server=None, activate=False):
         super(ManagedEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
+        
     
     @template('adminui')
     @methodroute(path="/", skip_by_type=[Stats, Tracer])
@@ -133,6 +138,7 @@ class ManagedEP(HTTPServerEndPoint):
         '''
         return self.server.health()
     
+    
 class StatsEntry(dict):
     
     def __init__(self):
@@ -203,13 +209,81 @@ class ManagedServer(HTTPServer):
         '''
         self._stats.add(handler_name, time_taken, url, **kargs)
     
-    def __init__(self,  endpoints=None, **kargs):
+    def __init__(self,  endpoints=None, servertype=None, **kargs):
+        self.config_callbacks['MySQLConfig'] = self._dbconfig_config_update
         self.config_callbacks['Template'] = self.template_config
         endpoints = endpoints or []
         endpoints = [ endpoints ] if type(endpoints) not in [list, tuple] else endpoints
         endpoints = endpoints + [ ManagedEP()]
         self._stats = StatsCollection()
+        #Database entry for the server . If server is restarting we dont clear the the entry
+        self.restart = False #if server is restarting after crash
+        self._created_data = False #if entry for this server is already created (we creatte entry on first request to this server)
+        self.servertype = self.get_servertype(servertype)
         super(ManagedServer, self).__init__(endpoints=endpoints, **kargs)
+        
+    def get_servertype(self, servertype=None):
+        return servertype if servertype else self.servertype if hasattr(self, 'servertype') else self.__class__.__name__
+        
+    
+    @classmethod
+    def get_arg_parser(cls, description='', add_help=False, parents=[], 
+                        conflict_handler='error', **kargs):
+        '''
+        get_arg_parser is a classmethod that can be defined by any server. All such methods are called
+        when command line argument processing takes place (see :py:meth:`parse_cmmd_line`)
+
+        :param description: A description of the command line argument
+        :param add_help: (internal) 
+        :param parents: (internal)
+        :param conflict_handler: (internal)
+        '''
+        _argparser = argparse.ArgumentParser(description=description, add_help=add_help, parents=parents, conflict_handler=conflict_handler) 
+        _argparser.add_argument('-r', '--restart', dest='restart',  action="store_true", default=kargs.get('restart', False), help='restart'), 
+        return _argparser
+
+    def _dbconfig_config_update(self, action, full_key, new_val, config_obj):
+        '''
+        Called by Config to update the database Configuration.
+        Once the DB Config is read , we create MySQL binding that allows to talk to MySQL
+        This also checks if this start of the server is a restart, if it is then reads the server_state from server record
+        This is set as server object. This state is used by the application to recover its original server state
+        '''
+        clusterdb = config_obj['MySQLConfig']
+        dbtype = clusterdb['dbtype']
+        db_url = dbtype + '://'+ clusterdb['dbuser']+ ':' + clusterdb['dbpassword'] + '@' + clusterdb['dbhost'] + ':' + str(clusterdb['dbport']) + '/' + clusterdb['dbschema']
+        dbconfig =  DBConfig(dbtype, db_url, clusterdb['pool_size'], clusterdb['max_overflow'], clusterdb['connection_timeout']) 
+        db_ep = ClusterDatabaseEndPoint(dbtype=config_obj['Datastore']['datastore'] , dbconfig=dbconfig, name="ClusterDBEP")
+        self.add_endpoint(db_ep)
+        self.datastore = db_ep.dal
+        
+        if not self.datastore:
+            #the server won't be clustered in-case the datastore configuration is messed
+            self.clustered = False
+            logging.getLogger().debug('Misconfigured datastore . Fallback to non-cluster mode.')
+            #print 'Misconfigured datastore  . Fallback to non-cluster mode.'
+        logging.getLogger().debug('Cluster database config updated')
+    
+    def create_data(self, force=False):
+        '''
+        This create DataStructure in Persistent data store
+        '''
+        server_id = None
+        assert self.server_adress is not None
+        if not self.restart and not self._created_data:
+            # delete the previous run's history 
+            #self.logger.debug("deleting server info : %s", self.server_adress)
+            self._created_data = server_id = self.datastore.remove_server(self.server_adress, recreate=True)
+        if force or not self._created_data: 
+            #self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
+            self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype )
+        elif self._created_data:
+            try:
+                server_id = self.datastore.get_server_id(self.server_adress)
+            except NoResultFound :
+                self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype )
+        assert server_id is not None    
+        return server_id    
 
     def get_standard_plugins(self, plugins):
         '''
@@ -219,4 +293,4 @@ class ManagedServer(HTTPServer):
             par_plugins = super(ManagedServer, self).get_standard_plugins(plugins)
         except AttributeError:
             par_plugins = []
-        return par_plugins + [ Stats() ] 
+        return par_plugins + [ Stats() ]  + [ ManagedPlugin(datastore=self.datastore)]
