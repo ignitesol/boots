@@ -18,6 +18,8 @@ from sqlalchemy.orm.exc import NoResultFound
 import logging
 import json
 import time
+import socket
+import os
 
 # since we are a library, let's add null handler to root to allow us logging
 # without getting warnings about no handlers specified
@@ -268,8 +270,12 @@ class ManagedServer(HTTPServer):
         logging.getLogger().debug('Cluster database config updated')
         
     def add_server_info(self):
-        '''Initialize the server information on server start up
+        '''Initialize the server information on server start up. We dont have server address at this point
         '''
+        process_id = os.getpid()
+        classname = self.__class__.__name__
+        fqdn = socket.getfqdn()
+        
         
         
     def create_data(self, force=False):
@@ -284,12 +290,12 @@ class ManagedServer(HTTPServer):
             self._created_data = server_id = self.datastore.remove_server(self.server_adress, recreate=True)
         if force or not self._created_data: 
             #self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
-            self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype )
+            self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, server_uuid=self.uuid )
         elif self._created_data:
             try:
                 server_id = self.datastore.get_server_id(self.server_adress)
             except NoResultFound :
-                self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype )
+                self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, server_uuid=self.uuid )
         assert server_id is not None    
         return server_id    
     
@@ -303,7 +309,7 @@ class ManagedServer(HTTPServer):
             server_id = self.datastore.get_server_id(self.server_adress)
         except NoResultFound :
             pass # this should not happen. Managed server should have created the server entry in db
-            #self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype )
+            #self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, self.uuid )
         assert server_id is not None    
         return server_id
         

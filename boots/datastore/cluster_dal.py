@@ -15,6 +15,7 @@ import json
 import logging
 import time
 import datetime
+import uuid
 def dbsessionhandler(wrapped_fn):
     '''
     This decorator handles the creation and closing of the session object.
@@ -76,7 +77,7 @@ class ClusterDAL(ClusterORM):
     internal_lock  = RLock()
         
     @dbsessionhandler
-    def createdata(self, sess, server_adress, servertype, server_info=None):
+    def createdata(self, sess, server_adress, servertype, server_info=None, server_uuid=None):
         '''
         This creates the entry for each server in the server table.
         We will come at this method only in-case of start mode. 
@@ -85,10 +86,11 @@ class ClusterDAL(ClusterORM):
         :param servertype: type of the server 
         '''
         server_info = server_info if server_info else json.dumps({})
+        server_uuid = server_uuid if server_uuid else str(uuid.uuid4())
         sess.flush()
         with self.__class__.internal_lock:
             try:
-                server = self.Server(servertype, server_adress, json.dumps({}), server_info, datetime.datetime.utcnow(), 0)
+                server = self.Server(server_uuid, servertype, server_adress, json.dumps({}), server_info, datetime.datetime.utcnow(), 0)
                 sess.add(server)
                 sess.commit()
             except IntegrityError:

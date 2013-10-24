@@ -15,6 +15,7 @@ class ClusterORM(object):
             ''' mapping class for server table'''
             __tablename__ = 'server'
             server_id = Column(Integer, primary_key=True)
+            server_uuid = Column(String(200))
             server_type = Column(String(200))
             server_address = Column(String(200))
             server_state = Column(LONGTEXT)
@@ -29,7 +30,8 @@ class ClusterORM(object):
                         backref="server"
                         )
             
-            def __init__(self, server_type, server_address, server_state, server_info, creation_date, load ):
+            def __init__(self, server_uuid, server_type, server_address, server_state, server_info, creation_date, load ):
+                self.server_uuid = server_uuid
                 self.server_type = server_type
                 self.server_address = server_address
                 self.server_state = server_state
