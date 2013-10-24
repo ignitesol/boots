@@ -431,7 +431,7 @@ class CrossOriginPlugin(BasePlugin):
         def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
             ep = self.get_callback_obj(callback)
             cond = self.condition(ep, **kargs)
-            logging.getLogger().debug('Cross-origin called for %s, condition %s', ep.name, cond)
+            ep.logger.verbose('Cross-origin called for %s, condition %s', ep.name, cond)
             host = ep.environ.get("HTTP_ORIGIN", "") or ep.environ.get("HTTP_REFERER", "")
             if cond and host:
                 ep.response.add_header('Access-Control-Allow-Origin', self._lambda_origins(self, host))
@@ -462,7 +462,7 @@ class ConditionalAccess(BasePlugin):
         def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
             ep = self.get_callback_obj(callback)
             cond = self.condition(ep, **kargs)
-            ep.logger.debug('Conditional Access called for %s, condition %s', ep.name, cond)
+            ep.logger.verbose('Conditional Access called for %s, condition %s', ep.name, cond)
             if cond:
                 return callback(**kargs)
             else:
