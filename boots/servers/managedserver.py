@@ -216,14 +216,16 @@ class ManagedServer(HTTPServer):
         endpoints = [ endpoints ] if type(endpoints) not in [list, tuple] else endpoints
         endpoints = endpoints + [ ManagedEP()]
         self._stats = StatsCollection()
-        #Database entry for the server . If server is restarting we dont clear the the entry
+        #Database entry for the server . If server is restarting we don't clear the the entry
         self.restart = False #if server is restarting after crash
-        self._created_data = False #if entry for this server is already created (we creatte entry on first request to this server)
+        self._created_data = False #if entry for this server is already created (we create entry on first request to this server)
         self.servertype = self.get_servertype(servertype)
         super(ManagedServer, self).__init__(endpoints=endpoints, **kargs)
         
     def get_servertype(self, servertype=None):
         return servertype if servertype else self.servertype if hasattr(self, 'servertype') else self.__class__.__name__
+    
+    
         
     
     @classmethod
@@ -249,10 +251,11 @@ class ManagedServer(HTTPServer):
         This also checks if this start of the server is a restart, if it is then reads the server_state from server record
         This is set as server object. This state is used by the application to recover its original server state
         '''
-        clusterdb = config_obj['MySQLConfig']
-        dbtype = clusterdb['dbtype']
-        db_url = dbtype + '://'+ clusterdb['dbuser']+ ':' + clusterdb['dbpassword'] + '@' + clusterdb['dbhost'] + ':' + str(clusterdb['dbport']) + '/' + clusterdb['dbschema']
-        dbconfig =  DBConfig(dbtype, db_url, clusterdb['pool_size'], clusterdb['max_overflow'], clusterdb['connection_timeout']) 
+        cfg = config_obj['MySQLConfig']
+        dbtype = cfg['dbtype']
+        db_url =  ''.join([ dbtype, '://', cfg['dbuser'], ':' ,cfg['dbpassword'], '@',
+                            cfg['dbhost'], ':', str(cfg['dbport']), '/', cfg['dbschema']])
+        dbconfig =  DBConfig(dbtype, db_url, cfg['pool_size'], cfg['max_overflow'], cfg['connection_timeout']) 
         db_ep = ClusterDatabaseEndPoint(dbtype=config_obj['Datastore']['datastore'] , dbconfig=dbconfig, name="ClusterDBEP")
         self.add_endpoint(db_ep)
         self.datastore = db_ep.dal
@@ -263,7 +266,12 @@ class ManagedServer(HTTPServer):
             logging.getLogger().debug('Misconfigured datastore . Fallback to non-cluster mode.')
             #print 'Misconfigured datastore  . Fallback to non-cluster mode.'
         logging.getLogger().debug('Cluster database config updated')
-    
+        
+    def add_server_info(self):
+        '''Initialize the server information on server start up
+        '''
+        
+        
     def create_data(self, force=False):
         '''
         This create DataStructure in Persistent data store

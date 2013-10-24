@@ -2,7 +2,7 @@ from sqlalchemy import Column, schema as saschema
 from sqlalchemy.dialects.mysql.base import LONGTEXT
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import ForeignKey
-from sqlalchemy.types import String, Integer, Float
+from sqlalchemy.types import String, Integer, Float, DateTime
 
 class ClusterORM(object):
     def __init__(self, Base):
@@ -16,26 +16,30 @@ class ClusterORM(object):
             __tablename__ = 'server'
             server_id = Column(Integer, primary_key=True)
             server_type = Column(String(200))
-            unique_key = Column(String(200))
+            server_address = Column(String(200))
             server_state = Column(LONGTEXT)
+            server_info = Column(LONGTEXT)
+            creation_date = Column(DateTime)
             load =  Column(Float)
             
-            __table_args__  = ( saschema.UniqueConstraint("unique_key"), {'mysql_engine':'InnoDB'} ) 
+            __table_args__  = ( saschema.UniqueConstraint("server_address"), {'mysql_engine':'InnoDB'} ) 
             stickymapping = relationship("StickyMapping",
                         cascade="all, delete-orphan",
                         passive_deletes=True,
                         backref="server"
                         )
             
-            def __init__(self, server_type, unique_key, server_state, load ):
+            def __init__(self, server_type, server_address, server_state, server_info, creation_date, load ):
                 self.server_type = server_type
-                self.unique_key = unique_key
+                self.server_address = server_address
                 self.server_state = server_state
+                self.server_info = server_info
+                self.creation_date = creation_date
                 self.load = load
                 
             def __repr__(self):
-                return "<Server (server_type, unique_key, server_state, load)('%s', '%s', '%s', '%s')>" % \
-                    (self.server_type, str(self.unique_key), str(self.server_state), str(self.load))
+                return "<Server (server_type, server_address, server_state, load)('%s', '%s', '%s', '%s')>" % \
+                    (self.server_type, str(self.server_address), str(self.server_state), str(self.load))
                 
         class StickyMapping(Base):
             ''' mapping class for stickypping table'''

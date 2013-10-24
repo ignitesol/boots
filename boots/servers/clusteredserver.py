@@ -158,8 +158,8 @@ class ClusteredServer(HybridServer):
         '''
         servertype = servertype or self.servertype
         server =  self.datastore.get_least_loaded(servertype)
-        return server.unique_key
-        #return server_adress if self.get_current_load() == server.load else server.unique_key if server else None
+        return server.server_address
+        #return server_adress if self.get_current_load() == server.load else server.server_address if server else None
         
     def update_new_load(self):
         '''
