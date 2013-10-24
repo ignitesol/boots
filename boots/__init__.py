@@ -6,7 +6,7 @@ debug and compose servers.
 import sys
 import os
 import time
-__version__ = '0.9a'
+__version__ = '0.9'
 __author__ = 'Ignite Solutions'
 
 class state_meta(type):

@@ -38,14 +38,14 @@ class BootsFilter(logging.Filter):
     "A.B.C", "A.B.C.D", "A.B.D" etc. but not "A.BB", "B.A.B" etc. If
     initialized with the empty string, all events are passed.
     """
-    def __init__(self, kargs):
+    def __init__(self, **kargs):
         """
         Initialize a filter.
 
         Initialize with the logger which, together with its
         children, will have its events allowed through the filter.
         """
-        self.update(kargs)
+        self.update(**kargs)
     
     def update(self, name=None, regex=None, args=[], level=None, lineno=None, funcName=None):
         self.name = name
@@ -72,7 +72,7 @@ class BootsFilter(logging.Filter):
             return 1
         if self.lineno == record.lineno:
             return 1
-        if self.level == record.level:
+        if self.level == record.levelname:
             return 1
         for arg in self.re_args:        #TODO potentially optimise
             for in_arg in record.args:
@@ -89,6 +89,7 @@ class BootsFilter(logging.Filter):
         Is the specified record to be logged? Returns 0 for no, nonzero for
         yes. If deemed appropriate, the record may be modified in-place.
         """
+        logging.getLogger().warn("post_format_filter called with message %s, regex %s", msg, self.regex)
         if not self.regex:
             return 1
         return 1 if self.compiled_regex.search(msg) else 0
@@ -109,7 +110,7 @@ def getInfo(self):
     '''
     Gives the information for the logger as a dictionary.
     '''
-    handlers = ["file"*isinstance(handler, logging.FileHandler) or "root"*isinstance(handler, logging.RootLogger) for handler in self.handlers]
+    handlers = [ "file"*isinstance(handler, logging.RootLogger) or "root"*isinstance(handler, logging.RootLogger) for handler in self.handlers]
     return dict(level=self.level,propagate=self.propagate,handlers=handlers,disabled=self.disabled)
 
 def boots_format(self, record):

@@ -64,7 +64,7 @@ class ManagedEP(HTTPServerEndPoint):
             return dict(name=name, prefix=prefix, tabs=tabs)
         else:
             return dict(error="Error in getting tabs")
-    
+        
     @methodroute(params=dict(configuration=str), skip_by_type=[Stats, Tracer], method="POST")
     def updateconfig(self, configuration=None):
         '''
@@ -107,11 +107,16 @@ class ManagedEP(HTTPServerEndPoint):
         section = "Logging"
         try: #@UndefinedVariable
             ret = logging.Logger.manager.getLoggerDict()   #@UndefinedVariable
+            cfg = getattr(self.server, 'config', {})
+            for key, val in ret.iteritems():
+                val['handlers'] = cfg[section].get('loggers',{}).get(key, {}).get('handlers', [])
         except Exception as e:
             self.logger.exception(e)
             ret = {"Error in loading loggers": {}}
+            
         log_ret = self.server.config[section].dict()
         log_ret["loggers"] = ret
+        
         return dict(section=section, config=json.dumps(log_ret))
     
     @methodroute(skip_by_type=[Stats, Tracer])
