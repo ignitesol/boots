@@ -23,7 +23,7 @@ class ClusterORM(object):
             creation_date = Column(DateTime)
             load =  Column(Float)
             
-            __table_args__  = ( saschema.UniqueConstraint("server_address"), {'mysql_engine':'InnoDB'} ) 
+            __table_args__  = ( saschema.UniqueConstraint("server_address"), saschema.UniqueConstraint("server_uuid"), {'mysql_engine':'InnoDB'} ) 
             stickymapping = relationship("StickyMapping",
                         cascade="all, delete-orphan",
                         passive_deletes=True,

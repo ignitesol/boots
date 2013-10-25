@@ -290,12 +290,13 @@ class ManagedServer(HTTPServer):
             self._created_data = server_id = self.datastore.remove_server(self.server_adress, recreate=True)
         if force or not self._created_data: 
             #self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
-            self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, server_uuid=self.uuid )
+            serverinfo = json.dumps(dict(pid=os.getpid(), classname=self.__class__.__name__, fqdn=socket.getfqdn()))
+            self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, server_uuid=self.uuid, server_info=serverinfo)
         elif self._created_data:
             try:
                 server_id = self.datastore.get_server_id(self.server_adress)
             except NoResultFound :
-                self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, server_uuid=self.uuid )
+                self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, server_uuid=self.uuid, server_info=serverinfo )
         assert server_id is not None    
         return server_id    
     
