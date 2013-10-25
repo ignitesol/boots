@@ -227,9 +227,7 @@ class ManagedServer(HTTPServer):
     def get_servertype(self, servertype=None):
         return servertype if servertype else self.servertype if hasattr(self, 'servertype') else self.__class__.__name__
     
-    
-        
-    
+
     @classmethod
     def get_arg_parser(cls, description='', add_help=False, parents=[], 
                         conflict_handler='error', **kargs):
@@ -269,34 +267,25 @@ class ManagedServer(HTTPServer):
             #print 'Misconfigured datastore  . Fallback to non-cluster mode.'
         logging.getLogger().debug('Cluster database config updated')
         
-    def add_server_info(self):
-        '''Initialize the server information on server start up. We dont have server address at this point
-        '''
-        process_id = os.getpid()
-        classname = self.__class__.__name__
-        fqdn = socket.getfqdn()
-        
-        
-        
     def create_data(self, force=False):
         '''
         This create DataStructure in Persistent data store
         '''
         server_id = None
-        assert self.server_adress is not None
+        assert self.server_address is not None
         if not self.restart and not self._created_data:
             # delete the previous run's history 
-            #self.logger.debug("deleting server info : %s", self.server_adress)
-            self._created_data = server_id = self.datastore.remove_server(self.server_adress, recreate=True)
+            #self.logger.debug("deleting server info : %s", self.server_address)
+            self._created_data = server_id = self.datastore.remove_server(self.server_address, recreate=True)
         if force or not self._created_data: 
-            #self.logger.debug("creating the server data - servertype : %s, server_adress : %s ", self.servertype, self.server_adress)
+            #self.logger.debug("creating the server data - servertype : %s, server_address : %s ", self.servertype, self.server_address)
             serverinfo = json.dumps(dict(pid=os.getpid(), classname=self.__class__.__name__, fqdn=socket.getfqdn()))
-            self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, server_uuid=self.uuid, server_info=serverinfo)
+            self._created_data = server_id = self.datastore.createdata(self.server_address, self.servertype, server_uuid=self.uuid, server_info=serverinfo)
         elif self._created_data:
             try:
-                server_id = self.datastore.get_server_id(self.server_adress)
+                server_id = self.datastore.get_server_id(self.server_address)
             except NoResultFound :
-                self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, server_uuid=self.uuid, server_info=serverinfo )
+                self._created_data = server_id = self.datastore.createdata(self.server_address, self.servertype, server_uuid=self.uuid, server_info=serverinfo )
         assert server_id is not None    
         return server_id    
     
@@ -305,12 +294,12 @@ class ManagedServer(HTTPServer):
         This finds DataStructure in Persistent data store
         '''
         server_id = None
-        assert self.server_adress is not None
+        assert self.server_address is not None
         try:
-            server_id = self.datastore.get_server_id(self.server_adress)
+            server_id = self.datastore.get_server_id(self.server_address)
         except NoResultFound :
             pass # this should not happen. Managed server should have created the server entry in db
-            #self._created_data = server_id = self.datastore.createdata(self.server_adress, self.servertype, self.uuid )
+            #self._created_data = server_id = self.datastore.createdata(self.server_address, self.servertype, self.uuid )
         assert server_id is not None    
         return server_id
         
@@ -322,13 +311,13 @@ class ManagedServer(HTTPServer):
         in case it crashed and came up and trying to regain its state.
         The Server instance  should write its logic using this data , so as how it will recover
         '''
-        return self.datastore.get_server_state(self.server_adress)
+        return self.datastore.get_server_state(self.server_address)
     
     def set_server_state(self, server_state):
         '''
         This sets the server state as provided by the Server itself
         '''
-        self.datastore.set_server_state(self.server_adress, server_state)
+        self.datastore.set_server_state(self.server_address, server_state)
 
     def get_standard_plugins(self, plugins):
         '''

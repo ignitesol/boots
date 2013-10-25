@@ -35,9 +35,9 @@ class ClusteredEP(HTTPServerEndPoint):
         
     @methodroute()
     def status(self, channel=None):
-        server_adress = self.server.server_adress
-        return "we are at the status process id " + str(os.getpid())  + " My end point is  : " + server_adress + "\n" + \
-                "My load is : " + str(self.server.get_data(server_adress))
+        server_address = self.server.server_address
+        return "we are at the status process id " + str(os.getpid())  + " My end point is  : " + server_address + "\n" + \
+                "My load is : " + str(self.server.get_data(server_address))
     
         
 class ClusteredServer(HybridServer):
@@ -48,7 +48,7 @@ class ClusteredServer(HybridServer):
     def __init__(self, servertype=None, clustered=False, endpoints=None, stickykeys=None, **kargs):
         '''
         
-        :param server_adress: defines the the endpoint for the server, this is unique per server #TODO : only needed when clustered
+        :param server_address: defines the the endpoint for the server, this is unique per server #TODO : only needed when clustered
         :param servertype: this defines the server type #TODO :HOWTO?? only needed when clustered
         :param boolean clustered: this parameter defines whether we enable or disable the clustering
         :param endpoints: Endpoint definition provided by cluster server by itself
@@ -60,7 +60,7 @@ class ClusteredServer(HybridServer):
         self.clustered = clustered
         endpoints = endpoints or []
         if self.clustered:
-            self.server_adress = kargs.pop("server_address" , None)
+            self.server_address = kargs.pop("server_address" , None)
             self.stickykeys = stickykeys
             endpoints = endpoints #+ [ ClusteredEP()]
         super(ClusteredServer, self).__init__(endpoints=endpoints, servertype=servertype, **kargs)
@@ -82,13 +82,13 @@ class ClusteredServer(HybridServer):
     
     def pre_activate_hook(self):
         super(ClusteredServer, self).pre_activate_hook()
-        #self.server_adress = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port']) 
+        #self.server_address = self.cmmd_line_args['host'] + ':' + str(self.cmmd_line_args['port']) 
         #check if datastore is properly configured via init (in-case it is now , we default to  non-clustered module)
         if hasattr(self, 'datastore'):
             if self.cmmd_line_args['restart']:
                 self.restart = True
 #                logging.getLogger().debug("Server restarted after crash. read blob from db and set it to server_state")
-                self.server_state = self.datastore.get_server_state(self.server_adress)
+                self.server_state = self.datastore.get_server_state(self.server_address)
                 self.prepare_to_restart(self.server_state)
                 
 #            else:
@@ -129,7 +129,7 @@ class ClusteredServer(HybridServer):
         '''
         This method returns the existing load of this server as per it exists in the datastore
         '''
-        return self.datastore.get_current_load_db(self.server_adress)
+        return self.datastore.get_current_load_db(self.server_address)
     
     
     def cleanup(self, stickyvalues, load = None):
@@ -147,9 +147,9 @@ class ClusteredServer(HybridServer):
         This method removes all the sticky-ness present for this server 
         :param load: Optionally load is passed so it can be updated
         '''
-        self.datastore.remove_all_stickykeys(self.server_adress, load)
+        self.datastore.remove_all_stickykeys(self.server_address, load)
             
-    def get_least_loaded(self, servertype=None, server_adress=None):
+    def get_least_loaded(self, servertype=None, server_address=None):
         '''
         This method gets the least loaded server of the given servertype 
         :param servertype: this parameters contains the type of server
@@ -159,14 +159,14 @@ class ClusteredServer(HybridServer):
         servertype = servertype or self.servertype
         server =  self.datastore.get_least_loaded(servertype)
         return server.server_address
-        #return server_adress if self.get_current_load() == server.load else server.server_address if server else None
+        #return server_address if self.get_current_load() == server.load else server.server_address if server else None
         
     def update_new_load(self):
         '''
         This method get the current load and updates to db ( TODO : By add or update)
         '''
         pass
-        #self.datastore.save_load_state(self.server_adress, 12.5)
+        #self.datastore.save_load_state(self.server_address, 12.5)
     
    
     def  get_stickyvalues(self, sticky_keys,  paramdict):

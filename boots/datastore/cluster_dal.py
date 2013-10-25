@@ -77,12 +77,12 @@ class ClusterDAL(ClusterORM):
     internal_lock  = RLock()
         
     @dbsessionhandler
-    def createdata(self, sess, server_adress, servertype, server_info=None, server_uuid=None):
+    def createdata(self, sess, server_address, servertype, server_info=None, server_uuid=None):
         '''
         This creates the entry for each server in the server table.
         We will come at this method only in-case of start mode. 
         Restarts should never reach here
-        :param server_adress: address of the self/server itself, this will be unique entry 
+        :param server_address: address of the self/server itself, this will be unique entry 
         :param servertype: type of the server 
         '''
         server_info = server_info if server_info else json.dumps({})
@@ -90,40 +90,40 @@ class ClusterDAL(ClusterORM):
         sess.flush()
         with self.__class__.internal_lock:
             try:
-                server = self.Server(server_uuid, servertype, server_adress, json.dumps({}), server_info, datetime.datetime.utcnow(), 0)
+                server = self.Server(server_uuid, servertype, server_address, json.dumps({}), server_info, datetime.datetime.utcnow(), 0)
                 sess.add(server)
                 sess.commit()
             except IntegrityError:
                 #This error will occur when we are in start mode. We will clear server_state by updating it to empty dict
                 sess.rollback()
-                sess.query(self.Server).filter(self.Server.server_address == server_adress).update({self.Server.server_type:servertype}, synchronize_session=False)
+                sess.query(self.Server).filter(self.Server.server_address == server_address).update({self.Server.server_type:servertype}, synchronize_session=False)
                 sess.commit()
             return server.server_id
         
     @dbsessionhandler
-    def create_server_info(self, sess, server_adress, servertype, serverinfo):
+    def create_server_info(self, sess, server_address, servertype, serverinfo):
         '''this inserts the data on the server start, inserts all the relevant info about the server
         At the server start we don't have the knowledge about the server_address
         '''
         pass
 
     @dbsessionhandler
-    def get_server_id(self, sess, server_adress):
-#        logging.getLogger().debug("The server address is passed :%s ", server_adress)
-        assert server_adress is not None
-        server = sess.query(self.Server).filter(self.Server.server_address == server_adress).one()
+    def get_server_id(self, sess, server_address):
+#        logging.getLogger().debug("The server address is passed :%s ", server_address)
+        assert server_address is not None
+        server = sess.query(self.Server).filter(self.Server.server_address == server_address).one()
         return server.server_id
         
     @dbsessionhandler
-    def get_server_state(self, sess, server_adress):
+    def get_server_state(self, sess, server_address):
         '''
         This method get the data for the given server based on its server_address , which is the unique key per server
-        :param server_adress: server address 
+        :param server_address: server address 
         :returns the jsoned value of the current server state in the blob
         '''
         state = '{}'
         try:
-            server = sess.query(self.Server).filter(self.Server.server_address == server_adress).one()
+            server = sess.query(self.Server).filter(self.Server.server_address == server_address).one()
             state = server.server_state
             state = state or '{}'
         except NoResultFound:
@@ -133,16 +133,16 @@ class ClusterDAL(ClusterORM):
         return json.loads(state)
     
     @dbsessionhandler
-    def set_server_state(self, sess, server_adress, server_state):
+    def set_server_state(self, sess, server_address, server_state):
         '''
         This method set the server state for the given server based on its server_address , which is the unique key per server
-        :param server_adress: server address 
+        :param server_address: server address 
         :param server_state : dict containing the server state at the moment.
         '''
         if type(server_state) is dict:
             server_state = json.dumps(server_state)
             
-            sess.query(self.Server).filter(self.Server.server_address == server_adress)\
+            sess.query(self.Server).filter(self.Server.server_address == server_address)\
                     .update({ self.Server.server_state:server_state}, synchronize_session=False)
             sess.commit()
 
@@ -265,7 +265,7 @@ class ClusterDAL(ClusterORM):
             sess.rollback()
             
     @dbsessionhandler
-    def save_load_state(self, sess, server_adress, load, server_state):
+    def save_load_state(self, sess, server_address, load, server_state):
         '''
         This method saves/update the load and the server state
         :param server_id: the server id of the current server as in DB
@@ -277,14 +277,14 @@ class ClusterDAL(ClusterORM):
         try:
             if server_state is not None and load is not None:
                 #logging.getLogger().warn("server state and load  dal : %f", load)
-                sess.query(self.Server).filter(self.Server.server_address == server_adress)\
+                sess.query(self.Server).filter(self.Server.server_address == server_address)\
                         .update({self.Server.load:load, self.Server.server_state:server_state}, synchronize_session=False)
             elif load is not None:
                 #logging.getLogger().warn("Load value that needs to be updated inside dal : %f", load)
-                sess.query(self.Server).filter(self.Server.server_address == server_adress)\
+                sess.query(self.Server).filter(self.Server.server_address == server_address)\
                         .update({self.Server.load:load}, synchronize_session=False)
             elif server_state is not None:
-                sess.query(self.Server).filter(self.Server.server_address == server_adress)\
+                sess.query(self.Server).filter(self.Server.server_address == server_address)\
                         .update({self.Server.server_state:server_state}, synchronize_session=False)
             sess.commit()
             #logging.getLogger().warn("Commit done inside dal : %f", load)
@@ -314,7 +314,7 @@ class ClusterDAL(ClusterORM):
     def remove_stickyvalues(self, sess, stickyvalues):
         '''
         This method removes the list of the sticky values for the given server 
-        :param server_adress: the unique server_adress
+        :param server_address: the unique server_address
         :param stickyvalues: list of new sticky values
         :param load: load value that we want to update in datastore for this server
         '''
@@ -332,10 +332,10 @@ class ClusterDAL(ClusterORM):
     
     
     @dbsessionhandler
-    def remove_all_stickykeys(self, sess, server_adress, load = None):
+    def remove_all_stickykeys(self, sess, server_address, load = None):
         '''
         This method removes all the sticky keys for this server and optionally update the load for this server
-        :param server_adress: the unique server_adress
+        :param server_address: the unique server_address
         :param load: load value that we want to update in datastore for this server
         '''
         try:
@@ -343,7 +343,7 @@ class ClusterDAL(ClusterORM):
             sess.query(self.StickyMapping).filter(self.StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
                                 .delete(synchronize_session='fetch')
 #            if load:
-#                sess.query(self.Server).filter(self.Server.server_address == server_adress).update({self.Server.load:load}, synchronize_session=False)
+#                sess.query(self.Server).filter(self.Server.server_address == server_address).update({self.Server.load:load}, synchronize_session=False)
             sess.commit()
         except Exception:
             pass
