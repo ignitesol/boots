@@ -145,13 +145,14 @@ class Response(object):
         returns a :py:class:`Header` object with all the headers returned as part of this response
         trailing \r and \n are removed from each header
         '''
+        
         if self._headers == None:
             head = StringIO.StringIO(self.info())
             self._headers = Header()
             
             for s in head:
                 key, val = s.split(':', 1) # split at the 1st :
-                val = val.rstrip('\r\n')
+                val = val.rstrip('\r\n').strip()
                 self._headers[key] = val
 
         return self._headers
@@ -164,7 +165,7 @@ class Response(object):
     
     def extract_headers(self, keys=None, header=None):
         '''
-        this returns a :py:class:`Header object populated with any header values returned from the request
+        this returns a :py:class:`Header` object populated with any header values returned from the request
         :param keys: an optional list of keys (defaults to None which implies all keys present in the response header). Keys are strings that take the regular expressions syntax. keys
         can also be a single key, i.e not a list
         :param header: the header object to append the extracted headers to. If None, a new Header object is created and returned. Header can be used as a dict 
@@ -234,6 +235,9 @@ class HTTPClientEndPoint(EndPoint):
         :param origin_req_host: refer urllib2.Request
         :param str method: one of 'GET' or 'POST'
         :param Server server: (defaults None). A reference to the server object to which this endpoint belongs to
+        
+        Cookies obtained as a response to the request are stored for subsequent calls allowing easy stateful calling to servers.
+        
         '''
         
         super(HTTPClientEndPoint, self).__init__(server=server)
@@ -301,7 +305,7 @@ class HTTPClientEndPoint(EndPoint):
         
         **Example**::
         
-            HTTPClientEndPoint().get_request('http://www.google.com', q="ignite solutions", method='GET')
+            HTTPClientEndPoint().request('http://www.google.com', q="ignite solutions", method='GET')
 
         '''
         return self._request(url, data=kargs, headers=headers, method=method)

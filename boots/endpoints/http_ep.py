@@ -20,24 +20,25 @@ A typical scenario to create an HTTP Server is to define a subclass of the HTTPS
 Refer to :doc:`tutorial` for further examples.
 '''
 from boots import concurrency
-import ast
+from boots.common.utils import new_counter
+from boots.endpoints.endpoint import EndPoint
 from boots.endpoints.httpclient_ep import Header
+from datetime import datetime
+from functools import wraps
+import ast
+import bottle
+import inspect
+import logging
+import os
+import re
+import sys
+import traceback
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
 elif concurrency == 'threading':
     from threading import RLock
 
-from boots.endpoints.endpoint import EndPoint
-from boots.common.utils import new_counter
-from functools import wraps
-import traceback
-import inspect
-import logging
-import bottle
-import sys
-import os
-import re
 
 try: from collections import MutableMapping as DictMixin
 except ImportError: # pragma: no cover
@@ -145,41 +146,42 @@ class RequestParams(BasePlugin):
         '''
         Helper Function for params() for converting str to bool. For example, params=dict(force=boolean)
         '''
-        value = False
         try:
             value = bool(ast.literal_eval(val))
-        except Exception:
-            pass
+        except ValueError:
+            value = False
         return value
 
     def apply(self, callback, context):
         params = context['config'].get('params', {})
         f_args, _, _, f_defaults = inspect.getargspec(callback) if not hasattr(callback, '_signature') else callback._signature
         if f_defaults is None: f_defaults = []
-        f_args = list(filter(lambda x: x != 'self', f_args))
-        mandatory_args, optional_args = (f_args[:-len(f_defaults)], f_args[-len(f_defaults):]) if len(f_defaults) is not 0 else (f_args, [])
+#        f_args = list(filter(lambda x: x != 'self', f_args))
+        f_args = f_args[1:] # drop the self from the f_args list since that does not represent a parameter to be passed
+        mandatory_args, _ = (f_args[:-len(f_defaults)], f_args[-len(f_defaults):]) if len(f_defaults) is not 0 else (f_args, [])
         method = context['method']
 
         @wraps(callback)
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
-            seek_args = filter(lambda x: x not in kargs, f_args)
+            seek_args = f_args
             req_params = bottle.request.POST if method == 'POST' or method =='ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
             for arg in seek_args:
                 converter = params.get(arg, lambda x: x) # see if the parameter is specified, else conversion function is identity
-                multivalue = type(converter) == list # see if we need single or multiple values
+                if converter == bool: converter = self.boolean
+                multivalue = type(converter) in [list, tuple] # see if we need single or multiple values
                 if multivalue:
                     converter = converter[0] if len(converter) > 0 else lambda x: x # obtain the conversion function if any from the 1st ele
+                    if converter == bool: converter = self.boolean
                     try:
                         values = [ converter(val) for val in filter(lambda x: x != '', req_params.getall(arg)) ]
-                    except ValueError, Exception: 
+                    except (ValueError, Exception): 
                         bottle.abort(400, 'Wrong parameter format for: {}'.format(arg))
                     if len(values) != 0:  # not adding empty lists since either the default gets it or it should be flagged as error for mandatory
                         kargs[arg] = values
                 else:
-                    value = req_params.get(arg)
+                    value = req_params.get(arg) or kargs.get(arg)
                     try:
                         if value is not None:
-                            if converter == bool: converter = self.boolean
                             value = converter(value)
                     except ValueError, Exception: 
                         bottle.abort(400, 'Wrong parameter format for: {}'.format(arg))
@@ -216,7 +218,7 @@ class Hook(BasePlugin):
     is provided context such as the url, arguments, the callback method/function and a request context to correlate inbound requests with their corresponding
     responses.
     '''
-    request_counter = new_counter() # allows requests and responses to be correlated
+    
     
     def create_request_context(self, callback, url, **kargs):
         return (self.request_counter(), getattr(callback, '_callback_obj', None) or getattr(callback, 'imself', None))
@@ -244,6 +246,7 @@ class Hook(BasePlugin):
         @param handler: a function that should have a signature similar to :py:meth:`handler`. If none, the hook invokes
             self.handler. The handling method may be overridden by overriding it in a subclass or explicitly passing it as an argument        
         '''
+        self.request_counter = new_counter() # allows requests and responses to be correlated
         if handler:
             self.handler = handler
                
@@ -282,7 +285,7 @@ class Tracer(Hook):
     
     Multiple instances of Tracer may be instantiated and will be called in callback plugin order 
 
-    With HTTPServers, Tracer is automatically instantiated if enabled in configuraiton files and can directly be used. 
+    With HTTPServers, Tracer is automatically instantiated if enabled in configuration files and can directly be used. 
     It is governed by specific configuration settings (see :py:class:`HTTPServer`)
     '''
     
@@ -290,11 +293,15 @@ class Tracer(Hook):
         req_count, _ = request_context
         if filter(None, [ regex.match(url) for regex in self.tracer_paths ]) != []:
             if before_or_after == 'before':
+                self.local_context[req_count] = datetime.now()
                 logging.getLogger().debug('Request: %s. url = %s, %s', req_count, url, kargs)
             elif exception:
-                logging.getLogger().debug('Response: %s. Exception = %s. [ url = %s, %s ]', req_count, exception, url, kargs)
+                delta = datetime.now() - self.local_context.pop(req_count)
+                logging.getLogger().debug('Response: %s. Time Taken: %s sec, %s millisec. Exception = %s. [ url = %s, %s ]', 
+                                          req_count, delta.seconds, delta.microseconds * 1.0/1000, exception, url, kargs)
             else:
-                logging.getLogger().debug('Response: %s. Result = %s. [ url = %s, %s ]', req_count, result, url, kargs)
+                delta = datetime.now() - self.local_context.pop(req_count)
+                logging.getLogger().debug('Response: %s. Time Taken: %s sec, %s millisec. [ url = %s, %s ]', req_count, delta.seconds, delta.microseconds*1.0/1000, url, kargs)
         return result # just return what we got as result so it can be passed on
         
     def __init__(self, tracer_paths=['.*'], handler=None):
@@ -305,6 +312,7 @@ class Tracer(Hook):
         if tracer_paths and type(tracer_paths) not in [ list, tuple ]:
             tracer_paths =  [ tracer_paths ]
         self.tracer_paths = map(re.compile, tracer_paths or [])
+        self.local_context = {}
         super(Tracer, self).__init__(handler=handler)
         
 class View(Hook):
@@ -366,8 +374,11 @@ class WrapException(BasePlugin):
             qstr = bottle.request.POST if method == 'POST' or method == 'ANY' and len(bottle.request.POST.keys()) else bottle.request.GET
             try:
                 return callback(*args, **kargs)
-            except (bottle.HTTPError, Exception) as err: # let's not handle HTTPError
+            except (bottle.HTTPError): # let's not handle bottle.HTTPError. This means an abort was called
+                raise
+            except (Exception) as err: 
                 logging.getLogger().exception('Exception: %s', err)
+                print err, __file__
                 
                 # FOR DEBUG
                 tb = traceback.extract_tb(sys.exc_info()[2], 2)
@@ -471,6 +482,8 @@ def methodroute(path=None, **kargs):
     and invokes the method of the correct object.
     
     It supports all capabilities of the bottle_ @route decorator. Some of these capabilities are:
+    
+    `bottle <http://bottlepy.org>`_ 
     
     * introspection based route matching based on the method name. If path is None, the method being decorated is 
         introspected to obtain the set of possible routes (in a RESTFUL manner)
@@ -705,7 +718,8 @@ class HTTPServerEndPoint(EndPoint):
         returns a session related to this request if one is configured. Else, returns None
         '''
         try:
-            return self.get_session(self.server.config['Session']['session.key'])
+            primary_session = self.server.primary_session
+            return self.get_session(self.server.config.get(primary_session, {}).get('session.key'))
         except KeyError:
             return self.get_session() # default key
     

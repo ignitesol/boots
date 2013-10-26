@@ -1,3 +1,4 @@
+/*global SPARX, $ */
 SPARX.Manage.Logging = function(){
 	var config = {};
 	var loggers = {};
@@ -9,13 +10,13 @@ SPARX.Manage.Logging = function(){
 		20:"INFO",
 		30:"WARNING",
 		40:"ERROR",
-		50:"CRITICAL",
+		50:"CRITICAL"
 	};
-	
+
 	return {
 		setup : function(name){
-			SPARX.Manage.add_config_section_handler(name,SPARX.Manage.Logging.initialize);
-			SPARX.Manage.add_config_section_save(name,SPARX.Manage.Logging.save);
+			SPARX.Manage.add_config_section_handler(name, SPARX.Manage.Logging.initialize);
+			SPARX.Manage.add_config_section_save(name, SPARX.Manage.Logging.save);
 		},
 		initialize : function(name, new_config){
 			config = new_config;
@@ -30,8 +31,77 @@ SPARX.Manage.Logging = function(){
 			filters = config.filters || [];
 			SPARX.Manage.Logging.load_filters();
 		},
+		
+        toggle_handler : function(event) {
+            var parent_div = $($(event.srcElement).closest("div")[0])[0];
+            var loggername = parent_div.dataset.loggername;
+            var handler = $(event.srcElement).parent()[0].dataset.handler;
+
+            var current_handlers = config.loggers[loggername].handlers;
+            
+            if(event.srcElement.checked) {
+                current_handlers.push(handler);
+            } else {
+                var index = current_handlers.indexOf(handler);
+                current_handlers.splice(index, 1);
+            }
+			SPARX.Manage.Logging.config_changed();
+        },
+		
+		change_level : function(event) {
+			config.loggers[event.srcElement.dataset.name].level = event.srcElement.value;
+			SPARX.Manage.Logging.config_changed();
+		},
+		
 		load_loggers : function(){
-			SPARX.Manage.Logging.load("loggers", loggers, 'SPARX.Manage.Logging.logger_selected');
+			
+			function get_level_element(level, name) {
+				return "<option value='" + level + "' "+ (config.loggers[name].level === level? "selected" : "") +"> " + level + "</option>";
+			}
+			
+            function get_details_section(type, name) {
+                var handler_function = "SPARX.Manage.Logging." + type + "_selected(event);";
+
+				var dropdown = "<select class='logger-level' data-name='" + name + "'>";
+				for(var level in logging_lvl_map) {
+					dropdown = dropdown.concat(get_level_element(logging_lvl_map[level], name));
+				}
+				dropdown = dropdown.concat("</select>");
+				
+                return "&nbsp;&nbsp;" + dropdown + "<span onclick='"+ handler_function  +"' data-"+ type +"name='" + name + "' class='edit-button'> Edit </span><br>";
+            }
+
+            function get_accordion_contents(logger, accordion_data) {
+                var possible_handlers = ["file", "rotatingfile", "console"];
+                var ugly_markup = "<div class='cb-container' data-loggername=" + logger + ">";
+                possible_handlers.forEach(function(handler) {
+                    ugly_markup = ugly_markup
+                        .concat("<label data-handler='" + handler + "'>")
+                        .concat("<input class='handler_cb' type='checkbox' onchange='SPARX.Manage.Logging.toggle_handler(event)'")
+                        .concat(accordion_data.handlers && accordion_data.handlers.indexOf(handler) !== -1?
+                                "checked>" : ">" )
+                        .concat("&nbsp;" + handler + "</label><br>");
+                });
+				
+                return ugly_markup + "</div>";
+            }
+
+            for(var logger in loggers) {
+
+				/* Change loglevels from numbers to string*/
+				if(loggers[logger].level !== undefined)
+                    loggers[logger].level = logging_lvl_map[(loggers[logger].level || 0)];
+				
+                var header = "<h3 style='postion:relative;'>" + logger + get_details_section("logger", logger) + "</h3>" + get_accordion_contents(logger, loggers[logger]);
+                $("#logger-accordion").append(header);
+            }			
+            
+            $(".logger-level").change(function(event) {
+                SPARX.Manage.Logging.change_level(event);
+            });
+            
+            $("#logger-accordion").accordion();
+			
 		},
 		load_handlers : function(){
 			SPARX.Manage.Logging.load("handlers", handlers, 'SPARX.Manage.Logging.handler_selected');
@@ -39,18 +109,19 @@ SPARX.Manage.Logging = function(){
 		load_filters : function(){
 			SPARX.Manage.Logging.load("filters", filters, 'SPARX.Manage.Logging.filter_selected');
 		},
-		load : function(name , data, func){
-			var handler_ele = document.getElementById(name)
+
+		load : function(name , data, func) {
+			var handler_ele = document.getElementById(name);
 			handler_ele.innerHTML = "";
-			for(var name in data){
-				if(data[name].level != undefined)
+			for(var name in data) {
+				if(data[name].level !== undefined)
 					data[name].level = logging_lvl_map[(data[name].level || 0)];
-				handler_ele.innerHTML = handler_ele.innerHTML + "<option value='1' onclick='"+func+"(event)'>"+name+"</option>"; 
+				handler_ele.innerHTML = handler_ele.innerHTML + "<option value='1' onclick='"+func+"(event)'>"+name+"</option>";
 			}
 		},
 		logger_selected : function(event){
 			//console.log(event.currentTarget.innerText);
-			var logger_name = event.currentTarget.innerText;
+			var logger_name = event.currentTarget.dataset.loggername || event.currentTarget.innerText;
 			var logger_properties = loggers[logger_name];
 			var curr_logger_handlers = logger_properties.handlers || [];
 			var curr_logger_filters = logger_properties.filters || [];
@@ -58,7 +129,7 @@ SPARX.Manage.Logging = function(){
 			var curr_logger_available_filters = filters;
 			var curr_logger_available_handlers = handlers;
 			if(logger_properties){
-				var logger_properties_html = "<center><h2>Logger Configuration</h2></center></br><table style='margin:10px;'>";
+				var logger_properties_html = "<center><h2>Logger Configuration</h2></center></br><table style='margin:10px;width:90%;'>";
 				logger_properties_html = logger_properties_html + "<tr><td>Name</td><td>" + logger_name + "</td></tr>";
 				logger_properties_html = logger_properties_html + "<tr><td><input type='checkbox' name='logger_disabled' value='disabled'";
 				if(logger_properties.disabled == 1)
@@ -105,7 +176,7 @@ SPARX.Manage.Logging = function(){
 				{
 					logger_properties_html = logger_properties_html + "<option value='"+lvl+"' onclick='SPARX.Manage.Logging.new_data_for_loggers(\""+logger_name+"\",\"level\",\""+logging_lvl_map[lvl]+"\")'";
 					if(curr_logger_level == logging_lvl_map[lvl])
-						logger_properties_html = logger_properties_html + " selected";		
+						logger_properties_html = logger_properties_html + " selected";
 					logger_properties_html = logger_properties_html + ">" + logging_lvl_map[lvl] + "</option>";
 				}
 				logger_properties_html = logger_properties_html + "</select></td></tr>";
@@ -117,21 +188,21 @@ SPARX.Manage.Logging = function(){
 		},
 		handler_selected : function(event){
 			//console.log(event.currentTarget.innerText);
-			var handler_name = event.currentTarget.innerText
+			var handler_name = event.currentTarget.dataset.handlername || event.currentTarget.innerText;
 			var handler_properties = handlers[handler_name];
 			var curr_handler_filters = handler_properties.filters || [];
 			var curr_handler_level = handler_properties.level || 0;
 			var curr_handler_available_filters = filters;
 			if(handler_properties){
-				var handler_properties_html = "<center><h2>Handler Configuration</h2></center></br><table style='margin:10px;'>";
+				var handler_properties_html = "<center><h2>Handler Configuration</h2></center></br><table style='margin:10px;width:90%;'>";
 				handler_properties_html = handler_properties_html + "<tr><td>Name</td><td>" + handler_name + "</td></tr>";
 				handler_properties_html = handler_properties_html + "<tr><td><label>Class</label></td><td>" + handler_properties.class + "</td></tr>";
-				handler_properties_html = handler_properties_html + "<tr><td><label>Formatter</label></td><td>" + handler_properties.formatter || "NA" + "</td></tr>"
+				handler_properties_html = handler_properties_html + "<tr><td><label>Formatter</label></td><td>" + handler_properties.formatter || "NA" + "</td></tr>";
 				handler_properties_html = handler_properties_html + "<tr><td><label>Stream</label></td><td>" + (handler_properties.stream || "NA") + "</td></tr><tr>";
 				handler_properties_html = handler_properties_html + "<tr><td><label>Filename</label></td><td>" + (handler_properties.filename || "NA") + "</td></tr><tr>";
 				handler_properties_html = handler_properties_html + "<tr><td><label>BackupCount</label></td><td>" + (handler_properties.backupCount || "NA") + "</td></tr><tr>";
 				handler_properties_html = handler_properties_html + "<tr><td><label>Max Bytes</label></td><td>" + (handler_properties.maxBytes || "NA") + "</td></tr>";
-				handler_properties_html = handler_properties_html + "<tr><td><label>Filters</label></td><td><select name='Handler Filters' id='handler_"+handler_name+"_filter' size='5' style='width:100%;'>";
+				handler_properties_html = handler_properties_html + "<tr><td><label>Filters</label></td><td style='width:50%;'><select name='Handler Filters' id='handler_"+handler_name+"_filter' size='5' style='width:100%;'>";
 				for(var i in curr_handler_filters){
 					var temp = {};
 					for(var j in curr_handler_available_filters){
@@ -142,7 +213,7 @@ SPARX.Manage.Logging = function(){
 					handler_properties_html = handler_properties_html + "<option value='"+curr_handler_filters[i]+"'>"+curr_handler_filters[i]+"</option>";
 				}
 				handler_properties_html = handler_properties_html + "</select></td><td><div style='width:32px;'><img src='/boots/images/back.png'  onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"handler_"+handler_name+"_filter\",\"available_filters\"));'/><img src='/boots/images/next.png' onclick='SPARX.Manage.Logging.new_data(SPARX.Manage.UI.selector_move(\"available_filters\",\"handler_"+handler_name+"_filter\"));'/></div></td>";
-				handler_properties_html = handler_properties_html + "<td><select name='Available Filters' id='available_filters' size='5' style='width:100%;'>";
+				handler_properties_html = handler_properties_html + "<td style='width:50%;'><select name='Available Filters' id='available_filters' size='5' style='width:100%;'>";
 				for(var filter_name in curr_handler_available_filters){
 					handler_properties_html = handler_properties_html + "<option value='" + filter_name + "'>" + filter_name + "</option>";
 				}
@@ -152,18 +223,18 @@ SPARX.Manage.Logging = function(){
 				{
 					handler_properties_html = handler_properties_html + "<option value='"+lvl+"' onclick='SPARX.Manage.Logging.new_data_for_handlers(\""+handler_name+"\",\"level\",\""+logging_lvl_map[lvl]+"\")'";
 					if(curr_handler_level == logging_lvl_map[lvl])
-						handler_properties_html = handler_properties_html + " selected";		
+						handler_properties_html = handler_properties_html + " selected";
 					handler_properties_html = handler_properties_html + ">" + logging_lvl_map[lvl] + "</option>";
 				}
-				handler_properties_html = handler_properties_html + "</select></td></tr>"
-				handler_properties_html = handler_properties_html + "</table>"
-				SPARX.Manage.Logging.set_and_show(handler_properties_html);	
+				handler_properties_html = handler_properties_html + "</select></td></tr>";
+				handler_properties_html = handler_properties_html + "</table>";
+				SPARX.Manage.Logging.set_and_show(handler_properties_html);
 			}
 			else
 				SPARX.Manage.Logging.set_and_show("No Handler Info Available");
 		},
 		set_and_show : function(HTML){
-			document.getElementById("popup_content").innerHTML = HTML;	
+			document.getElementById("popup_content").innerHTML = HTML;
 			document.getElementById("popup").style.display = "block";
 			document.getElementById("popup_page").style.display = "block";
 			document.getElementById('add_filter_div').style.display='none';
@@ -175,11 +246,11 @@ SPARX.Manage.Logging = function(){
 			var filter_properties = filters[filter_name];
 			var curr_filter_level = filter_properties.level || 0;
 			if(filter_properties){
-				var filter_properties_html = "<center><h2>Filter Configuration</h2></center></br><table style='margin:10px;'>";
+				var filter_properties_html = "<center><h2>Filter Configuration</h2></center></br><table style='margin:10px;width:90%;'>";
 				filter_properties_html = filter_properties_html + "<tr><td>ID</td><td>" + (filter_name || "Unknown" ) + "</td></tr>";
 				filter_properties_html = filter_properties_html + "<tr><td>Name</td><td>" + (filter_properties.name || "NA") + "</td></tr>";
 				filter_properties_html = filter_properties_html + "<tr><td><label>Match Expression</label></td><td><input onkeypress='if(event.keyIdentifier == \"Enter\"){SPARX.Manage.Logging.new_data_for_filters(\""+filter_name+"\", \"match\",event.currentTarget.value);}' value='" + (filter_properties.match || "") + "'></input></td></tr>";
-				filter_properties_html = filter_properties_html + "<tr><td><label>args</label></td>"
+				filter_properties_html = filter_properties_html + "<tr><td><label>args</label></td>";
 				filter_properties_html = filter_properties_html + "<td><select name='Args' id='filter_"+filter_name+"_args' size='5' style='width:100%;'>";
 				for(var arg in filter_properties.args){
 					filter_properties_html = filter_properties_html + "<option value='" + arg + "'>" + arg + "</option>";
@@ -190,31 +261,36 @@ SPARX.Manage.Logging = function(){
 				{
 					filter_properties_html = filter_properties_html + "<option value='"+lvl+"' onclick='SPARX.Manage.Logging.new_data_for_filters(\""+filter_name+"\",\"level\",\""+logging_lvl_map[lvl]+"\")'";
 					if(curr_filter_level == logging_lvl_map[lvl])
-						filter_properties_html = filter_properties_html + " selected";		
+						filter_properties_html = filter_properties_html + " selected";
 					filter_properties_html = filter_properties_html + ">" + logging_lvl_map[lvl] + "</option>";
 				}
-				filter_properties_html = filter_properties_html + "</select></td></tr>"
+				filter_properties_html = filter_properties_html + "</select></td></tr>";
 				filter_properties_html = filter_properties_html + "<tr><td><label>Line Number</label></td><td><input value='" + (filter_properties.lineno || "") + "'></input></td></tr><tr>";
 				filter_properties_html = filter_properties_html + "<tr><td><label>Function Name</label></td><td><input value='" + (filter_properties.funcName || "") + "'></input></td></tr><tr>";
-				filter_properties_html = filter_properties_html + "</table>"
+				filter_properties_html = filter_properties_html + "</table>";
 				SPARX.Manage.Logging.set_and_show(filter_properties_html);
 			}
 			else
 				SPARX.Manage.Logging.set_and_show("No Filter Info Available");
 		},
 		add_filter : function(name, regex, args, level, lineno, funcname){
-			var new_filter = {"()":"boots_logging.BootsFilter"};
+			var new_filter = {"()":"boots.common.boots_logging.BootsFilter"};
 			var filter_fields = ["name", "regex", "args", "level", "lineno", "funcName"];
 			for(var i in filter_fields)
 				new_filter[filter_fields[i]] = document.getElementById("new_filter_"+filter_fields[i]).value;
 			document.getElementById('add_filter_div').style.display='none';
 			document.getElementById('add_filter_button').style.display='block';
 			filters[new_filter["name"]] = new_filter;
+
+			/* Add the new filter to filters list in the popup window as well as the filters section */
+			name = new_filter.name;
+			$("#popup_content #available_filters").append("<option value='" + name + "'>" + name + "</option>");
+			$("#filters").append("<option value='" + name + "' onclick='SPARX.Manage.Logging.filter_selected(event);'>" + name + "</option>");
 			
-//			SPARX.Manage.Logging.update_filter(name, name, regex, args, level, lineno, funcname);
+			//			SPARX.Manage.Logging.update_filter(name, name, regex, args, level, lineno, funcname);
 		},
 		update_filter : function(id, name, regex, args, level, lineno, funcname){
-			filters[id]["()"] = "boots_logging.BootsFilter";
+			filters[id]["()"] = "boots.common.boots_logging.BootsFilter";
 			filters[id]["name"] = name;
 			filters[id]["regex"] = regex;
 			filters[id]["args"] = args;
@@ -226,7 +302,7 @@ SPARX.Manage.Logging = function(){
 			var data_for = new_data.to;
 			var data = new_data.data;
 			var remove_data_from = new_data.from;
-			
+
 			if(data_for.search("available") < 0){
 				var f = data_for.indexOf("_");
 				var l = data_for.lastIndexOf("_");
@@ -333,15 +409,6 @@ SPARX.Manage.Logging = function(){
 					if(handlers[handler_name].filters[i] != data)
 						curr_handler_filters.push(handlers[handler_name].filters[i]);
 				handlers[handler_name].filters = curr_handler_filters;
-			}
-		},
-		remove_data_from_handlers : function(handler_name, subcategory, data){
-			if(subcategory == "args"){
-				var curr_filter_args = [];
-				for(var i in filters[filter_name].args)
-					if(filters[filter_name].args[i] != data)
-						curr_filter_args.push(filters[filter_name].args[i]);
-				filters[filter_name].args = curr_filter_args;
 			}
 		},
 		save : function(name){
