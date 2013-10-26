@@ -504,6 +504,8 @@ def methodroute(path=None, **kargs):
     or control the behavior of plugins. These are either processed by the route or are passed to the plugins as context. 
     Some of the common ones include:
     
+    :param plugins: list of plugins. These are applied to the route callback in addition to endpoint level plugins
+    :param apply:list of plugins. These are same as plugins above but are applied after the plugins in the plugin hierarachy 
     :param list skip_by_type: the *skip* parameter takes plugin instances to skip. *skip_by_type* skips plugins of a specific type
     :param dict params: see description at (:py:class:`RequestParams`)
     :param handler: see description at (:py:class:`WrapException`)
@@ -586,10 +588,11 @@ class HTTPServerEndPoint(EndPoint):
                     route_kargs.setdefault('skip', [])
                     route_kargs['skip'] += skip
                     del route_kargs['skip_by_type']
+                    per_route_plugins = route_kargs.pop('plugins', []) + route_kargs.pop('apply', [])
                     
                     # explicitly find route combinations and remove :self - else bottle includes self in the routes
                     path = path if path is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
-                    self._endpoint_app.route(path=path, callback=callback, **route_kargs)
+                    self._endpoint_app.route(path=path, callback=callback, apply=per_route_plugins, **route_kargs)
                     
                 
     def __init__(self, name=None, mountpoint='/', plugins=None, server=None, activate=False):
