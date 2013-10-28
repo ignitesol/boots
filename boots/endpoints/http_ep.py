@@ -593,7 +593,6 @@ class HTTPServerEndPoint(EndPoint):
                     # explicitly find route combinations and remove :self - else bottle includes self in the routes
                     path = path if path is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
                     self._endpoint_app.route(path=path, callback=callback, apply=per_route_plugins, **route_kargs)
-                    
                 
     def __init__(self, name=None, mountpoint='/', plugins=None, server=None, activate=False):
         '''
