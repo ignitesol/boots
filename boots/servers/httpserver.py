@@ -256,6 +256,8 @@ class HTTPServer(HTTPBaseServer):
         :py:class:`HTTPServer` instantiates :py:class:`Tracer`, :py:class:`RequestParams` and optionally (governed
         by self.handle_exception) :py:class:`WrapException`
         
+        plugins are applied left to right. Left is the outermost. Leftmost plugin is applied first on a request
+        
         :param plugins: the list of plugins explicitly provided to an endpoint
         '''
 
