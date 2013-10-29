@@ -42,14 +42,14 @@ class ClusteredPlugin(BasePlugin):
             
             ep = self.get_callback_obj(callback)
             server = ep.server
-            server_adress = None
+            server_address = None
             exception = None
             stickyvalues = None
             
-            server.server_adress = ep.http_host
+            server.server_address = ep.http_host
 #            logging.getLogger().debug("The server name is : %s", ep.server_name)
-            server_id = server.create_data()
-            ds_wrapper = DSWrapperObject(self.datastore, server.server_adress, server_id, ep.uuid, ep.name)
+            server_id = server.get_data()
+            ds_wrapper = DSWrapperObject(self.datastore, server.server_address, server_id, ep.uuid, ep.name)
 #            logging.getLogger().debug("DSWrapperObject id in apply %s. Server address : %s", id(ds_wrapper), ds_wrapper.server_address)
             try:
                 # Gets the stickykeys provided from  route/ endpoint /server in that order
@@ -58,18 +58,18 @@ class ClusteredPlugin(BasePlugin):
                 if sticky_keys:
                     # we need to create in order to find if the stickiness already exists
                     stickyvalues = server.get_stickyvalues(sticky_keys, kargs)
-                    #logging.getLogger().debug("Sticky values formed are : %s on server : %s ", stickyvalues, server.server_adress)
+                    #logging.getLogger().debug("Sticky values formed are : %s on server : %s ", stickyvalues, server.server_address)
                     try:
                         #reads the server to which this stickyvalues and endpoint combination belong to
-                        server_adress = ds_wrapper._read_by_stickyvalue(stickyvalues, server.servertype)
-                        #server_adress = ds_wrapper.server_address
+                        server_address = ds_wrapper._read_by_stickyvalue(stickyvalues, server.servertype)
+                        #server_address = ds_wrapper.server_address
                     except Exception as e:
                         logging.getLogger().exception("exception while _read_by_stickyvalue occured is : %s ", e)
                         raise Exception("All the server of type : %s are running at max-limit", server.servertype)
                     res = None    
-                    #logging.getLogger().debug("server_adress retuned by _read_by_stickyvalue: %s ", server_adress)
-                    if  server_adress and server_adress != server.server_adress: 
-                        destination_url =   server_adress + self.get_callback_obj(callback).request.urlparts.path
+                    #logging.getLogger().debug("server_address retuned by _read_by_stickyvalue: %s ", server_address)
+                    if  server_address and server_address != server.server_address: 
+                        destination_url =   server_address + self.get_callback_obj(callback).request.urlparts.path
                         headers = ep.headers
                         fwd_h = Header(headers)
                         [ fwd_h.pop(x, None) for x in [ 'Content-Length', 'Via', 'X-Forwarded-For', 'Connection', 'Host', 'Content-Type', 'User-Agent']]
@@ -104,7 +104,7 @@ class ClusteredPlugin(BasePlugin):
     def _make_proxy_call(self, destination_url , headers, postparams):
         '''
         This method makes the proxy call to the destination serever
-        :param server_adress: the server address to which we want to proxy the request
+        :param server_address: the server address to which we want to proxy the request
         :param headers: the server header from the request
         :param getparams : all the get parameters
         :param postparams : all the post params
@@ -120,3 +120,33 @@ class ClusteredPlugin(BasePlugin):
             raise
         #logging.getLogger().debug("Proxy call returned : %s ", ret_val.data)
         return ret_val
+
+class ManagedPlugin(BasePlugin):
+    '''
+    ManagedPlugin is used to create entry of the server on first request
+    '''
+  
+    def __init__(self, datastore=None):
+        '''
+        :param datastore: The datastore object that is used to communicate with datastore
+        '''
+        self.datastore = datastore
+        
+    def setup(self, app):
+        for other in app.plugins:
+            if isinstance(other, ManagedPlugin):
+                raise bottle.PluginError("Found another ManagedPlugin plugin")
+            
+    def apply(self, callback, context):
+        '''
+        This plugin only creates entry in the server table.
+        '''
+        @wraps(callback)
+        def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
+            ep = self.get_callback_obj(callback)
+            server = ep.server
+            server.server_address = ep.http_host
+            _server_id = server.create_data()
+            return callback(*args, **kargs)
+        self.plugin_post_apply(callback, wrapper)
+        return wrapper

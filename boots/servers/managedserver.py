@@ -3,7 +3,9 @@ ManagedServer provides an abstraction for managing a servers configuration, perf
 '''
 from __future__ import division
 from boots import concurrency
-import bottle
+from boots.datastore.cluster_db_endpoint import ClusterDatabaseEndPoint
+from boots.datastore.dbengine import DBConfig
+import argparse
 if concurrency == 'gevent':
     from gevent.coros import RLock
 elif concurrency == 'threading':
@@ -11,9 +13,13 @@ elif concurrency == 'threading':
 
 from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute, Hook, Tracer, template    
 from boots.servers.httpserver import HTTPServer
+from boots.endpoints.cluster_ep import ManagedPlugin
+from sqlalchemy.orm.exc import NoResultFound
 import logging
 import json
 import time
+import socket
+import os
 
 # since we are a library, let's add null handler to root to allow us logging
 # without getting warnings about no handlers specified
@@ -47,6 +53,7 @@ class ManagedEP(HTTPServerEndPoint):
     '''
     def __init__(self, name=None, mountpoint='/admin', plugins=None, server=None, activate=False):
         super(ManagedEP, self).__init__(name=name, mountpoint=mountpoint, plugins=plugins, server=server, activate=activate)
+        
     
     @template('adminui')
     @methodroute(path="/", skip_by_type=[Stats, Tracer])
@@ -64,7 +71,7 @@ class ManagedEP(HTTPServerEndPoint):
             return dict(name=name, prefix=prefix, tabs=tabs)
         else:
             return dict(error="Error in getting tabs")
-    
+        
     @methodroute(params=dict(configuration=str), skip_by_type=[Stats, Tracer], method="POST")
     def updateconfig(self, configuration=None):
         '''
@@ -107,11 +114,16 @@ class ManagedEP(HTTPServerEndPoint):
         section = "Logging"
         try: #@UndefinedVariable
             ret = logging.Logger.manager.getLoggerDict()   #@UndefinedVariable
+            cfg = getattr(self.server, 'config', {})
+            for key, val in ret.iteritems():
+                val['handlers'] = cfg[section].get('loggers',{}).get(key, {}).get('handlers', [])
         except Exception as e:
             self.logger.exception(e)
             ret = {"Error in loading loggers": {}}
+            
         log_ret = self.server.config[section].dict()
         log_ret["loggers"] = ret
+        
         return dict(section=section, config=json.dumps(log_ret))
     
     @methodroute(skip_by_type=[Stats, Tracer])
@@ -127,6 +139,7 @@ class ManagedEP(HTTPServerEndPoint):
         returns the health of the server. The health is obtained from the server's :py:meth:`boots.servers.server.health` method
         '''
         return self.server.health()
+    
     
 class StatsEntry(dict):
     
@@ -198,13 +211,113 @@ class ManagedServer(HTTPServer):
         '''
         self._stats.add(handler_name, time_taken, url, **kargs)
     
-    def __init__(self,  endpoints=None, **kargs):
+    def __init__(self,  endpoints=None, servertype=None, **kargs):
+        self.config_callbacks['MySQLConfig'] = self._dbconfig_config_update
         self.config_callbacks['Template'] = self.template_config
         endpoints = endpoints or []
         endpoints = [ endpoints ] if type(endpoints) not in [list, tuple] else endpoints
         endpoints = endpoints + [ ManagedEP()]
         self._stats = StatsCollection()
+        #Database entry for the server . If server is restarting we don't clear the the entry
+        self.restart = False #if server is restarting after crash
+        self._created_data = False #if entry for this server is already created (we create entry on first request to this server)
+        self.servertype = self.get_servertype(servertype)
         super(ManagedServer, self).__init__(endpoints=endpoints, **kargs)
+        
+    def get_servertype(self, servertype=None):
+        return servertype if servertype else self.servertype if hasattr(self, 'servertype') else self.__class__.__name__
+    
+
+    @classmethod
+    def get_arg_parser(cls, description='', add_help=False, parents=[], 
+                        conflict_handler='error', **kargs):
+        '''
+        get_arg_parser is a classmethod that can be defined by any server. All such methods are called
+        when command line argument processing takes place (see :py:meth:`parse_cmmd_line`)
+
+        :param description: A description of the command line argument
+        :param add_help: (internal) 
+        :param parents: (internal)
+        :param conflict_handler: (internal)
+        '''
+        _argparser = argparse.ArgumentParser(description=description, add_help=add_help, parents=parents, conflict_handler=conflict_handler) 
+        _argparser.add_argument('-r', '--restart', dest='restart',  action="store_true", default=kargs.get('restart', False), help='restart'), 
+        return _argparser
+
+    def _dbconfig_config_update(self, action, full_key, new_val, config_obj):
+        '''
+        Called by Config to update the database Configuration.
+        Once the DB Config is read , we create MySQL binding that allows to talk to MySQL
+        This also checks if this start of the server is a restart, if it is then reads the server_state from server record
+        This is set as server object. This state is used by the application to recover its original server state
+        '''
+        cfg = config_obj['MySQLConfig']
+        dbtype = cfg['dbtype']
+        db_url =  ''.join([ dbtype, '://', cfg['dbuser'], ':' ,cfg['dbpassword'], '@',
+                            cfg['dbhost'], ':', str(cfg['dbport']), '/', cfg['dbschema']])
+        dbconfig =  DBConfig(dbtype, db_url, cfg['pool_size'], cfg['max_overflow'], cfg['connection_timeout']) 
+        db_ep = ClusterDatabaseEndPoint(dbtype=config_obj['Datastore']['datastore'] , dbconfig=dbconfig, name="ClusterDBEP")
+        self.add_endpoint(db_ep)
+        self.datastore = db_ep.dal
+        
+        if not self.datastore:
+            #the server won't be clustered in-case the datastore configuration is messed
+            self.clustered = False
+            logging.getLogger().debug('Misconfigured datastore . Fallback to non-cluster mode.')
+            #print 'Misconfigured datastore  . Fallback to non-cluster mode.'
+        logging.getLogger().debug('Cluster database config updated')
+        
+    def create_data(self, force=False):
+        '''
+        This create DataStructure in Persistent data store
+        '''
+        server_id = None
+        assert self.server_address is not None
+        if not self.restart and not self._created_data:
+            # delete the previous run's history 
+            #self.logger.debug("deleting server info : %s", self.server_address)
+            self._created_data = server_id = self.datastore.remove_server(self.server_address, recreate=True)
+        if force or not self._created_data: 
+            #self.logger.debug("creating the server data - servertype : %s, server_address : %s ", self.servertype, self.server_address)
+            serverinfo = json.dumps(dict(pid=os.getpid(), classname=self.__class__.__name__, fqdn=socket.getfqdn()))
+            self._created_data = server_id = self.datastore.createdata(self.server_address, self.servertype, server_uuid=self.uuid, server_info=serverinfo)
+        elif self._created_data:
+            try:
+                server_id = self.datastore.get_server_id(self.server_address)
+            except NoResultFound :
+                self._created_data = server_id = self.datastore.createdata(self.server_address, self.servertype, server_uuid=self.uuid, server_info=serverinfo )
+        assert server_id is not None    
+        return server_id    
+    
+    def get_data(self, force=False):
+        '''
+        This finds DataStructure in Persistent data store
+        '''
+        server_id = None
+        assert self.server_address is not None
+        try:
+            server_id = self.datastore.get_server_id(self.server_address)
+        except NoResultFound :
+            pass # this should not happen. Managed server should have created the server entry in db
+            #self._created_data = server_id = self.datastore.createdata(self.server_address, self.servertype, self.uuid )
+        assert server_id is not None    
+        return server_id
+        
+    def get_server_state(self):
+        '''
+        This returns the server state, which was stored in the Server record.
+        This is jsoned data. 
+        The server state is used for storing all the information that is used by the server to recover 
+        in case it crashed and came up and trying to regain its state.
+        The Server instance  should write its logic using this data , so as how it will recover
+        '''
+        return self.datastore.get_server_state(self.server_address)
+    
+    def set_server_state(self, server_state):
+        '''
+        This sets the server state as provided by the Server itself
+        '''
+        self.datastore.set_server_state(self.server_address, server_state)
 
     def get_standard_plugins(self, plugins):
         '''
@@ -214,4 +327,4 @@ class ManagedServer(HTTPServer):
             par_plugins = super(ManagedServer, self).get_standard_plugins(plugins)
         except AttributeError:
             par_plugins = []
-        return par_plugins + [ Stats() ] 
+        return par_plugins + [ Stats() ]  + [ ManagedPlugin(datastore=self.datastore)]

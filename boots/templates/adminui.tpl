@@ -6,22 +6,36 @@
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black" />
 		<link rel="apple-touch-icon-precomposed" href="/images/appicon12.gif"/>
-		<link href="/fabric/css/admin.css" rel="stylesheet" type="text/css" />
-		<script src="/fabric/lib/dojo.minified/dojo.min.js" type="text/javascript" djConfig="parseOnLoad:true"></script>
-		<script src="/fabric/js/ajax.js" type="text/javascript"></script>
-		<script src="/fabric/js/adminui.js" type="text/javascript"></script>
-		<title>{{name}} | SPARX Manager</title>
+		<link href="/boots/css/admin.css" rel="stylesheet" type="text/css" />
+		<link href="/boots/css/accordion.css" rel="stylesheet" type="text/css" />
+        <link href="/boots/css/jquery.ui.accordion.css" rel="stylesheet" type="text/css" />
+		
+		<script src="/boots/lib/dojo.minified/dojo.min.js" type="text/javascript" djConfig="parseOnLoad:true"></script>
+		<script src="/boots/js/ajax.js" type="text/javascript"></script>
+		<script src="/boots/js/adminui.js" type="text/javascript"></script>
+		<script src="/boots/js/accordion.js" type="text/javascript"></script>
+		
+        <script src="/boots/js/jquery-1.7.1.min.js" type="text/javascript"></script>
+        <script src="/boots/js/jquery.ui.core.js" type="text/javascript"></script>
+        <script src="/boots/js/jquery.ui.widget.js" type="text/javascript"></script>
+        <script src="/boots/js/jquery.ui.accordion.js" type="text/javascript"></script>
+		
+
+        <title>{{name}} | SPARX Manager</title>
 	</head>
 	%try:
 		<label>{{error}}</label>
 	%except:
 		<body id="manage" onload="SPARX.Manage.initialize('{{prefix}}',{{tabs}});">
-			<div id="tabs" style="height:30px;width:100%;">
-			</div>
-			<div id="pages" style="position:absolute;top:30px;bottom:0px;right:0px;left:0px;border-color: #990000;border-style: solid;border-width: 0px thin;padding:0px 1px;">
-			</div>
-			<div id="popup" style="background-color:rgba(0,0,0,0.7);position:absolute;width:100%;height:100%;z-index:1000;top:0px;display:none;">
-			</div>
+          <div id="config_sections">Sections: 
+			<select id="sections">
+			  
+			</select>
+		  </div>
+		  <div id="pages">
+		  </div>
+		  <div id="popup" style="background-color:rgba(0,0,0,0.7);position:absolute;width:100%;height:100%;z-index:1000;top:0px;display:none;">
+		  </div>
 		</body>
 	%end
 </html>

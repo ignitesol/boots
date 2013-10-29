@@ -1,9 +1,15 @@
 '''
-:py:class:`HTTPBaseServer` provides the appropriate execution environment for :py:class:`HTTPServerEndPoints`
-including basic argument processing, activating all endpoints and starting up the server (using bottle_)
 
-:py:class:`HTTPServer` builds on HTTPServer to provide HTTP parameter processing,
-basic exception handling for requests, session, cache and authorization for the server.
+:py:class:`HTTPBaseServer` is the container for creating web servers. The HTTPBaseServer object provides the appropriate execution environment for :py:class:`HTTPServerEndPoint`
+including basic argument processing, activating all endpoints and starting up the server. 
+
+:py:class:`HTTPServer` builds on HTTPBaseServer to provide HTTP parameter processing,
+basic exception handling for requests, session, cache and authentication for the server and the individual query paths.
+
+:py:class:`HTTPServer` and :py:class:`HTTPServerEndPoint` extensively utilize `bottle <http://bottlepy.org>`_  to provide all web server and service handling capabilities. 
+`beaker <http://beaker.groovie.org>`_ is used for session management and cache management. `barrel <http://>`_ is the basis on which the boots authentication framework is based.
+
+
 '''
 from boots import concurrency
 from boots.endpoints.http_ep import Tracer, WrapException, RequestParams,\
@@ -121,15 +127,16 @@ class HTTPServer(HTTPBaseServer):
         '''
         :params bool session: controls whether sessions based on configuration ini should be instantiated. sessions
             will be available through the HTTPServerEndPoint. If a string, implies the name of the config section. If session is a list of strings, 
-            implies list of names of config sections identifying session configurations
+            implies list of names of config sections identifying session configurations. sessions are accessible in the endpoints (i.e. on a request). The 1st name in the list
+            is considered the primary session (and that's the one returned by :py:class:`HTTPServerEndPoint`'s self.session
         :params bool cache: controls whether cache based on configuration ini should be instantiated. 
             If a string, implies the name of the config section. If cache is a list of strings, 
             implies list of names of config sections identifying cache configurations
             A special member of each configuration section (cache_name) should be a string. The resulting cache is available as
             through self.<cache_name> (defaults to self.cache)
-        :params bool auth: controls whether sessions based on configuration ini should be instantiated. Can be False (no auth) or True (using BootsAuth from the config file)
-            or it can be a list of config sections that will be auth related (allowing multiple auth layers). Note, the last entry will challenge the user the 1st (i.e. it is 
-            the outermost auth layer) 
+        :params bool auth: controls whether authentication based on configuration ini should be instantiated. Can be False (no auth) or True (using BootsAuth from the config file)
+            or it can be a list of config sections that will be auth related (allowing multiple auth layers). Note, the last entry in the configuration file 
+            will challenge the user the 1st (i.e. it is the outermost auth layer) 
         :params handle_exception: controls whether a default exception handler should be setup
         '''
 
@@ -141,7 +148,8 @@ class HTTPServer(HTTPBaseServer):
             self.session_configs = session if type(session) in [ list, tuple ] else [ session ]
         elif session:
             self.session_configs = getattr(self, 'session_configs', [ 'Session' ])
-        if session:
+        if session and len(self.session_configs) > 0:
+            self.primary_session = self.session_configs[0]
             for s in self.session_configs:
                 self.config_callbacks[s] = self.session_config_update
         else:
@@ -170,7 +178,6 @@ class HTTPServer(HTTPBaseServer):
         
         self.login_templates = {}
         self.handle_exception = handle_exception
-#        self.handle_exception = kargs.get('handle_exception', False)
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
     
     def auth_config_update(self, action, full_key, new_val, config_obj):
@@ -248,6 +255,8 @@ class HTTPServer(HTTPBaseServer):
         
         :py:class:`HTTPServer` instantiates :py:class:`Tracer`, :py:class:`RequestParams` and optionally (governed
         by self.handle_exception) :py:class:`WrapException`
+        
+        plugins are applied left to right. Left is the outermost. Leftmost plugin is applied first on a request
         
         :param plugins: the list of plugins explicitly provided to an endpoint
         '''
