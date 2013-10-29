@@ -361,8 +361,7 @@ class WrapException(BasePlugin):
         ''' Make sure that WrapException is not already installed '''
         for other in app.plugins:
             if isinstance(other, WrapException):
-                pass
-                #raise bottle.PluginError("Found another WrapException plugin")
+                raise bottle.PluginError("Found another WrapException plugin")
 
     def apply(self, callback, context):
         
@@ -378,7 +377,7 @@ class WrapException(BasePlugin):
             except (bottle.HTTPError): # let's not handle bottle.HTTPError. This means an abort was called
                 raise
             except (Exception) as err: 
-                bottle.response.add_header('Cache-Control','no-cache')
+                bottle.response.add_header('Cache-Control' ,'no-cache')
                 logging.getLogger().exception('Exception: %s', err)
                 print err, __file__
                 
@@ -595,6 +594,7 @@ class HTTPServerEndPoint(EndPoint):
                     # explicitly find route combinations and remove :self - else bottle includes self in the routes
                     path = path if path is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
                     self._endpoint_app.route(path=path, callback=callback, apply=per_route_plugins, **route_kargs)
+                    
                 
     def __init__(self, name=None, mountpoint='/', plugins=None, server=None, activate=False):
         '''

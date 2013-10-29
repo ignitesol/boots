@@ -14,8 +14,6 @@ from threading import RLock
 import json
 import logging
 import time
-import datetime
-import uuid
 def dbsessionhandler(wrapped_fn):
     '''
     This decorator handles the creation and closing of the session object.
@@ -77,56 +75,44 @@ class ClusterDAL(ClusterORM):
     internal_lock  = RLock()
         
     @dbsessionhandler
-    def createdata(self, sess, server_address, servertype, server_info=None, server_uuid=None):
+    def createdata(self, sess, server_adress, servertype):
         '''
         This creates the entry for each server in the server table.
         We will come at this method only in-case of start mode. 
         Restarts should never reach here
-        :param server_address: address of the self/server itself, this will be unique entry 
+        :param server_adress: address of the self/server itself, this will be unique entry 
         :param servertype: type of the server 
         '''
-        server_info = server_info if server_info else json.dumps({})
-        server_uuid = server_uuid if server_uuid else str(uuid.uuid4())
         sess.flush()
         with self.__class__.internal_lock:
             try:
-                server = self.Server(server_uuid, servertype, server_address, json.dumps({}), server_info, datetime.datetime.utcnow(), 0)
+                server = self.Server(servertype, server_adress, json.dumps({}), 0)
                 sess.add(server)
                 sess.commit()
-                ret = server.server_id
             except IntegrityError:
                 #This error will occur when we are in start mode. We will clear server_state by updating it to empty dict
-                #already exist do nothing
                 sess.rollback()
-                #sess.query(self.Server).filter(self.Server.server_address == server_address).update({self.Server.server_type:servertype}, synchronize_session=False)
-                #sess.commit()
-                ret = "update" #The actual id in never used (we just need to indicate data-entry exist)
-            return ret
-        
-    @dbsessionhandler
-    def create_server_info(self, sess, server_address, servertype, serverinfo):
-        '''this inserts the data on the server start, inserts all the relevant info about the server
-        At the server start we don't have the knowledge about the server_address
-        '''
-        pass
+                sess.query(self.Server).filter(self.Server.unique_key == server_adress).update({self.Server.server_type:servertype}, synchronize_session=False)
+                sess.commit()
+            return server.server_id
 
     @dbsessionhandler
-    def get_server_id(self, sess, server_address):
-#        logging.getLogger().debug("The server address is passed :%s ", server_address)
-        assert server_address is not None
-        server = sess.query(self.Server).filter(self.Server.server_address == server_address).one()
+    def get_server_id(self, sess, server_adress):
+#        logging.getLogger().debug("The server address is passed :%s ", server_adress)
+        assert server_adress is not None
+        server = sess.query(self.Server).filter(self.Server.unique_key == server_adress).one()
         return server.server_id
         
     @dbsessionhandler
-    def get_server_state(self, sess, server_address):
+    def get_server_state(self, sess, server_adress):
         '''
         This method get the data for the given server based on its server_address , which is the unique key per server
-        :param server_address: server address 
+        :param server_adress: server address 
         :returns the jsoned value of the current server state in the blob
         '''
         state = '{}'
         try:
-            server = sess.query(self.Server).filter(self.Server.server_address == server_address).one()
+            server = sess.query(self.Server).filter(self.Server.unique_key == server_adress).one()
             state = server.server_state
             state = state or '{}'
         except NoResultFound:
@@ -136,16 +122,16 @@ class ClusterDAL(ClusterORM):
         return json.loads(state)
     
     @dbsessionhandler
-    def set_server_state(self, sess, server_address, server_state):
+    def set_server_state(self, sess, server_adress, server_state):
         '''
         This method set the server state for the given server based on its server_address , which is the unique key per server
-        :param server_address: server address 
+        :param server_adress: server address 
         :param server_state : dict containing the server state at the moment.
         '''
         if type(server_state) is dict:
             server_state = json.dumps(server_state)
             
-            sess.query(self.Server).filter(self.Server.server_address == server_address)\
+            sess.query(self.Server).filter(self.Server.unique_key == server_adress)\
                     .update({ self.Server.server_state:server_state}, synchronize_session=False)
             sess.commit()
 
@@ -158,7 +144,7 @@ class ClusterDAL(ClusterORM):
         :param server_address:the address of the server which is the unique key
         '''
         try:
-            server = sess.query(self.Server).filter(self.Server.server_address == server_address).one()
+            server = sess.query(self.Server).filter(self.Server.unique_key == server_address).one()
             return server.load
         except NoResultFound:
             return 0
@@ -208,11 +194,11 @@ class ClusterDAL(ClusterORM):
                     #logging.getLogger().debug("min loaded server found type : %s ", type(min_loaded_server))
                     s = None
                     for m in min_loaded_server:
-                        if server_address == m[0].server_address:
+                        if server_address == m[0].unique_key:
                             s=m[0]
                     server = s if s else min_loaded_server[0][0]
-                    server_address = server.server_address
-                    if server_address == server_address:
+                    unique_key = server.unique_key
+                    if unique_key == server_address:
                         try:
                             for s in stickyvalues:
                                 sticky_record = self.StickyMapping(server.server_id, endpoint_key, endpoint_name, s)
@@ -268,7 +254,7 @@ class ClusterDAL(ClusterORM):
             sess.rollback()
             
     @dbsessionhandler
-    def save_load_state(self, sess, server_address, load, server_state):
+    def save_load_state(self, sess, server_adress, load, server_state):
         '''
         This method saves/update the load and the server state
         :param server_id: the server id of the current server as in DB
@@ -280,14 +266,14 @@ class ClusterDAL(ClusterORM):
         try:
             if server_state is not None and load is not None:
                 #logging.getLogger().warn("server state and load  dal : %f", load)
-                sess.query(self.Server).filter(self.Server.server_address == server_address)\
+                sess.query(self.Server).filter(self.Server.unique_key == server_adress)\
                         .update({self.Server.load:load, self.Server.server_state:server_state}, synchronize_session=False)
             elif load is not None:
                 #logging.getLogger().warn("Load value that needs to be updated inside dal : %f", load)
-                sess.query(self.Server).filter(self.Server.server_address == server_address)\
+                sess.query(self.Server).filter(self.Server.unique_key == server_adress)\
                         .update({self.Server.load:load}, synchronize_session=False)
             elif server_state is not None:
-                sess.query(self.Server).filter(self.Server.server_address == server_address)\
+                sess.query(self.Server).filter(self.Server.unique_key == server_adress)\
                         .update({self.Server.server_state:server_state}, synchronize_session=False)
             sess.commit()
             #logging.getLogger().warn("Commit done inside dal : %f", load)
@@ -317,7 +303,7 @@ class ClusterDAL(ClusterORM):
     def remove_stickyvalues(self, sess, stickyvalues):
         '''
         This method removes the list of the sticky values for the given server 
-        :param server_address: the unique server_address
+        :param server_adress: the unique server_adress
         :param stickyvalues: list of new sticky values
         :param load: load value that we want to update in datastore for this server
         '''
@@ -335,10 +321,10 @@ class ClusterDAL(ClusterORM):
     
     
     @dbsessionhandler
-    def remove_all_stickykeys(self, sess, server_address, load = None):
+    def remove_all_stickykeys(self, sess, server_adress, load = None):
         '''
         This method removes all the sticky keys for this server and optionally update the load for this server
-        :param server_address: the unique server_address
+        :param server_adress: the unique server_adress
         :param load: load value that we want to update in datastore for this server
         '''
         try:
@@ -346,7 +332,7 @@ class ClusterDAL(ClusterORM):
             sess.query(self.StickyMapping).filter(self.StickyMapping.mapping_id.in_([sm.mapping_id for sm in sticky_mappings ]))\
                                 .delete(synchronize_session='fetch')
 #            if load:
-#                sess.query(self.Server).filter(self.Server.server_address == server_address).update({self.Server.load:load}, synchronize_session=False)
+#                sess.query(self.Server).filter(self.Server.unique_key == server_adress).update({self.Server.load:load}, synchronize_session=False)
             sess.commit()
         except Exception:
             pass
@@ -374,7 +360,7 @@ class ClusterDAL(ClusterORM):
         assert server_address is not None
         server_id = None
         try:
-            server = sess.query(self.Server).filter(self.Server.server_address == server_address).one()
+            server = sess.query(self.Server).filter(self.Server.unique_key == server_address).one()
             server_id = server.server_id
             server_type = server.server_type
             sess.query(self.Server).filter(self.Server.server_id == server_id).delete(synchronize_session='fetch')
