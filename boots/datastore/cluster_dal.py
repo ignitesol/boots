@@ -93,12 +93,15 @@ class ClusterDAL(ClusterORM):
                 server = self.Server(server_uuid, servertype, server_address, json.dumps({}), server_info, datetime.datetime.utcnow(), 0)
                 sess.add(server)
                 sess.commit()
+                ret = server.server_id
             except IntegrityError:
                 #This error will occur when we are in start mode. We will clear server_state by updating it to empty dict
+                #already exist do nothing
                 sess.rollback()
-                sess.query(self.Server).filter(self.Server.server_address == server_address).update({self.Server.server_type:servertype}, synchronize_session=False)
-                sess.commit()
-            return server.server_id
+                #sess.query(self.Server).filter(self.Server.server_address == server_address).update({self.Server.server_type:servertype}, synchronize_session=False)
+                #sess.commit()
+                ret = "update" #The actual id in never used (we just need to indicate data-entry exist)
+            return ret
         
     @dbsessionhandler
     def create_server_info(self, sess, server_address, servertype, serverinfo):
