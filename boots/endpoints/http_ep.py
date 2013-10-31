@@ -23,7 +23,7 @@ from boots import concurrency
 from boots.common.utils import new_counter
 from boots.endpoints.endpoint import EndPoint
 from boots.endpoints.httpclient_ep import Header
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 import ast
 import bottle
@@ -361,7 +361,8 @@ class WrapException(BasePlugin):
         ''' Make sure that WrapException is not already installed '''
         for other in app.plugins:
             if isinstance(other, WrapException):
-                raise bottle.PluginError("Found another WrapException plugin")
+                pass
+                #raise bottle.PluginError("Found another WrapException plugin")
 
     def apply(self, callback, context):
         
@@ -377,6 +378,7 @@ class WrapException(BasePlugin):
             except (bottle.HTTPError): # let's not handle bottle.HTTPError. This means an abort was called
                 raise
             except (Exception) as err: 
+                bottle.response.add_header('Cache-Control' ,'no-cache')
                 logging.getLogger().exception('Exception: %s', err)
                 print err, __file__
                 
@@ -504,6 +506,8 @@ def methodroute(path=None, **kargs):
     or control the behavior of plugins. These are either processed by the route or are passed to the plugins as context. 
     Some of the common ones include:
     
+    :param plugins: list of plugins. These are applied to the route callback in addition to endpoint level plugins
+    :param apply:list of plugins. These are same as plugins above but are applied after the plugins in the plugin hierarachy 
     :param list skip_by_type: the *skip* parameter takes plugin instances to skip. *skip_by_type* skips plugins of a specific type
     :param dict params: see description at (:py:class:`RequestParams`)
     :param handler: see description at (:py:class:`WrapException`)
@@ -543,6 +547,40 @@ def methodroute(path=None, **kargs):
         return f
 #    return decorator if type(route) in [ type(None), str ] else decorator(route)
     return decorator
+
+
+class ResponseHeader(BasePlugin):
+    '''
+    ResponseHeader is used to set the headers on the response. The response header name value pair
+    are provided as dictionary at that initialization
+    '''
+    def __init__(self, header_dict=None):
+        '''
+        :param header_dict: The dict of key value pair to be set
+        :type header_dict: dict
+        '''
+        self.header_dict = header_dict
+        
+    def setup(self, app):
+        for other in app.plugins:
+            if isinstance(other, ResponseHeader):
+                raise bottle.PluginError("Found another ResponseHeader plugin")
+            
+    def apply(self, callback, context):
+        '''
+        '''
+        @wraps(callback)
+        def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
+            ep = self.get_callback_obj(callback)
+            if self.header_dict:
+                for name, value in self.header_dict.items():
+                    if(name == "Expires"):
+                        value = datetime.utcnow() + timedelta(seconds=int(value))
+                        value = value.strftime('%a, %d %b %Y %H:%M:%S GMT') #RFC 1123 Time Format  as per rfc2616
+                    ep.response.add_header(name, value)
+            return callback(*args, **kargs)
+        self.plugin_post_apply(callback, wrapper)
+        return wrapper
     
 class HTTPServerEndPoint(EndPoint):
     '''
@@ -586,10 +624,11 @@ class HTTPServerEndPoint(EndPoint):
                     route_kargs.setdefault('skip', [])
                     route_kargs['skip'] += skip
                     del route_kargs['skip_by_type']
+                    per_route_plugins = route_kargs.pop('plugins', []) + route_kargs.pop('apply', [])
                     
                     # explicitly find route combinations and remove :self - else bottle includes self in the routes
                     path = path if path is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
-                    self._endpoint_app.route(path=path, callback=callback, **route_kargs)
+                    self._endpoint_app.route(path=path, callback=callback, apply=per_route_plugins, **route_kargs)
                     
                 
     def __init__(self, name=None, mountpoint='/', plugins=None, server=None, activate=False):
