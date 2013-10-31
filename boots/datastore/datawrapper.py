@@ -47,7 +47,7 @@ class DSWrapperObject(Singleton):
     DSWrapper object is a signleton. Each server will have only one object of this type. 
     
     This object will have 
-    server_address : server adress which is represented as server_address in server table
+    server_address : server adress which is represented as unique_key in server table
     server_id : The database id of the server
     endpoint_key : endpoint_key
     endpoint_name : endpoint name
@@ -184,13 +184,13 @@ class DSWrapperObject(Singleton):
             cluster_mapping_list = d['stickymapping']
         server = d['target_server']
         success = True #d['success']
-        self.server_address = server.server_address
+        self.server_address = server.unique_key
         if success and cluster_mapping_list:
             for mapping in cluster_mapping_list:
                 self.endpoint_key = mapping.endpoint_key
                 self.endpoint_name = mapping.endpoint_name
                 self.read_stickymappinglist += [ mapping.sticky_value] if mapping.sticky_value not in self.read_stickymappinglist else []
-        return server.server_address
+        return server.unique_key
             
     
     def update_load(self, load, force=False):
