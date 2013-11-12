@@ -572,13 +572,14 @@ class ResponseHeader(BasePlugin):
         @wraps(callback)
         def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
             ep = self.get_callback_obj(callback)
+            ret = callback(*args, header_dict=self.header_dict, **kargs)
             if self.header_dict:
                 for name, value in self.header_dict.items():
                     if(name == "Expires"):
                         value = datetime.utcnow() + timedelta(seconds=int(value))
                         value = value.strftime('%a, %d %b %Y %H:%M:%S GMT') #RFC 1123 Time Format  as per rfc2616
                     ep.response.add_header(name, value)
-            return callback(*args, **kargs)
+            return ret
         self.plugin_post_apply(callback, wrapper)
         return wrapper
     
