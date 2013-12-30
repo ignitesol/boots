@@ -5,6 +5,7 @@ Created on 19-Jun-2012
 '''
 import functools
 import logging
+import socket
 from threading import Thread, RLock
 from zmq.eventloop import ioloop
 
@@ -91,7 +92,7 @@ class ZMQBaseEndPoint(EndPoint):
         '''
         super(ZMQBaseEndPoint, self).__init__(**kargs)
         self.bind = bind
-        self.address = address
+        self.address = socket.gethostbyname(address) if bind else address # No exception catching on purpose
         self.socket_type = socket_type
         self.socket = None
         self._activated = False
