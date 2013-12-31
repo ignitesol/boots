@@ -6,6 +6,7 @@ Created on 19-Jun-2012
 import functools
 import logging
 import socket
+import re
 from threading import Thread, RLock
 from zmq.eventloop import ioloop
 
@@ -92,7 +93,15 @@ class ZMQBaseEndPoint(EndPoint):
         '''
         super(ZMQBaseEndPoint, self).__init__(**kargs)
         self.bind = bind
-        self.address = socket.gethostbyname(address) if bind else address # No exception catching on purpose
+        
+        # split off the port to resolve hostname tcp://<host>:<port>
+        gr = re.match("tcp://([^:]+):([0-9]+)", address)
+        if gr is not None and len(gr.groups()) == 2:
+            groups = gr.groups()
+            address = "tcp://" + socket.gethostbyname(groups[0]) + ":" + groups[1] # No exception catching on purpose
+            
+        self.address = address
+        
         self.socket_type = socket_type
         self.socket = None
         self._activated = False
