@@ -427,7 +427,7 @@ class CrossOriginPlugin(BasePlugin):
         '''
         self.condition = (condition) if callable(condition) else (lambda ep, **kargs: True) if condition is True else (lambda ep, **kargs: False)
         self.origins = origins
-        self._lambda_origins = lambda self, request_origin: request_origin in self.origins and request_origin if self.origins else request_origin
+        self._lambda_origins = lambda self, request_origin: request_origin in self.origins and request_origin if self.origins else '*'
         self.max_age = max_age
         self.allow_credentials = allow_credentials
         self.allow_methods = ", ".join(allow_methods)
