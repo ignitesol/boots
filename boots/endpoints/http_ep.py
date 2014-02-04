@@ -425,7 +425,7 @@ class CrossOriginPlugin(BasePlugin):
         which will be evaluated before setting the cross-origin-allow. The condition is passed the endpoint on which the current route is invoked and the args that 
         would be passed to the current methodroute handler. To ensure no inadvertent use, condition by default is None implying always False 
         '''
-        self.condition = condition if callable(condition) else lambda ep, **kargs: True if condition is True else lambda ep, **kargs: False
+        self.condition = (condition) if callable(condition) else (lambda ep, **kargs: True) if condition is True else (lambda ep, **kargs: False)
         self.origins = origins
         self._lambda_origins = lambda self, request_origin: request_origin in self.origins and request_origin if self.origins else request_origin
         self.max_age = max_age
@@ -437,7 +437,7 @@ class CrossOriginPlugin(BasePlugin):
         def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
             ep = self.get_callback_obj(callback)
             cond = self.condition(ep, **kargs)
-            ep.logger.verbose('Cross-origin called for %s, condition %s', ep.name, cond)
+            ep.logger.verbose('Cross-origin called for %s, condition %s %s', ep.name, cond, self.condition)
             host = ep.environ.get("HTTP_ORIGIN", "") or ep.environ.get("HTTP_REFERER", "")
             if cond and host:
                 ep.response.add_header('Access-Control-Allow-Origin', self._lambda_origins(self, host))
