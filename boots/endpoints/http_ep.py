@@ -599,7 +599,7 @@ class HTTPServerEndPoint(EndPoint):
     http_server_end_points = {} # class attribute. Accessed in thread safe manner
     _counter = new_counter(0)    # class attribute common to all subclasses of HTTPServerEndPoint
     
-    self_remover = re.compile('/:self$|:self/')
+    self_remover = re.compile('/:self$|:self/|/<self>$|<self>/')
     def routeapp(self):
         '''
         routeapp installs methodroute decorated methods as routes in the app.
@@ -787,7 +787,7 @@ class HTTPServerEndPoint(EndPoint):
         ''' 
         returns a dict of cookies that were obtained as part of this request. (refer bottle_)
         '''
-        return bottle.request.COOKIES
+        return bottle.request.cookies
     
     @property
     def headers(self):
