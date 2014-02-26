@@ -2,7 +2,6 @@
 Custom ZMQ Endpoints and Plugins to be used within the ZMQ Servers
 
 '''
-import json
 from boots import concurrency
 if concurrency == 'gevent':
     import zmq.green as zmq
@@ -11,52 +10,7 @@ else:
 
 from boots.endpoints.zmqendpoints.zmq_base import ZMQBasePlugin
 #    ZMQListenEndPoint, ioloop_instance
-from functools import wraps
-from boots.common.messenger import ZMQSPARXMessage
 import re
-        
-class ZMQJsonReply(ZMQBasePlugin):
-    """
-    ZMQ RECEIVE Plugin that Jsonifies the data
-    
-    Expected argument list: message
-    Expected message format: [.*, ...., {.*}]
-    
-    The leading and trailing strings outside the braces will be stripped
-    Anything within the braces will be jsonified and returned including the braces themselves
-    """
-    _plugin_type_ = ZMQBasePlugin.RECEIVE
-
-    def apply(self, msg): #@ReservedAssignment
-#        if msg.index('{') > -1 and msg.index('}') > -1:
-#            msg = '{' + msg.split('{',1)[1]
-#            msg = msg.rsplit('}',1)[0] + '}'
-        if type(msg) is list: msg[-1] = json.loads(msg[-1])
-        msg = ZMQSPARXMessage(msg, index_hash=dict(filters=0, path=1))
-        return msg
-    
-class ZMQJsonRequest(ZMQBasePlugin):
-    """
-    ZMQ SEND Plugin dumps the JSON data into a string
-    
-    Expected argument list: args, kargs
-    
-    All args converted to strings and joined via a '/' delimiter
-    
-    All kargs are made into a dictionary in a string format and appended to the joined arg list with a whitespace
-    """
-    _plugin_type_ = ZMQBasePlugin.SEND
-    
-    def apply(self, send_fn): #@ReservedAssignment
-        @wraps(send_fn)
-        def _wrapper(*args, **kargs):
-            msg = ZMQSPARXMessage(args, index_hash=dict(filters=0, path=1))
-            # msg['filters'] = reduce(lambda x, y: '%s/%s'%(x,y),args) if len(args) > 0 else ''
-            msg[-1] = json.dumps(msg[-1])
-            send_fn(msg)
-        
-        return _wrapper
-    
 
 class ZMQCallbackPattern(ZMQBasePlugin):
     """
