@@ -151,6 +151,18 @@ class RequestParams(BasePlugin):
         except ValueError:
             value = False
         return value
+    
+    @staticmethod
+    def validate(convert, valid):
+        '''
+        Helper function for params() to validate arguments.
+        For example params=dict(age=RequestParams.validate(int, lambda x: x > 0), sex=RequestParams.validate(lambda x: x.lower(), lambda x: x in ['male', 'female']))
+        '''
+        def inner(x):
+            if valid(x):
+                return x
+            raise ValueError('Parameter "%s" fails validation' % x)
+        return lambda x: inner(convert(x))
 
     def apply(self, callback, context):
         params = context['config'].get('params', {})
@@ -174,7 +186,8 @@ class RequestParams(BasePlugin):
                     if converter == bool: converter = self.boolean
                     try:
                         values = [ converter(val) for val in filter(lambda x: x != '', req_params.getall(arg)) ]
-                    except (ValueError, Exception): 
+                    except (ValueError, Exception) as e: 
+                        logging.getLogger().error('Wrong parameter format for: %s. %s', arg, e)
                         bottle.abort(400, 'Wrong parameter format for: {}'.format(arg))
                     if len(values) != 0:  # not adding empty lists since either the default gets it or it should be flagged as error for mandatory
                         kargs[arg] = values
@@ -183,7 +196,8 @@ class RequestParams(BasePlugin):
                     try:
                         if value is not None:
                             value = converter(value)
-                    except (ValueError, Exception): 
+                    except (ValueError, Exception) as e: 
+                        logging.getLogger().error('Wrong parameter format for: %s. %s', arg, e)
                         bottle.abort(400, 'Wrong parameter format for: {}'.format(arg))
                     if value is not None: # checking again after converter is applied
                         kargs[arg] = value
