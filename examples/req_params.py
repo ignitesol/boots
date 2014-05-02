@@ -90,11 +90,17 @@ Multi-value parameters have a slightly different syntax::
 | /ages?names=joe&ages=25&names=mary&names=henry&ages=24&ages=32 | *{"henry": 32, "joe": 25, "mary": 24}* |
 +----------------------------------------------------------------+----------------------------------------+
 
+You can validate parameters with additional constraints.
+
+    @methodroute(path='/demographics', params=dict(age=validate(lambda x: int(x) > 0), sex=validate(lambda x: x in ['male', 'female'])))
+    def demographics(self, age, sex):
+        return dict(age=age, sex=sex)
 
 '''
 
 from boots.servers.httpserver import HTTPServer
-from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute
+from boots.endpoints.http_ep import HTTPServerEndPoint, methodroute,\
+    RequestParams
 
 class EP(HTTPServerEndPoint):
     
@@ -123,15 +129,11 @@ class EP(HTTPServerEndPoint):
  
     # We are able to add two integer parameters without parsing and splitting the url to get parameter values
     # Also, the data type is specified in @methodroute. 
-    @methodroute(path='/add', params=dict(a=int, b=int))
-    def add(self, a, b):
+    @methodroute(params=dict(a=int, b=int))
+    def add(self, a, b=100):
         return dict(a=a, b=b, sum=a+b)
 
-    # custom validators. 
-    @methodroute(params=dict(check=lambda x: x == 'check'))
-    def checker(self, check=False):
-        return 'validated %s' % check
-    
+
     @methodroute(path='/pretty', params=dict(name=lambda x: x.capitalize()))
     def pretty(self, name):
         return 'received %s' % name
@@ -139,6 +141,15 @@ class EP(HTTPServerEndPoint):
     @methodroute(path='/ages', params=dict(names=[str], ages=[int]))
     def ages(self, names, ages):
         return dict(zip(names, ages))
+
+    # custom validators. 
+    @methodroute(params=dict(check=RequestParams.validate(str, lambda x: x == 'check')))
+    def checker(self, check):
+        return 'validated %s' % check
+    
+    @methodroute(path='/demographics', params=dict(age=RequestParams.validate(int, lambda x: x > 0), sex=RequestParams.validate(lambda x: x.lower(), lambda x: x in ['male', 'female'])))
+    def demographics(self, age, sex):
+        return dict(age=age, sex=sex)
         
 class MyServer(HTTPServer):
     pass
