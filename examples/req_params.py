@@ -129,8 +129,8 @@ class EP(HTTPServerEndPoint):
  
     # We are able to add two integer parameters without parsing and splitting the url to get parameter values
     # Also, the data type is specified in @methodroute. 
-    @methodroute(path='/add', params=dict(a=int, b=int))
-    def add(self, a, b):
+    @methodroute(params=dict(a=int, b=int))
+    def add(self, a, b=100):
         return dict(a=a, b=b, sum=a+b)
 
 

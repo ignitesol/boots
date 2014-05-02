@@ -329,13 +329,12 @@ class Tracer(Hook):
         self.local_context = {}
         super(Tracer, self).__init__(handler=handler)
         
-class View(Hook):
+class Template(Hook):
     def handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
         if before_or_after == 'after' and isinstance(result, (dict, DictMixin)):
             tplvars = self.defaults.copy()
             tplvars.update(result)
-            endpoint = callback.im_self
-            tpl = os.path.join(endpoint.server.config["_proj_dir"], self.tpl_name)
+            tpl = self.tpl_name
             result = bottle.template(tpl, result)
         return result
         
@@ -346,7 +345,7 @@ class View(Hook):
         '''
         self.defaults = defaults
         self.tpl_name = tpl_name
-        super(View, self).__init__(handler=self.handler)
+        super(Template, self).__init__(handler=self.handler)
     
 class WrapException(BasePlugin):
     '''
