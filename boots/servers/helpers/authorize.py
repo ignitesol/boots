@@ -72,6 +72,7 @@ class SimpleAuth(FormAuth):
         super(SimpleAuth, self).__init__(app, logins)
         self.session_key = session_key
         self.template = template or Template(self.loginpage)
+        self.fallback_template = Template(self.loginpage)
         
     def cache_username(self, environ, username):
         '''
@@ -146,7 +147,15 @@ class SimpleAuth(FormAuth):
             message = self.failed_message
         else:
             message = self.first_message
-        return [self.template.safe_substitute(user_field=self.user_field,
+        
+        # if self.template is callable, call it with the environ. It should return a Template object on which we can call safe_substitute
+        try:
+            template = (self.template(environ) if callable(self.template) else self.template) or self.fallback_template
+        except Exception as e:
+            logging.getLogger().exception('Failed template finder: %s', e)
+            template = self.fallback_template
+        
+        return [template.safe_substitute(user_field=self.user_field,
                                               pass_field=self.pass_field,
                                               button=self.button,
                                               username=username,

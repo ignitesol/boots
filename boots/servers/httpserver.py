@@ -180,6 +180,12 @@ class HTTPServer(HTTPBaseServer):
         self.handle_exception = handle_exception
         super(HTTPServer, self).__init__(name=name, endpoints=endpoints, parent_server=parent_server, **kargs)
     
+    def login_template_finder(self, base_dir, base_path):
+        ''' the function to setup a dynamic template finder. It can be overrriden to return a partial that will return an appropriate Template object to be used by SimpleAuth '''
+        
+        default_template = DirUtils().resolve_path(base_dir, base_path) # validate that template is under the base_dir 
+        return Template(DirUtils().read_file(default_template, None))
+    
     def auth_config_update(self, action, full_key, new_val, config_obj):
         '''
         Called by Config to update the Auth Server Configuration.
@@ -192,8 +198,7 @@ class HTTPServer(HTTPBaseServer):
         try:
             template = None
             if login_template != '':
-                login_template = DirUtils().resolve_path(base_dir=config_obj['_proj_dir'], path=login_template)
-                self.login_templates['.'.join(full_key)] = template = Template(DirUtils().read_file(login_template, None))
+                self.login_templates['.'.join(full_key)] = template = self.login_template_finder(base_dir=config_obj['_proj_dir'], base_path=login_template)
         except ValueError as e:
             self.logger.warning('Template dir is not within the project root: %s. Ignoring', login_template)
             template = None
