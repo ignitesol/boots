@@ -24,6 +24,7 @@ import os
 import inspect
 import logging
 import functools
+import atexit
 from warnings import warn
 from logging.config import dictConfig
 
@@ -79,6 +80,13 @@ class Server(object):
         logger = kargs.get('logger', False)
         if logger: self.__class__.config_callbacks['Logging'] = Server._logger_config_update # defined in this class
         self.uuid = generate_uuid()
+        atexit.register(self._atexit)
+        
+    def _atexit(self):
+        self.logger.warning("At Exit for Server %s", self.name)
+        # Logging while after an interrupt may cause I/O Errors
+        try: self.stop_server()
+        except Exception: self.logger.exception("Exception stopping server")
     
     @property
     def logger(self):
@@ -233,6 +241,14 @@ class Server(object):
         ''' Typically run after all endpoints of the master and sub_server are activated. This actually
             runs the main event loop (if any) for the servers. Typically overridden in subclasses '''
         pass
+    
+    def stop_server(self):
+        for e in self.endpoints:
+            try:
+                e.close()
+            except Exception:
+                self.logger.exception("Exception while trying to stop %s", e.name)
+        
             
     @classmethod
     def _mro_classattribute_get(cls, attrname):

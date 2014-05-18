@@ -23,7 +23,7 @@ from boots import concurrency
 from boots.common.utils import new_counter
 from boots.endpoints.endpoint import EndPoint
 from boots.endpoints.httpclient_ep import Header
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 import ast
 import bottle
@@ -147,10 +147,22 @@ class RequestParams(BasePlugin):
         Helper Function for params() for converting str to bool. For example, params=dict(force=boolean)
         '''
         try:
-            value = bool(ast.literal_eval(val))
+            value = bool(ast.literal_eval(val.capitalize() if type(val) is str else val))
         except ValueError:
             value = False
         return value
+    
+    @staticmethod
+    def validate(convert, valid):
+        '''
+        Helper function for params() to validate arguments.
+        For example params=dict(age=RequestParams.validate(int, lambda x: x > 0), sex=RequestParams.validate(lambda x: x.lower(), lambda x: x in ['male', 'female']))
+        '''
+        def inner(x):
+            if valid(x):
+                return x
+            raise ValueError('Parameter "%s" fails validation' % x)
+        return lambda x: inner(convert(x))
 
     def apply(self, callback, context):
         params = context['config'].get('params', {})
@@ -174,7 +186,8 @@ class RequestParams(BasePlugin):
                     if converter == bool: converter = self.boolean
                     try:
                         values = [ converter(val) for val in filter(lambda x: x != '', req_params.getall(arg)) ]
-                    except (ValueError, Exception): 
+                    except (ValueError, Exception) as e: 
+                        logging.getLogger().error('Wrong parameter format for: %s. %s', arg, e)
                         bottle.abort(400, 'Wrong parameter format for: {}'.format(arg))
                     if len(values) != 0:  # not adding empty lists since either the default gets it or it should be flagged as error for mandatory
                         kargs[arg] = values
@@ -183,7 +196,8 @@ class RequestParams(BasePlugin):
                     try:
                         if value is not None:
                             value = converter(value)
-                    except ValueError, Exception: 
+                    except (ValueError, Exception) as e: 
+                        logging.getLogger().error('Wrong parameter format for: %s. %s', arg, e)
                         bottle.abort(400, 'Wrong parameter format for: {}'.format(arg))
                     if value is not None: # checking again after converter is applied
                         kargs[arg] = value
@@ -315,13 +329,12 @@ class Tracer(Hook):
         self.local_context = {}
         super(Tracer, self).__init__(handler=handler)
         
-class View(Hook):
+class Template(Hook):
     def handler(self, before_or_after, request_context, callback, url, result=None, exception=None, **kargs):
         if before_or_after == 'after' and isinstance(result, (dict, DictMixin)):
             tplvars = self.defaults.copy()
             tplvars.update(result)
-            endpoint = callback.im_self
-            tpl = os.path.join(endpoint.server.config["_proj_dir"], self.tpl_name)
+            tpl = self.tpl_name
             result = bottle.template(tpl, result)
         return result
         
@@ -332,7 +345,7 @@ class View(Hook):
         '''
         self.defaults = defaults
         self.tpl_name = tpl_name
-        super(View, self).__init__(handler=self.handler)
+        super(Template, self).__init__(handler=self.handler)
     
 class WrapException(BasePlugin):
     '''
@@ -361,7 +374,8 @@ class WrapException(BasePlugin):
         ''' Make sure that WrapException is not already installed '''
         for other in app.plugins:
             if isinstance(other, WrapException):
-                raise bottle.PluginError("Found another WrapException plugin")
+                pass
+                #raise bottle.PluginError("Found another WrapException plugin")
 
     def apply(self, callback, context):
         
@@ -377,6 +391,7 @@ class WrapException(BasePlugin):
             except (bottle.HTTPError): # let's not handle bottle.HTTPError. This means an abort was called
                 raise
             except (Exception) as err: 
+                bottle.response.add_header('Cache-Control' ,'no-cache')
                 logging.getLogger().exception('Exception: %s', err)
                 print err, __file__
                 
@@ -423,7 +438,7 @@ class CrossOriginPlugin(BasePlugin):
         which will be evaluated before setting the cross-origin-allow. The condition is passed the endpoint on which the current route is invoked and the args that 
         would be passed to the current methodroute handler. To ensure no inadvertent use, condition by default is None implying always False 
         '''
-        self.condition = condition if callable(condition) else lambda ep, **kargs: True if condition is True else lambda ep, **kargs: False
+        self.condition = (condition) if callable(condition) else (lambda ep, **kargs: True) if condition is True else (lambda ep, **kargs: False)
         self.origins = origins
         self._lambda_origins = lambda self, request_origin: request_origin in self.origins and request_origin if self.origins else request_origin
         self.max_age = max_age
@@ -435,8 +450,8 @@ class CrossOriginPlugin(BasePlugin):
         def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
             ep = self.get_callback_obj(callback)
             cond = self.condition(ep, **kargs)
-            logging.getLogger().debug('Cross-origin called for %s, condition %s', ep.name, cond)
             host = ep.environ.get("HTTP_ORIGIN", "") or ep.environ.get("HTTP_REFERER", "")
+            ep.logger.verbose('Cross-origin called for %s, condition %s %s', ep.name, cond, host)
             if cond and host:
                 ep.response.add_header('Access-Control-Allow-Origin', self._lambda_origins(self, host))
                 ep.response.add_header('Access-Control-Allow-Methods', self.allow_methods)
@@ -466,7 +481,7 @@ class ConditionalAccess(BasePlugin):
         def wrapper(**kargs): # assuming bottle always calls with keyword args (even if no default)
             ep = self.get_callback_obj(callback)
             cond = self.condition(ep, **kargs)
-            ep.logger.debug('Conditional Access called for %s, condition %s', ep.name, cond)
+            ep.logger.verbose('Conditional Access called for %s, condition %s', ep.name, cond)
             if cond:
                 return callback(**kargs)
             else:
@@ -535,12 +550,51 @@ def methodroute(path=None, **kargs):
     '''
   
     def decorator(f):
-        f._methodroute = path
-        f._route_kargs = kargs
+        if hasattr(f, '_methodroute'): f._methodroute.append(path)
+        else: f._methodroute = [path]
+        
+        if not hasattr(f, '_route_kargs'): f._route_kargs = dict()
+        f._route_kargs[path] = kargs
+        
         f._signature = inspect.getargspec(f)
         return f
 #    return decorator if type(route) in [ type(None), str ] else decorator(route)
     return decorator
+
+
+class ResponseHeader(BasePlugin):
+    '''
+    ResponseHeader is used to set the headers on the response. The response header name value pair
+    are provided as dictionary at that initialization
+    '''
+    def __init__(self, header_dict=None):
+        '''
+        :param header_dict: The dict of key value pair to be set
+        :type header_dict: dict
+        '''
+        self.header_dict = header_dict
+        
+    def setup(self, app):
+        for other in app.plugins:
+            if isinstance(other, ResponseHeader):
+                raise bottle.PluginError("Found another ResponseHeader plugin")
+            
+    def apply(self, callback, context):
+        '''
+        '''
+        @wraps(callback)
+        def wrapper(*args, **kargs): # assuming bottle always calls with keyword args (even if no default)
+            ep = self.get_callback_obj(callback)
+            ret = callback(*args, header_dict=self.header_dict, **kargs)
+            if self.header_dict:
+                for name, value in self.header_dict.items():
+                    if(name == "Expires"):
+                        value = datetime.utcnow() + timedelta(seconds=int(value))
+                        value = value.strftime('%a, %d %b %Y %H:%M:%S GMT') #RFC 1123 Time Format  as per rfc2616
+                    ep.response.add_header(name, value)
+            return ret
+        self.plugin_post_apply(callback, wrapper)
+        return wrapper
     
 class HTTPServerEndPoint(EndPoint):
     '''
@@ -558,7 +612,7 @@ class HTTPServerEndPoint(EndPoint):
     http_server_end_points = {} # class attribute. Accessed in thread safe manner
     _counter = new_counter(0)    # class attribute common to all subclasses of HTTPServerEndPoint
     
-    self_remover = re.compile('/:self$|:self/')
+    self_remover = re.compile('/:self$|:self/|/<self>$|<self>/')
     def routeapp(self):
         '''
         routeapp installs methodroute decorated methods as routes in the app.
@@ -570,21 +624,25 @@ class HTTPServerEndPoint(EndPoint):
                 callback = getattr(self, kw) if type(getattr(self.__class__, kw, None)) is not property else None # get the var value
             except AttributeError:
                 callback = None
-            if hasattr(callback, '_methodroute') and hasattr(callback, '_route_kargs') and isinstance(callback._route_kargs, dict): # only methodroute decorated methods will have this
-                route_kargs = callback._route_kargs  # additional kargs passed on the decorator
                 
-                # implement skip by type and update skip for the route
-                skip_by_type = route_kargs.setdefault('skip_by_type', [])
-                skip_by_type = bottle.makelist(skip_by_type)
-                skip = [ p for p in self.plugins if p.__class__ in skip_by_type ]
-                route_kargs.setdefault('skip', [])
-                route_kargs['skip'] += skip
-                del route_kargs['skip_by_type']
-                per_route_plugins = route_kargs.pop('plugins', []) + route_kargs.pop('apply', [])
-                
-                # explicitly find route combinations and remove :self - else bottle includes self in the routes
-                path = callback._methodroute if callback._methodroute is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
-                self._endpoint_app.route(path=path, callback=callback, apply=per_route_plugins, **route_kargs)
+            # only methodroute decorated methods will have this
+            if hasattr(callback, '_methodroute') and hasattr(callback, '_route_kargs') \
+                and isinstance(callback._route_kargs, dict) and isinstance(callback._methodroute, list):
+                for path in callback._methodroute:
+                    route_kargs = callback._route_kargs.get(path, dict())  # additional kargs passed on the decorator
+                    
+                    # implement skip by type and update skip for the route
+                    skip_by_type = route_kargs.setdefault('skip_by_type', [])
+                    skip_by_type = bottle.makelist(skip_by_type)
+                    skip = [ p for p in self.plugins if p.__class__ in skip_by_type ]
+                    route_kargs.setdefault('skip', [])
+                    route_kargs['skip'] += skip
+                    del route_kargs['skip_by_type']
+                    per_route_plugins = route_kargs.pop('plugins', []) + route_kargs.pop('apply', [])
+                    
+                    # explicitly find route combinations and remove :self - else bottle includes self in the routes
+                    path = path if path is not None else [ self.self_remover.sub('', s) for s in bottle.yieldroutes(callback)]
+                    self._endpoint_app.route(path=path, callback=callback, apply=per_route_plugins, **route_kargs)
                     
                 
     def __init__(self, name=None, mountpoint='/', plugins=None, server=None, activate=False):
@@ -742,7 +800,7 @@ class HTTPServerEndPoint(EndPoint):
         ''' 
         returns a dict of cookies that were obtained as part of this request. (refer bottle_)
         '''
-        return bottle.request.COOKIES
+        return bottle.request.cookies
     
     @property
     def headers(self):
