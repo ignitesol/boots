@@ -200,7 +200,12 @@ def dejsonify_response(func):
     @wraps(func)
     def wrapper(*args, **kargs):
         response = func(*args, **kargs)
-        response.data = json.loads(response.data)
+        try:
+            response.data = json.loads(response.data)
+        except ValueError as e:
+            # Attach reponse data for debugging purposes
+            e.response_data = response.data
+            raise
         return response
     return wrapper
 
