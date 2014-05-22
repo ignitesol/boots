@@ -390,6 +390,8 @@ class WrapException(BasePlugin):
                 return callback(*args, **kargs)
             except (bottle.HTTPError): # let's not handle bottle.HTTPError. This means an abort was called
                 raise
+            except (bottle.HTTPResponse): # let's not handle bottle.HTTPResponse. This usually means redirect was called
+                raise
             except (Exception) as err: 
                 bottle.response.add_header('Cache-Control' ,'no-cache')
                 logging.getLogger().exception('Exception: %s', err)
