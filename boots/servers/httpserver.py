@@ -24,7 +24,7 @@ from boots.servers.server import Server
 import bottle
 import logging
 from boots.common.dirutils import DirUtils
-from string import Template
+from boots.common.template import BootsTemplate
 
 # since we are a library, let's add null handler to root to allow us logging
 # without getting warnings about no handlers specified
@@ -184,7 +184,7 @@ class HTTPServer(HTTPBaseServer):
         ''' the function to setup a dynamic template finder. It can be overrriden to return a partial that will return an appropriate Template object to be used by SimpleAuth '''
         
         default_template = DirUtils().resolve_path(base_dir, base_path) # validate that template is under the base_dir 
-        return Template(DirUtils().read_file(default_template, None))
+        return BootsTemplate(DirUtils().read_file(default_template, None))
     
     def auth_config_update(self, action, full_key, new_val, config_obj):
         '''

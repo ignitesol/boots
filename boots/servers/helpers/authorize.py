@@ -1,7 +1,9 @@
 from barrel.form import FormAuth
 import re
-from string import Template
 import logging
+from boots.common.template import BootsTemplate
+import collections
+from test.test_support import temp_cwd
 
 class SimpleAuth(FormAuth):
     '''
@@ -24,15 +26,15 @@ class SimpleAuth(FormAuth):
         <br><br><br>
         <form method="POST" style="border: none" action="">
             <center>
-                <legend style="text-align: center; margin: 0px 0px 10px 0px">${message}:</legend>
+                <legend style="text-align: center; margin: 0px 0px 10px 0px">{{args['message']}}:</legend>
                 <br>
                 <label for="username" style="margin: 2px;">Username:</label>
-                <input type="text" name="username" id=$user_field value="" style="margin: 2px;"></input>
+                <input type="text" name="username" id={{args['user_field']}} value="" style="margin: 2px;"></input>
                 <br><br>
                 <label for="password" style="margin: 2px;">Password:</label>
-                <input type="password" name="password" id=$pass_field  style="margin: 2px 2px 2px 5px;"></input>
+                <input type="password" name="password" id={{args['pass_field']}}  style="margin: 2px 2px 2px 5px;"></input>
                 <br><br>
-                <button type="submit" name=$button id="barrel-form-button" value="submit">Sign In</button> 
+                <button type="submit" name={{args['button']}} id="barrel-form-button" value="submit">Sign In</button> 
                 <br><br><legend style="text-align: left; margin: 10px 0px 20px 0px">
                             If you forgot your username or password, please contact the administrator</legend>
             </center>
@@ -49,7 +51,7 @@ class SimpleAuth(FormAuth):
         @type app: WSGI middleware application.
         
         @param template: - The template containing a HTML page.
-        @type template: String.Template
+        @type template: string (using BootsTemplate syntax)
         
         @param users: - The list of authenticated users.
         @type users: List of Tuples
@@ -71,9 +73,10 @@ class SimpleAuth(FormAuth):
         self.app = app
         super(SimpleAuth, self).__init__(app, logins)
         self.session_key = session_key
-        self.template = template or Template(self.loginpage)
-        self.template_args = template_args
-        self.fallback_template = Template(self.loginpage)
+        self.template = template or BootsTemplate(self.loginpage)
+        self.template_args = collections.defaultdict(str)
+        self.template_args.update(template_args)
+        self.fallback_template = BootsTemplate(self.loginpage)
         
     def cache_username(self, environ, username):
         '''
@@ -149,21 +152,17 @@ class SimpleAuth(FormAuth):
         else:
             message = self.first_message
         
-        # if self.template is callable, call it with the environ. It should return a Template object on which we can call safe_substitute
+        # if self.template is callable, call it with the environ. It should return a BootsTemplate object on which we can call render
         try:
             template = (self.template(environ) if callable(self.template) else self.template) or self.fallback_template
         except Exception as e:
             logging.getLogger().exception('Failed template finder: %s', e)
             template = self.fallback_template
         
-        template_args = dict(self.template_args) # make a copy
+        template_args = collections.defaultdict(str)
+        template_args.update(self.template_args) # make a copy
         template_args.update(environ) # update with environ
-        return [template.safe_substitute(user_field=self.user_field,
-                                              pass_field=self.pass_field,
-                                              button=self.button,
-                                              username=username,
-                                              message=message,
-                                              **template_args)]
+        return [ str(template.render(args=template_args)) ]
     
     
 
