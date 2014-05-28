@@ -41,7 +41,7 @@ class SimpleAuth(FormAuth):
 </body>
 </html>
     ''' 
-    def __init__(self, app, logins=None, open_urls=None, session_key='barrel.session', template=None, domain_setter=None, remote_user_key='REMOTE_USER', **kargs):
+    def __init__(self, app, logins=None, open_urls=None, session_key='barrel.session', template=None, template_args={}, domain_setter=None, remote_user_key='REMOTE_USER', **kargs):
         '''
         Take the app and template to wrap and optional settings.
 
@@ -72,6 +72,7 @@ class SimpleAuth(FormAuth):
         super(SimpleAuth, self).__init__(app, logins)
         self.session_key = session_key
         self.template = template or Template(self.loginpage)
+        self.template_args = template_args
         self.fallback_template = Template(self.loginpage)
         
     def cache_username(self, environ, username):
@@ -155,12 +156,14 @@ class SimpleAuth(FormAuth):
             logging.getLogger().exception('Failed template finder: %s', e)
             template = self.fallback_template
         
+        template_args = dict(self.template_args) # make a copy
+        template_args.update(environ) # update with environ
         return [template.safe_substitute(user_field=self.user_field,
                                               pass_field=self.pass_field,
                                               button=self.button,
                                               username=username,
                                               message=message,
-                                              **environ)]
+                                              **template_args)]
     
     
 
