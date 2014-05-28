@@ -292,7 +292,8 @@ class HTTPClientEndPoint(EndPoint):
             req = self.opener.open(request) # not closing it right away since the response would have got closed
             return Response(req)
         except urllib2.HTTPError as err:
-            logging.getLogger().exception('HTTPError: %d, url:%s, data:%s, headers:%s, origin_req_host:%s', err.code, url, data, headers, self.origin_req_host)
+            logging.getLogger().exception('HTTPError: %d, url:%s, data:%s, headers:%s, origin_req_host:%s, content: %s',
+                                          err.code, url, data, headers, self.origin_req_host, err.read())
             # FIXME: change logging to warning.warn
             raise
         except urllib2.URLError as err:
