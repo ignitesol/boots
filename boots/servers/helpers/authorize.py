@@ -3,7 +3,6 @@ import re
 import logging
 from boots.common.template import BootsTemplate
 import collections
-from test.test_support import temp_cwd
 
 class SimpleAuth(FormAuth):
     '''
@@ -162,6 +161,13 @@ class SimpleAuth(FormAuth):
         template_args = collections.defaultdict(str)
         template_args.update(self.template_args) # make a copy
         template_args.update(environ) # update with environ
+
+        # set defaults for any values that FormAuth expects
+        template_args.setdefault('user_field', self.user_field)
+        template_args.setdefault('pass_field', self.pass_field)
+        template_args.setdefault('button', self.button)
+        template_args.setdefault('message', message)
+        
         return [ str(template.render(args=template_args)) ]
     
     
