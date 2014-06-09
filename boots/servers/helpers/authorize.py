@@ -158,10 +158,11 @@ class SimpleAuth(FormAuth):
         except Exception as e:
             logging.getLogger().exception('Failed template finder: %s', e)
             template = self.fallback_template
-        
+
         template_args = collections.defaultdict(str)
         template_args.update(self.template_args) # make a copy
         template_args.update(environ) # update with environ
+        template_args.setdefault('message', message)
         return [ str(template.render(args=template_args)) ]
     
     
