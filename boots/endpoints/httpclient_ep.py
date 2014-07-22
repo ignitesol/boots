@@ -516,7 +516,7 @@ if __name__ == '__main__':
 
     #from boots import use_gevent
     for i in range(50):
-        client = HTTPAsyncClient(method='GET', onsuccess=success, onerror=error, threadpool=InstancedThreadPool(100))
+        client = HTTPAsyncClient(method='GET', onsuccess=success, onerror=error, threadpool=InstancedThreadPool(10))
         client.i = i # just to keep some context in the example
         client.request('http://echo.jsontest.com/callnumber/%s' % i)
 
