@@ -441,6 +441,26 @@ class HTTPClientEndPoint(EndPoint):
 class HTTPAsyncClient(HTTPClientEndPoint):
     '''
     A class that supports asynchronous HTTP requests. Supports all the methods of :py:class:`HTTPClientEndPoint`
+
+    async endpoints mimic AJAX. There is a success and an error handler. Moreover, the callback is passed a reference to the object
+    that made the call (so that the url, state, etc can be obtained).
+
+    Additionally, a threadpool is used to limit the creation of threads by the async client ep
+
+    **Example**::
+    
+        def success(rv, client=None): 
+            client.__class__.count = getattr(client.__class__, 'count', 0) + 1
+            print 'call', client.i, 'total calls', client.__class__.count, 'result', rv.data
+            
+        def error(err, client=None):
+            print 'call', client.i, 'total calls', client.__class__.count, 'error', err
+
+        for i in range(50):
+            client = HTTPAsyncClient(method='GET', onsuccess=success, onerror=error, threadpool=InstancedThreadPool(10))
+            client.i = i # just to keep some context in the example
+            client.request('http://echo.jsontest.com/callnumber/%s' % i)
+
     '''
     
     def __init__(self, url=None, headers=None, origin_req_host=None, method='POST', onsuccess=None, onerror=None, sync=False, timeout=None, server=None, threadpool=None, **kargs):
