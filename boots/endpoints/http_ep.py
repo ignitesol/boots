@@ -33,6 +33,7 @@ import os
 import re
 import sys
 import traceback
+import mimetypes
 
 if concurrency == 'gevent':
     from gevent.coros import RLock
@@ -880,3 +881,45 @@ class HTTPServerEndPoint(EndPoint):
         if not keys: keys = [ '.*' ] # match all
         if not hasattr(keys, '__iter__'): keys = [ keys ] # make a list if one does not exist
         return dict([ (ck, cv) for k in keys for (ck, cv) in self.cookies.iteritems() if re.match(k, ck, flags=re.IGNORECASE)])
+
+    def _resolve_path(self, base_dir, path):
+        ''' 
+        @summary: Converts relative directory (from query string) to a more complete path (either absolute or relative) based of base directory.
+        @param base_dir - The base directory for all operations.
+        @type base_dir: str
+        @param path - the path obtained from the client.
+        @type path: str
+        
+        @return: Complete resolved path as str
+        '''
+        absprefix = os.path.abspath(base_dir)
+        newpath = os.path.abspath(os.path.join(absprefix, path))
+        if not newpath.startswith(absprefix):
+            raise ValueError('path parameter '+ path +' invalid.' + ' base = ' + absprefix + ' newpath = ' + newpath)
+        return newpath
+
+    def process_as_xsendfile(self, root, path):
+        '''
+        X-Sendfile (Apache mod_xsendfile) (NGinx: X-Accel-Redirect) is a way to dynamically inform web servers to serve
+        static files. The use is often to have mediated access to protected resources
+
+        this method sends the appropriate headers to the webserver (Apache or nginx) to process x-sendfile requests. 
+
+        Adds header Content-Type so as to tell Apache/Nginx the mimetype of the file.
+        Adds header Content-Encoding so as to tell Apache the encoding of the file. 
+        Adds header XSendFile so as to tell Apache the user is allowed to access the file.
+        Adds 
+        
+        @param root: Root Directory within which to resolve path. The final path must be a subdirectory of root directory
+        @type root: str
+        
+        @param path: The path to the file relative to root.
+        @type path: str
+        '''
+        mimetype, encoding = mimetypes.guess_type(path)
+        self.response.headers['Content-Type'] = mimetype
+        self.response.headers['Content-Encoding'] = encoding
+        abspath = self._resolve_path(base_dir=root, path=path)
+        self.response.headers['X-Sendfile'] = abspath
+        self.response.headers['X-Accel-Redirect'] = abspath # the resolve path has already verified that path is under root
+        return None
