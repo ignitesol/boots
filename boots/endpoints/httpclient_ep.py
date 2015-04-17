@@ -18,6 +18,7 @@ import re
     
 import logging
 from boots.endpoints.endpoint import EndPoint
+from boots.common.threadpool import InstancedThreadPool
 import cookielib
 
 class Header(dict):
@@ -437,13 +438,32 @@ class HTTPClientEndPoint(EndPoint):
                             l.append(k + '=' + urllib2.quote(str(elt)))
         return '&'.join(l)
     
-class HTTPAsyncClient(HTTPClientEndPoint, threading.Thread):
+class HTTPAsyncClient(HTTPClientEndPoint):
     '''
-    A class that supports asynchronous HTTP requests. Currently, this does not use thread pooling so the user should be careful with 
-    runaway creation of long-lived requests. Supports all the methods of :py:class:`HTTPClientEndPoint`
+    A class that supports asynchronous HTTP requests. Supports all the methods of :py:class:`HTTPClientEndPoint`
+
+    async endpoints mimic AJAX. There is a success and an error handler. Moreover, the callback is passed a reference to the object
+    that made the call (so that the url, state, etc can be obtained).
+
+    Additionally, a threadpool is used to limit the creation of threads by the async client ep
+
+    **Example**::
+    
+        def success(rv, client=None): 
+            client.__class__.count = getattr(client.__class__, 'count', 0) + 1
+            print 'call', client.i, 'total calls', client.__class__.count, 'result', rv.data
+            
+        def error(err, client=None):
+            print 'call', client.i, 'total calls', client.__class__.count, 'error', err
+
+        for i in range(50):
+            client = HTTPAsyncClient(method='GET', onsuccess=success, onerror=error, threadpool=InstancedThreadPool(10))
+            client.i = i # just to keep some context in the example
+            client.request('http://echo.jsontest.com/callnumber/%s' % i)
+
     '''
     
-    def __init__(self, url=None, headers=None, origin_req_host=None, method='POST', onsuccess=None, onerror=None, sync=False, timeout=None, server=None):
+    def __init__(self, url=None, headers=None, origin_req_host=None, method='POST', onsuccess=None, onerror=None, sync=False, timeout=None, server=None, threadpool=None, **kargs):
         '''
         
         :param str url: the url that this request object should bind to. This is optional and the url provided with
@@ -456,20 +476,17 @@ class HTTPAsyncClient(HTTPClientEndPoint, threading.Thread):
         :param bool sync: whether this request should be synchronous (True) or async (default) 
         :param timeout: (currently not implemented). Whether to timeout if no response is received in a specified time.
         :param Server server: (defaults None). A reference to the server object to which this endpoint belongs to
+        :param threadpool: a reference to a threadpool object. If None, the InstancedThreadPool (with default number of workers) is used
         '''
-        do_nothing = lambda x: None
+        do_nothing = lambda x, client: None
         self.onsuccess = onsuccess or do_nothing
         self.onerror = onerror or do_nothing
         self.sync = sync
         self.timeout = timeout
+        self.threadpool = threadpool or InstancedThreadPool()
         super(HTTPAsyncClient, self).__init__(url=None, headers=None, origin_req_host=None, method=method, server=server)
-        threading.Thread.__init__(self)
-        self.daemon = True
 
     def _request(self, url=None, data=None, headers=None, method=None):
-        if self.sync:
-            return super(HTTPAsyncClient, self)._request(url=None, data=None, headers=None, method=None)
-        
         self.url = url or self.url
         self.headers = headers or self.headers
         self.data = data or self.data
@@ -477,47 +494,50 @@ class HTTPAsyncClient(HTTPClientEndPoint, threading.Thread):
         if self.method is None: self.method = 'POST'
         if self.method.upper() != 'POST': self.method = 'GET'
 
-        try:
-            self.start()
-        except RuntimeError:
-            raise
+        if self.sync:
+            self.run()
+        
+        self.threadpool.apply_async(self.run)
     
     def run(self):
         
         try:
             rv = super(HTTPAsyncClient, self)._request(url=self.url, data=self.data, headers=self.headers, method=self.method)
-            self.onsuccess(rv)
+            self.onsuccess(rv, client=self)
         except (urllib2.HTTPError, urllib2.URLError) as err:
-            self.onerror(err)
+            self.onerror(err, client=self)
             
 if __name__ == '__main__':
     
-    import pprint
-    def success(rv): 
-        print rv
+    def success(rv, client=None): 
+        client.__class__.count = getattr(client.__class__, 'count', 0) + 1
+        print 'call', client.i, 'total calls', client.__class__.count, 'result', rv.data
         
-    def error(err):
-        print err
+    def error(err, client=None):
+        print 'call', client.i, 'total calls', client.__class__.count, 'error', err
     
-    headers = Header()
-    req = HTTPClientEndPoint(method='GET')
-    for i in range(5):
-        print 'making request to localhost:9999', i
-        resp = req.request('http://localhost:9999/index')
-        print 'got response', resp.data
-        print 'got cookies', resp.extract_cookies()
+   #  headers = Header()
+   #  req = HTTPClientEndPoint(method='GET')
+   #  for i in range(5):
+   #      print 'making request to localhost:9999', i
+   #      resp = req.request('http://localhost:9999/index')
+   #      print 'got response', resp.data
+   #      print 'got cookies', resp.extract_cookies()
     
-    resp = HTTPClientEndPoint(method='GET').request('http://anand.ignitelabs.local')
-    print 'got response', resp.data
-    print 'got cookies', resp.extract_cookies()
+   #  resp = HTTPClientEndPoint(method='GET').request('http://localhost:9999')
+   #  print 'got response', resp.data
+   #  print 'got cookies', resp.extract_cookies()
     
-#    print 'get_request', HTTPClientEndPoint(method='GET').request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
-#    print 'post_request', HTTPClientEndPoint().request('http://localhost:9000/poster', headers=headers, a=10, b='hello', c=1.2)
-#    print 'json_in_request', HTTPClientEndPoint().json_in_request('http://localhost:9000/jsonin', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
-#    print 'json_out_request', HTTPClientEndPoint().json_out_request('http://localhost:9000/jsonout', headers=headers, a=10, b='hello', c=1.2)
-#    print 'json_inout_request', HTTPClientEndPoint().json_inout_request('http://localhost:9000/jsoninout', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
-#    
-#    for i in range(5):
-#        HTTPAsyncClient(method='GET', onsuccess=success, onerror=error).request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
-#        print 'done', i
-#        
+   # print 'get_request', HTTPClientEndPoint(method='GET').request('http://localhost:9000/getter', headers=headers, a=10, b='hello', c=1.2)
+   # print 'post_request', HTTPClientEndPoint().request('http://localhost:9000/poster', headers=headers, a=10, b='hello', c=1.2)
+   # print 'json_in_request', HTTPClientEndPoint().json_in_request('http://localhost:9000/jsonin', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
+   # print 'json_out_request', HTTPClientEndPoint().json_out_request('http://localhost:9000/jsonout', headers=headers, a=10, b='hello', c=1.2)
+   # print 'json_inout_request', HTTPClientEndPoint().json_inout_request('http://localhost:9000/jsoninout', headers=headers, a=10, b='hello', c=1.2, d=dict(x=1, y='hello', z=True, w=1.2))
+
+    #from boots import use_gevent
+    for i in range(50):
+        client = HTTPAsyncClient(method='GET', onsuccess=success, onerror=error, threadpool=InstancedThreadPool(10))
+        client.i = i # just to keep some context in the example
+        client.request('http://echo.jsontest.com/callnumber/%s' % i)
+
+    raw_input("Waiting. Hit a key to terminate")
