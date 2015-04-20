@@ -35,7 +35,7 @@ This example demonstrates basic logging with a config file. The config file used
 
 Here the **percent = %** and the use of **${percent}** demonstrates interpolation as defined by configobj_. A standard interpolation variable introduced by boots is **_proj_dir** which represents the project root. This is typically determined automatically by boots and boots expects a *conf* subdir within the project root to hold the config files. These can be overridden by parameters to *start_server*::
 
-	main_server.start_server(proj_dir='.', conf_dir='conf', defhost='localhost', defport=9999, standalone=True, description="Simple logging setup")
+	main_server.start_server(proj_dir='.', conf_subdir='conf', defhost='localhost', defport=9999, standalone=True, description="Simple logging setup")
 
 By default, boots looks for an ini file in the *conf* folder with the same name as the python file invoked (in this example's case *simple_log.ini*). Moreover, it also looks for *common.ini* and meregs common.ini with <filename>.ini such that <filename.ini> overrides any configurations in common.ini. This behavior, too, can be controlled by parameters.
 
